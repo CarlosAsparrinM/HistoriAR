@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
+import '../services/user_service.dart';
 import 'main_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen>
   late TabController _tabController;
 
   final _authService = AuthService();
+  final _userService = UserService();
   bool _isLoading = false;
 
   final _loginEmailController = TextEditingController();
@@ -70,6 +73,16 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final token = await _authService.login(email: email, password: password);
       authState.token = token;
+      // Persistimos token y userId para otras pantallas
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authToken', token);
+
+      try {
+        final me = await _userService.getMyProfile(token);
+        await prefs.setString('userId', me.id);
+      } catch (_) {
+        // Si falla obtener el perfil, igual continuamos con token
+      }
       _goToApp();
     } catch (e) {
       _showError(e.toString().replaceFirst('Exception: ', ''));

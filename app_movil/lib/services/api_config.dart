@@ -3,4 +3,4 @@
 /// Si ejecutas en emulador o dispositivo físico, cambia esta URL
 /// por la IP de tu máquina (por ejemplo: http://192.168.1.10:4000
 /// o http://10.0.2.2:4000 en emulador Android).
-const String apiBaseUrl = 'http://localhost:4000';
+const String apiBaseUrl = 'https://d2y03dnp525sis.cloudfront.net';
