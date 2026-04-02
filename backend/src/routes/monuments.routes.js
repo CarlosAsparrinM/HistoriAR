@@ -137,7 +137,7 @@ router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('m
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
-    const key = `models/${monumentId}/${filename}`;
+    const key = `models/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
     const modelUrl = await s3Service.uploadModelToS3(

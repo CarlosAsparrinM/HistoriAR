@@ -81,7 +81,7 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
-    const key = `images/${monumentId}/${filename}`;
+    const key = `images/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
     const imageUrl = await s3Service.uploadImageToS3(
@@ -131,7 +131,7 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
-    const key = `models/${monumentId}/${filename}`;
+    const key = `models/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
     const modelUrl = await s3Service.uploadModelToS3(

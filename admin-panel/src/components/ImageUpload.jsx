@@ -128,7 +128,7 @@ function ImageUpload({
       const safeName = selectedFile.name.replace(/\s+/g, '_');
       const keyPrefix = entityType === 'institutions'
         ? `images/institutions/${entityId}`
-        : `images/${entityId}`;
+        : `images/monuments/${entityId}`;
       const key = `${keyPrefix}/${Date.now()}_${safeName}`;
 
       const { url: presignedUrl, publicUrl } = await Api.getPresignedUploadUrl({

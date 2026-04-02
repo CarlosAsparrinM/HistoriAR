@@ -4,6 +4,82 @@ import * as s3Service from '../services/s3Service.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
+function parseBooleanFlag(value, defaultValue = false) {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') return value.toLowerCase() === 'true';
+  return Boolean(value);
+}
+
+function toNullableInteger(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error('Los anios del periodo deben ser numericos.');
+  }
+  return Math.trunc(parsed);
+}
+
+function normalizeMonumentPayload(payload) {
+  const normalized = { ...payload };
+
+  if (normalized.period && typeof normalized.period === 'object') {
+    const period = { ...normalized.period };
+    const isIdentified = parseBooleanFlag(period.isIdentified, true);
+    const startYear = toNullableInteger(period.startYear);
+    const endYear = toNullableInteger(period.endYear);
+
+    if (isIdentified && startYear === null) {
+      throw new Error('Debe ingresar al menos el anio de inicio o marcarlo como no identificado.');
+    }
+
+    if (isIdentified && startYear !== null && endYear !== null && endYear < startYear) {
+      throw new Error('El anio de fin no puede ser menor al anio de inicio.');
+    }
+
+    period.isIdentified = isIdentified;
+    period.startYear = isIdentified ? startYear : null;
+    period.endYear = isIdentified ? endYear : null;
+    normalized.period = period;
+  }
+
+  if (normalized.discovery && typeof normalized.discovery === 'object') {
+    const discovery = { ...normalized.discovery };
+    const isDateKnown = parseBooleanFlag(discovery.isDateKnown, false);
+    const isDiscovererKnown = parseBooleanFlag(discovery.isDiscovererKnown, false);
+
+    discovery.isDateKnown = isDateKnown;
+    discovery.isDiscovererKnown = isDiscovererKnown;
+
+    if (isDateKnown) {
+      if (!discovery.discoveredAt) {
+        throw new Error('Debe ingresar la fecha de descubrimiento o marcarla como desconocida.');
+      }
+      const parsedDate = new Date(discovery.discoveredAt);
+      if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error('La fecha de descubrimiento no es valida.');
+      }
+      discovery.discoveredAt = parsedDate;
+    } else {
+      discovery.discoveredAt = null;
+    }
+
+    if (isDiscovererKnown) {
+      const trimmedName = String(discovery.discovererName || '').trim();
+      if (!trimmedName) {
+        throw new Error('Debe ingresar el nombre del descubridor o marcarlo como desconocido.');
+      }
+      discovery.discovererName = trimmedName;
+    } else {
+      discovery.discovererName = null;
+    }
+
+    normalized.discovery = discovery;
+  }
+
+  return normalized;
+}
+
 async function signIfNeeded(value) {
   const key = s3Service.resolveS3Key(value);
   if (!key) return value || null;
@@ -48,7 +124,7 @@ export async function getMonument(req, res) {
 
 export async function createMonumentController(req, res) {
   try {
-    const payload = { ...req.body, createdBy: req.user?.sub };
+    const payload = normalizeMonumentPayload({ ...req.body, createdBy: req.user?.sub });
     
     // Note: Image and model uploads should be done through /api/uploads endpoints
     // This controller only handles monument data creation
@@ -62,7 +138,7 @@ export async function createMonumentController(req, res) {
 
 export async function updateMonumentController(req, res) {
   try {
-    const data = { ...req.body };
+    const data = normalizeMonumentPayload({ ...req.body });
     
     // Get current monument to check status change
     const currentMonument = await getMonumentById(req.params.id);
@@ -368,7 +444,7 @@ export async function uploadModelVersionController(req, res) {
     const filename = `${timestamp}_${req.file.originalname}`;
 
     // Upload to S3
-    const modelKey = `models/${monumentId}/${filename}`;
+    const modelKey = `models/monuments/${monumentId}/${filename}`;
     const modelUrl = await s3Service.uploadModelToS3(
       req.file.buffer,
       filename,

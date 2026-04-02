@@ -76,6 +76,7 @@ export async function createHistoricalData(req, res) {
     }
 
     let imageUrl = null;
+    let s3ImageKey = null;
     let s3ImageFileName = null;
 
     // Handle image upload if provided
@@ -86,9 +87,10 @@ export async function createHistoricalData(req, res) {
         const timestamp = Date.now();
         const filename = `historical_${timestamp}_${req.file.originalname}`;
         
+        s3ImageKey = `images/monuments/${monumentId}/historical/${filename}`;
         imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
-          `images/historical/${monumentId}/${filename}`,
+          s3ImageKey,
           req.file.mimetype
         );
         s3ImageFileName = filename;
@@ -111,6 +113,7 @@ export async function createHistoricalData(req, res) {
       title,
       description,
       imageUrl,
+      s3ImageKey,
       s3ImageFileName,
       discoveryInfo,
       activities: activities ? JSON.parse(activities) : [],
@@ -164,13 +167,15 @@ export async function updateHistoricalData(req, res) {
         const timestamp = Date.now();
         const filename = `historical_${timestamp}_${req.file.originalname}`;
         
+        const s3ImageKey = `images/monuments/${historicalData.monumentId}/historical/${filename}`;
         const imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
-          `images/historical/${historicalData.monumentId}/${filename}`,
+          s3ImageKey,
           req.file.mimetype
         );
         
         historicalData.imageUrl = imageUrl;
+        historicalData.s3ImageKey = s3ImageKey;
         historicalData.s3ImageFileName = filename;
       } catch (uploadError) {
         console.error('Error uploading image:', uploadError);

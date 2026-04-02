@@ -114,7 +114,7 @@ export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentT
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const key = `images/${monumentId}/${fileName}`;
+    const key = `images/monuments/${monumentId}/${fileName}`;
 
     console.log(`[S3] Uploading image: ${fileName} to ${key}`);
 
@@ -179,7 +179,7 @@ export const uploadModelToS3 = async (fileBuffer, fileName, monumentId, contentT
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const key = `models/${monumentId}/${fileName}`;
+    const key = `models/monuments/${monumentId}/${fileName}`;
 
     console.log(`[S3] Uploading model: ${fileName} to ${key}`);
 
@@ -238,7 +238,7 @@ export const listMonumentFiles = async (monumentId) => {
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const prefixes = [`images/${monumentId}/`, `models/${monumentId}/`];
+    const prefixes = [`images/monuments/${monumentId}/`, `models/monuments/${monumentId}/`];
     const allFiles = [];
 
     for (const prefix of prefixes) {
@@ -269,7 +269,7 @@ export const deleteMonumentFiles = async (monumentId) => {
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const prefixes = [`images/${monumentId}/`, `models/${monumentId}/`];
+    const prefixes = [`images/monuments/${monumentId}/`, `models/monuments/${monumentId}/`];
 
     console.log(`[S3] Deleting all files for monument: ${monumentId}`);
 

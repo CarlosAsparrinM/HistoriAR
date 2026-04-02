@@ -40,6 +40,7 @@ import {
 } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
+import { Slider } from './ui/slider';
 import {
   Plus,
   Search,
@@ -71,6 +72,55 @@ const statusColors = {
   'Disponible': 'default',
   'Oculto': 'secondary',
   'Borrado': 'destructive'
+};
+
+const TIMELINE_MIN_YEAR = -3000;
+const TIMELINE_MAX_YEAR = new Date().getFullYear();
+
+const formatYearLabel = (yearValue) => {
+  const year = Number(yearValue);
+  if (!Number.isFinite(year)) return '';
+  return year < 0 ? `${Math.abs(year)} a.C.` : `${year} d.C.`;
+};
+
+const getPeriodDisplay = (period) => {
+  if (!period) return 'No identificado';
+  if (period.isIdentified === false) return 'No identificado';
+
+  const startYear = Number(period.startYear);
+  const endYear = Number(period.endYear);
+  const hasStartYear = Number.isFinite(startYear);
+  const hasEndYear = Number.isFinite(endYear);
+
+  if (hasStartYear && hasEndYear) {
+    return `${formatYearLabel(startYear)} - ${formatYearLabel(endYear)}`;
+  }
+
+  if (hasStartYear) {
+    return formatYearLabel(startYear);
+  }
+
+  if (period.name) {
+    return period.name;
+  }
+
+  return 'No identificado';
+};
+
+const getDiscoveryDateDisplay = (discovery) => {
+  if (!discovery || discovery.isDateKnown === false) return 'No identificado';
+  if (!discovery.discoveredAt) return 'No identificado';
+
+  const parsedDate = new Date(discovery.discoveredAt);
+  if (Number.isNaN(parsedDate.getTime())) return 'No identificado';
+
+  return parsedDate.toLocaleDateString('es-PE');
+};
+
+const getDiscovererDisplay = (discovery) => {
+  if (!discovery || discovery.isDiscovererKnown === false) return 'No identificado';
+  const name = String(discovery.discovererName || '').trim();
+  return name || 'No identificado';
 };
 
 function MonumentsManager() {
@@ -375,6 +425,8 @@ function MonumentsManager() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Modelo 3D</TableHead>
                 <TableHead>Período</TableHead>
+                <TableHead>Fecha descubrimiento</TableHead>
+                <TableHead>Descubridor</TableHead>
                 <TableHead>Última modificación</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -382,14 +434,14 @@ function MonumentsManager() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     <p className="mt-2 text-muted-foreground">Cargando monumentos...</p>
                   </TableCell>
                 </TableRow>
               ) : filteredMonuments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
+                  <TableCell colSpan={10} className="text-center py-8">
                     <p className="text-muted-foreground">No se encontraron monumentos</p>
                   </TableCell>
                 </TableRow>
@@ -434,7 +486,13 @@ function MonumentsManager() {
                       )}
                     </TableCell>
                     <TableCell>
-                      {monument.period?.name || 'Sin período'}
+                      {getPeriodDisplay(monument.period)}
+                    </TableCell>
+                    <TableCell>
+                      {getDiscoveryDateDisplay(monument.discovery)}
+                    </TableCell>
+                    <TableCell>
+                      {getDiscovererDisplay(monument.discovery)}
                     </TableCell>
                     <TableCell>
                       {new Date(monument.updatedAt || monument.createdAt).toLocaleDateString('es-PE')}
@@ -495,6 +553,17 @@ function MonumentsManager() {
 }
 
 function MonumentForm({ onClose, monument = null, institutions = [], categories = [], onSave, toast }) {
+  const initialStartYear = monument?.period?.startYear;
+  const initialEndYear = monument?.period?.endYear;
+  const initialIsIdentified = monument?.period?.isIdentified
+    ?? (monument ? Boolean(initialStartYear || initialEndYear) : true);
+  const initialDiscoveryDate = (() => {
+    if (!monument?.discovery?.discoveredAt) return '';
+    const parsedDate = new Date(monument.discovery.discoveredAt);
+    if (Number.isNaN(parsedDate.getTime())) return '';
+    return parsedDate.toISOString().slice(0, 10);
+  })();
+
   const [formData, setFormData] = useState({
     name: monument?.name || '',
     categoryId: monument?.categoryId || '',
@@ -509,13 +578,34 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     },
     period: {
       name: monument?.period?.name || '',
-      startYear: monument?.period?.startYear || '',
-      endYear: monument?.period?.endYear || ''
+      isIdentified: initialIsIdentified,
+      startYear: initialStartYear ?? '',
+      endYear: initialEndYear ?? ''
+    },
+    discovery: {
+      isDateKnown: monument?.discovery?.isDateKnown ?? Boolean(initialDiscoveryDate),
+      discoveredAt: initialDiscoveryDate,
+      isDiscovererKnown: monument?.discovery?.isDiscovererKnown ?? Boolean(monument?.discovery?.discovererName),
+      discovererName: monument?.discovery?.discovererName || ''
     },
     imageUrl: monument?.imageUrl || null,
     s3ImageKey: monument?.s3ImageKey || null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const sanitizeYearInput = (value) => {
+    if (value === '' || value === null || value === undefined) return '';
+    const parsed = parseInt(value, 10);
+    return Number.isNaN(parsed) ? '' : parsed;
+  };
+
+  const getTimelineRange = () => {
+    const startYear = sanitizeYearInput(formData.period.startYear);
+    const endYear = sanitizeYearInput(formData.period.endYear);
+    const safeStart = startYear === '' ? 1200 : startYear;
+    const safeEnd = endYear === '' ? safeStart : endYear;
+    return [Math.min(safeStart, safeEnd), Math.max(safeStart, safeEnd)];
+  };
 
   // Validaciones
   const validateForm = () => {
@@ -539,8 +629,18 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       return false;
     }
 
+    // Validar cronología identificada
+    if (formData.period.isIdentified && !formData.period.startYear && formData.period.startYear !== 0) {
+      toast({
+        title: "Error de validación",
+        description: "Debes seleccionar al menos un año en la línea de tiempo o marcar como no identificado",
+        variant: "warning"
+      });
+      return false;
+    }
+
     // Validar años del período
-    if (formData.period.startYear && formData.period.endYear) {
+    if (formData.period.isIdentified && formData.period.startYear !== '' && formData.period.endYear !== '') {
       const startYear = parseInt(formData.period.startYear);
       const endYear = parseInt(formData.period.endYear);
       
@@ -552,6 +652,24 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
         });
         return false;
       }
+    }
+
+    if (formData.discovery.isDateKnown && !formData.discovery.discoveredAt) {
+      toast({
+        title: "Error de validación",
+        description: "Debes ingresar la fecha de descubrimiento o marcarla como desconocida",
+        variant: "warning"
+      });
+      return false;
+    }
+
+    if (formData.discovery.isDiscovererKnown && !formData.discovery.discovererName.trim()) {
+      toast({
+        title: "Error de validación",
+        description: "Debes ingresar el nombre del descubridor o marcarlo como desconocido",
+        variant: "warning"
+      });
+      return false;
     }
 
     // Validar coordenadas (si se proporciona una, se debe proporcionar la otra)
@@ -569,6 +687,26 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePeriodChange = (partialPeriod) => {
+    setFormData(prev => ({
+      ...prev,
+      period: {
+        ...prev.period,
+        ...partialPeriod
+      }
+    }));
+  };
+
+  const handleDiscoveryChange = (partialDiscovery) => {
+    setFormData(prev => ({
+      ...prev,
+      discovery: {
+        ...prev.discovery,
+        ...partialDiscovery
+      }
+    }));
   };
 
   // Manejar cambio de institución y auto-completar distrito y dirección
@@ -612,13 +750,30 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     setIsSubmitting(true);
     
     try {
+      const payload = {
+        ...formData,
+        period: {
+          ...formData.period,
+          isIdentified: Boolean(formData.period.isIdentified),
+          startYear: formData.period.isIdentified ? sanitizeYearInput(formData.period.startYear) : null,
+          endYear: formData.period.isIdentified ? sanitizeYearInput(formData.period.endYear) : null
+        },
+        discovery: {
+          ...formData.discovery,
+          isDateKnown: Boolean(formData.discovery.isDateKnown),
+          discoveredAt: formData.discovery.isDateKnown ? formData.discovery.discoveredAt : null,
+          isDiscovererKnown: Boolean(formData.discovery.isDiscovererKnown),
+          discovererName: formData.discovery.isDiscovererKnown ? formData.discovery.discovererName.trim() : null
+        }
+      };
+
       if (monument) {
         // Actualizar monumento existente
-        await apiService.updateMonument(monument._id, formData);
+        await apiService.updateMonument(monument._id, payload);
       } else {
         // Crear nuevo monumento con estado "Oculto" por defecto
         const newMonumentData = {
-          ...formData,
+          ...payload,
           status: 'Oculto' // Estado por defecto para monumentos nuevos
         };
         await apiService.createMonument(newMonumentData);
@@ -764,35 +919,156 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <Label htmlFor="periodName">Período</Label>
-          <Input 
-            id="periodName" 
-            placeholder="Ej: Horizonte Tardío"
-            value={formData.period.name}
-            onChange={(e) => handleInputChange('period', { ...formData.period, name: e.target.value })}
-          />
+      <div className="space-y-4 border rounded-lg p-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="periodName">Período</Label>
+            <Input
+              id="periodName"
+              placeholder="Ej: Horizonte Tardío"
+              value={formData.period.name}
+              onChange={(e) => handlePeriodChange({ name: e.target.value })}
+            />
+          </div>
+          <div>
+            <Label>Cronología identificada</Label>
+            <Select
+              value={formData.period.isIdentified ? 'identified' : 'unknown'}
+              onValueChange={(value) => {
+                const isIdentified = value === 'identified';
+                handlePeriodChange({
+                  isIdentified,
+                  startYear: isIdentified ? (formData.period.startYear === '' ? 1200 : formData.period.startYear) : '',
+                  endYear: isIdentified ? (formData.period.endYear === '' ? (formData.period.startYear === '' ? 1200 : formData.period.startYear) : formData.period.endYear) : ''
+                });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="identified">Identificada</SelectItem>
+                <SelectItem value="unknown">No identificada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-        <div>
-          <Label htmlFor="startYear">Año inicio</Label>
-          <Input 
-            id="startYear" 
-            type="number"
-            placeholder="1200"
-            value={formData.period.startYear}
-            onChange={(e) => handleInputChange('period', { ...formData.period, startYear: parseInt(e.target.value) || '' })}
-          />
-        </div>
-        <div>
-          <Label htmlFor="endYear">Año fin</Label>
-          <Input 
-            id="endYear" 
-            type="number"
-            placeholder="1532"
-            value={formData.period.endYear}
-            onChange={(e) => handleInputChange('period', { ...formData.period, endYear: parseInt(e.target.value) || '' })}
-          />
+
+        {formData.period.isIdentified ? (
+          <div className="space-y-4">
+            <div>
+              <Label>Línea de tiempo</Label>
+              <p className="text-xs text-muted-foreground mt-1 mb-3">
+                Selecciona el rango histórico de la huaca
+              </p>
+              <Slider
+                min={TIMELINE_MIN_YEAR}
+                max={TIMELINE_MAX_YEAR}
+                step={1}
+                value={getTimelineRange()}
+                onValueChange={([startYear, endYear]) => {
+                  handlePeriodChange({ startYear, endYear });
+                }}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                <span>{formatYearLabel(TIMELINE_MIN_YEAR)}</span>
+                <span>{formatYearLabel(TIMELINE_MAX_YEAR)}</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="startYear">Año inicio</Label>
+                <Input
+                  id="startYear"
+                  type="number"
+                  placeholder="1200"
+                  value={formData.period.startYear}
+                  onChange={(e) => handlePeriodChange({ startYear: sanitizeYearInput(e.target.value) })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="endYear">Año fin</Label>
+                <Input
+                  id="endYear"
+                  type="number"
+                  placeholder="1532"
+                  value={formData.period.endYear}
+                  onChange={(e) => handlePeriodChange({ endYear: sanitizeYearInput(e.target.value) })}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Rango seleccionado: {formatYearLabel(getTimelineRange()[0])} - {formatYearLabel(getTimelineRange()[1])}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Esta huaca se registrará con cronología no identificada.
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-4 border rounded-lg p-4">
+        <h3 className="text-sm font-medium">Datos de descubrimiento</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>Fecha de descubrimiento</Label>
+            <Select
+              value={formData.discovery.isDateKnown ? 'known' : 'unknown'}
+              onValueChange={(value) => handleDiscoveryChange({
+                isDateKnown: value === 'known',
+                discoveredAt: value === 'known' ? formData.discovery.discoveredAt : ''
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="known">Conocida</SelectItem>
+                <SelectItem value="unknown">Desconocida</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.discovery.isDateKnown ? (
+              <Input
+                className="mt-2"
+                type="date"
+                value={formData.discovery.discoveredAt}
+                onChange={(e) => handleDiscoveryChange({ discoveredAt: e.target.value })}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Se guardará como fecha no identificada.</p>
+            )}
+          </div>
+
+          <div>
+            <Label>Nombre del descubridor</Label>
+            <Select
+              value={formData.discovery.isDiscovererKnown ? 'known' : 'unknown'}
+              onValueChange={(value) => handleDiscoveryChange({
+                isDiscovererKnown: value === 'known',
+                discovererName: value === 'known' ? formData.discovery.discovererName : ''
+              })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="known">Conocido</SelectItem>
+                <SelectItem value="unknown">Desconocido</SelectItem>
+              </SelectContent>
+            </Select>
+            {formData.discovery.isDiscovererKnown ? (
+              <Input
+                className="mt-2"
+                placeholder="Nombre del descubridor"
+                value={formData.discovery.discovererName}
+                onChange={(e) => handleDiscoveryChange({ discovererName: e.target.value })}
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground mt-2">Se guardará como descubridor no identificado.</p>
+            )}
+          </div>
         </div>
       </div>
 

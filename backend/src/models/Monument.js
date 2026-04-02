@@ -12,8 +12,15 @@ const MonumentSchema = new mongoose.Schema({
   },
   period: {
     name:      { type: String },
+    isIdentified: { type: Boolean, default: true },
     startYear: { type: Number },
     endYear:   { type: Number }
+  },
+  discovery: {
+    isDateKnown: { type: Boolean, default: false },
+    discoveredAt: { type: Date },
+    isDiscovererKnown: { type: Boolean, default: false },
+    discovererName: { type: String }
   },
   culture:      { type: String },
   imageUrl:     { type: String }, // S3 URL for monument images

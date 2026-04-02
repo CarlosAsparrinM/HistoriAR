@@ -131,7 +131,7 @@ function ModelUpload({
     
     try {
       const safeName = selectedFile.name.replace(/\s+/g, '_');
-      const key = `models/${monumentId}/${Date.now()}_${safeName}`;
+      const key = `models/monuments/${monumentId}/${Date.now()}_${safeName}`;
       const { url: presignedUrl, publicUrl } = await apiService.getPresignedUploadUrl({
         key,
         contentType: selectedFile.type || 'application/octet-stream',
