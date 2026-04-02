@@ -141,9 +141,8 @@ class Tiles3DService {
    * @param {string} timestamp - Timestamp para versionado
    * @returns {Promise<string>} URL del tileset.json en S3
    */
-  async uploadTilesToS3(localPath, monumentName, timestamp) {
-    const sanitizedName = monumentName.replace(/[^a-zA-Z0-9]/g, '_');
-    const s3Path = `models/${sanitizedName}/${timestamp}`;
+  async uploadTilesToS3(localPath, monumentId, timestamp) {
+    const s3Path = `models/monuments/${monumentId}/tiles/${timestamp}`;
     
     try {
       // Leer todos los archivos del directorio de tiles
@@ -262,7 +261,7 @@ class Tiles3DService {
       }
       
       // Subir tiles a S3
-      const tilesetUrl = await this.uploadTilesToS3(tilesDir, monumentName, timestamp);
+      const tilesetUrl = await this.uploadTilesToS3(tilesDir, monumentId, timestamp);
       
       // Actualizar Monument con URL de tiles
       await Monument.findByIdAndUpdate(monumentId, {

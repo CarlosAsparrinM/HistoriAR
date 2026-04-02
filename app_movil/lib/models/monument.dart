@@ -8,7 +8,9 @@ class Monument {
   final String status; // Disponible, Visitado, Oculto, etc.
   final LatLng position;
   final String? imageUrl;
+  final String? s3ImageKey;
   final String? model3DUrl;
+  final String? s3ModelKey;
   final String? district;
 
   const Monument({
@@ -18,7 +20,9 @@ class Monument {
     required this.status,
     required this.position,
     this.imageUrl,
+    this.s3ImageKey,
     this.model3DUrl,
+    this.s3ModelKey,
     this.district,
   });
 
@@ -39,7 +43,9 @@ class Monument {
       status: json['status'] as String? ?? 'Disponible',
       position: LatLng(lat, lng),
       imageUrl: json['imageUrl'] as String?,
+      s3ImageKey: json['s3ImageKey'] as String?,
       model3DUrl: json['model3DUrl'] as String?,
+      s3ModelKey: json['s3ModelKey'] as String?,
       district: (location['district'] as String?) ?? '',
     );
   }

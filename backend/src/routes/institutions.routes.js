@@ -53,9 +53,9 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
     const timestamp = Date.now();
     const extension = req.file.originalname.split('.').pop();
     const filename = `institution_${monumentId}_${timestamp}.${extension}`;
+    const key = `images/institutions/${filename}`;
     
     // Upload file to S3 using institutions folder
-    const key = `images/institutions/${filename}`;
     const publicUrl = await s3Service.uploadFileToS3(
       req.file.buffer,
       key,
@@ -64,10 +64,12 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
     
     // Actualizar la institución con la nueva URL
     institution.imageUrl = publicUrl;
+    institution.s3ImageKey = key;
     await institution.save();
 
     res.json({
       imageUrl: publicUrl,
+      s3ImageKey: key,
       fileName: req.file.originalname,
       size: req.file.size
     });

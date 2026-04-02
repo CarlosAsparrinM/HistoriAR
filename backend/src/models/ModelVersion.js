@@ -15,6 +15,10 @@ const ModelVersionSchema = new mongoose.Schema({
     type: String, 
     required: true 
   },
+  s3Key: {
+    type: String,
+    index: true
+  },
   uploadedAt: { 
     type: Date, 
     default: Date.now,

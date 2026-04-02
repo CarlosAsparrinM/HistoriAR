@@ -14,6 +14,7 @@ const InstitutionSchema = new mongoose.Schema({
   phone:       { type: String },
   website:     { type: String },
   imageUrl:    { type: String },
+  s3ImageKey:  { type: String },
   status:      { type: String, enum: ['Disponible', 'Oculto', 'Borrado'], default: 'Oculto' },
   location: {
     lat: { 

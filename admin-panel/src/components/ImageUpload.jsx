@@ -124,13 +124,20 @@ function ImageUpload({
     setUploadProgress(0);
     
     try {
-      const formData = new FormData();
-      formData.append('image', selectedFile);
-      if (monumentId) {
-        formData.append('monumentId', monumentId);
-      }
-      
-      // Simular progreso de subida
+      const entityId = monumentId || entityType;
+      const safeName = selectedFile.name.replace(/\s+/g, '_');
+      const keyPrefix = entityType === 'institutions'
+        ? `images/institutions/${entityId}`
+        : `images/monuments/${entityId}`;
+      const key = `${keyPrefix}/${Date.now()}_${safeName}`;
+
+      const { url: presignedUrl, publicUrl } = await Api.getPresignedUploadUrl({
+        key,
+        contentType: selectedFile.type || 'application/octet-stream',
+        expiresIn: 900,
+      });
+
+      // Simular progreso de subida mientras hacemos PUT directo a S3
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -141,33 +148,28 @@ function ImageUpload({
         });
       }, 200);
       
-      // Endpoint de API para subida de imágenes (dinámico según el tipo de entidad)
-      // Usar la base URL del servicio API para respetar la configuración de entorno
-      const endpoint = `${Api.baseURL.replace(/\/$/, '')}/${entityType}/upload-image`;
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: formData,
-      });
-      
+      await Api.uploadFileToPresignedUrl(presignedUrl, selectedFile);
+
       clearInterval(progressInterval);
-      
-      if (!response.ok) {
-        throw new Error(`Error de carga: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      
+
       setUploadProgress(100);
       setUploadStatus('success');
-      
-      // Llamar callback de éxito con la URL de GCS
+
       if (onUploadComplete) {
-        onUploadComplete(result.imageUrl, selectedFile.name);
+        onUploadComplete({
+          key,
+          publicUrl,
+          fileName: selectedFile.name,
+          previewUrl,
+          entityType,
+          entityId,
+        });
       }
-      
+
+      setTimeout(() => {
+        clearSelection();
+      }, 2000);
+
     } catch (error) {
       setUploadStatus('error');
       setErrorMessage(error.message || 'Error al subir el archivo');
@@ -176,7 +178,7 @@ function ImageUpload({
         onUploadError(error);
       }
     }
-  }, [selectedFile, onUploadComplete, onUploadError]);
+  }, [selectedFile, onUploadComplete, onUploadError, previewUrl, entityType, monumentId]);
 
   // Limpiar selección
   const clearSelection = useCallback(() => {

@@ -1,20 +1,64 @@
 import { 
   PutObjectCommand, 
+  GetObjectCommand,
   DeleteObjectCommand, 
   DeleteObjectsCommand, 
-  ListObjectsV2Command 
+  ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { getS3Client, getBucketName, getRegion } from '../config/s3.js';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-/**
- * Construct public S3 URL for a given key
- * @param {string} key - S3 object key
- * @returns {string} Public URL
- */
-const getS3Url = (key) => {
+const PUBLIC_URL_EXPIRES_IN = 60 * 60;
+
+export const buildPublicS3Url = (key) => {
   const bucketName = getBucketName();
   const region = getRegion();
   return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+};
+
+export const resolveS3Key = (value) => {
+  if (!value) return null;
+
+  if (value.startsWith('images/') || value.startsWith('models/') || value.startsWith('historical/')) {
+    return value;
+  }
+
+  const bucketName = getBucketName();
+  const region = getRegion();
+  const urlPattern = new RegExp(`https://${bucketName}\\.s3\\.${region}\\.amazonaws\\.com/(.+)`);
+  const match = value.match(urlPattern);
+  if (!match) return null;
+  return decodeURIComponent(match[1].split('?')[0]);
+};
+
+export const generatePresignedGetUrl = async ({ key, expiresIn = PUBLIC_URL_EXPIRES_IN }) => {
+  const s3Client = getS3Client();
+  const bucketName = getBucketName();
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  return getSignedUrl(s3Client, command, { expiresIn });
+};
+/**
+ * Generate a presigned URL for uploading to S3
+ * @param {Object} options
+ * @param {string} options.key - S3 object key (path/filename)
+ * @param {string} options.contentType - MIME type
+ * @param {number} options.expiresIn - Expiration in seconds
+ * @returns {Promise<string>} Presigned URL
+ */
+export const generatePresignedPutUrl = async ({ key, contentType, expiresIn = 3600 }) => {
+  const s3Client = getS3Client();
+  const bucketName = getBucketName();
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    ContentType: contentType,
+  });
+  const url = await getSignedUrl(s3Client, command, { expiresIn });
+  return url;
 };
 
 /**
@@ -70,7 +114,7 @@ export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentT
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const key = `images/${monumentId}/${fileName}`;
+    const key = `images/monuments/${monumentId}/${fileName}`;
 
     console.log(`[S3] Uploading image: ${fileName} to ${key}`);
 
@@ -82,7 +126,7 @@ export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentT
     });
 
     await s3Client.send(command);
-    const url = getS3Url(key);
+    const url = buildPublicS3Url(key);
     
     console.log(`[S3] Upload successful: ${url}`);
     return url;
@@ -114,7 +158,7 @@ export const uploadMonumentImageToS3 = async (fileBuffer, fileName, contentType 
     });
 
     await s3Client.send(command);
-    const url = getS3Url(key);
+    const url = buildPublicS3Url(key);
     
     console.log(`[S3] Upload successful: ${url}`);
     return url;
@@ -135,7 +179,7 @@ export const uploadModelToS3 = async (fileBuffer, fileName, monumentId, contentT
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const key = `models/${monumentId}/${fileName}`;
+    const key = `models/monuments/${monumentId}/${fileName}`;
 
     console.log(`[S3] Uploading model: ${fileName} to ${key}`);
 
@@ -147,7 +191,7 @@ export const uploadModelToS3 = async (fileBuffer, fileName, monumentId, contentT
     });
 
     await s3Client.send(command);
-    const url = getS3Url(key);
+    const url = buildPublicS3Url(key);
     
     console.log(`[S3] Upload successful: ${url}`);
     return url;
@@ -165,7 +209,7 @@ export const deleteFileFromS3 = async (fileUrl) => {
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const key = extractKeyFromUrl(fileUrl);
+    const key = resolveS3Key(fileUrl);
 
     if (!key) {
       throw new Error(`Invalid S3 URL: ${fileUrl}`);
@@ -194,7 +238,7 @@ export const listMonumentFiles = async (monumentId) => {
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const prefixes = [`images/${monumentId}/`, `models/${monumentId}/`];
+    const prefixes = [`images/monuments/${monumentId}/`, `models/monuments/${monumentId}/`];
     const allFiles = [];
 
     for (const prefix of prefixes) {
@@ -225,7 +269,7 @@ export const deleteMonumentFiles = async (monumentId) => {
   try {
     const s3Client = getS3Client();
     const bucketName = getBucketName();
-    const prefixes = [`images/${monumentId}/`, `models/${monumentId}/`];
+    const prefixes = [`images/monuments/${monumentId}/`, `models/monuments/${monumentId}/`];
 
     console.log(`[S3] Deleting all files for monument: ${monumentId}`);
 
@@ -288,7 +332,7 @@ export const uploadFileToS3 = async (fileBuffer, key, contentType) => {
     });
 
     await s3Client.send(command);
-    const url = getS3Url(key);
+    const url = buildPublicS3Url(key);
     
     console.log(`[S3] Upload successful: ${url}`);
     return url;

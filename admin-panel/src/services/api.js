@@ -225,6 +225,43 @@ class ApiService {
     return this.request(`/tours/institution/${institutionId}?activeOnly=${activeOnly}`);
   }
 
+  // S3 signed uploads
+  buildStorageKey({ entityType, entityId, folder, fileName }) {
+    const safeFileName = fileName.replace(/\s+/g, '_');
+    const normalizedFolder = folder ? `${folder.replace(/^\/+|\/+$/g, '')}/` : '';
+    return `${normalizedFolder}${entityType}/${entityId}/${Date.now()}_${safeFileName}`;
+  }
+
+  async getPresignedUploadUrl({ key, contentType, expiresIn = 3600 }) {
+    return this.request('/uploads/signed-url', {
+      method: 'POST',
+      body: JSON.stringify({ key, contentType, expiresIn }),
+    });
+  }
+
+  async uploadFileToPresignedUrl(presignedUrl, file) {
+    const response = await fetch(presignedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error al subir a S3: ${response.status}`);
+    }
+
+    return true;
+  }
+
+  async confirmModelVersionUpload(monumentId, payload) {
+    return this.request(`/monuments/${monumentId}/model-versions/complete`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Model Versions
   async getModelVersions(monumentId) {
     return this.request(`/monuments/${monumentId}/model-versions`);
