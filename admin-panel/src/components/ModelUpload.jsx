@@ -130,6 +130,14 @@ function ModelUpload({
     setUploadProgress(0);
     
     try {
+      const safeName = selectedFile.name.replace(/\s+/g, '_');
+      const key = `models/${monumentId}/${Date.now()}_${safeName}`;
+      const { url: presignedUrl, publicUrl } = await apiService.getPresignedUploadUrl({
+        key,
+        contentType: selectedFile.type || 'application/octet-stream',
+        expiresIn: 900,
+      });
+
       // Simular progreso de subida
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -140,9 +148,15 @@ function ModelUpload({
           return prev + 10;
         });
       }, 200);
-      
-      // Usar el servicio API para subir el modelo
-      const result = await apiService.uploadModelVersion(monumentId, selectedFile);
+
+      await apiService.uploadFileToPresignedUrl(presignedUrl, selectedFile);
+
+      const result = await apiService.confirmModelVersionUpload(monumentId, {
+        key,
+        filename: selectedFile.name,
+        fileSize: selectedFile.size,
+        contentType: selectedFile.type || 'application/octet-stream',
+      });
       
       clearInterval(progressInterval);
       
@@ -151,7 +165,7 @@ function ModelUpload({
       
       // Llamar callback de éxito con los datos del resultado
       if (onUploadComplete) {
-        onUploadComplete(result);
+        onUploadComplete({ ...result, publicUrl });
       }
       
       // Limpiar después de un breve delay

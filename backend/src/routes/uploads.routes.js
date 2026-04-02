@@ -2,8 +2,55 @@ import { Router } from 'express';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
 import { uploadImage, uploadModel } from '../utils/uploader.js';
 import * as s3Service from '../services/s3Service.js';
+const { generatePresignedGetUrl } = s3Service;
 
 const router = Router();
+
+// Endpoint para obtener una URL firmada de subida a S3
+// POST /api/uploads/signed-url
+// Body: { key, contentType, expiresIn }
+router.post('/signed-url', verifyToken, requireRole('admin'), async (req, res) => {
+  try {
+    const { key, contentType, expiresIn } = req.body;
+
+    if (!key || !contentType) {
+      return res.status(400).json({ error: 'key and contentType are required' });
+    }
+
+    const url = await s3Service.generatePresignedPutUrl({
+      key,
+      contentType,
+      expiresIn: expiresIn || 3600,
+    });
+
+    const publicUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    res.json({ url, publicUrl, key });
+  } catch (error) {
+    console.error('Error generating presigned URL:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate presigned URL' });
+  }
+});
+
+// Endpoint para obtener una URL firmada de descarga desde S3
+router.get('/signed-get', verifyToken, async (req, res) => {
+  try {
+    const { key, expiresIn } = req.query;
+
+    if (!key) {
+      return res.status(400).json({ error: 'key is required' });
+    }
+
+    const url = await generatePresignedGetUrl({
+      key,
+      expiresIn: Number(expiresIn) || 3600,
+    });
+
+    res.json({ url, key });
+  } catch (error) {
+    console.error('Error generating presigned GET URL:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate presigned GET URL' });
+  }
+});
 
 // Note: Signed URLs for S3 can be implemented later if needed
 // For now, we use direct uploads through the backend
@@ -34,6 +81,7 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
+    const key = `images/${monumentId}/${filename}`;
 
     // Upload to S3
     const imageUrl = await s3Service.uploadImageToS3(
@@ -45,6 +93,7 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
 
     res.json({
       imageUrl,
+      s3Key: key,
       filename,
       message: 'Image uploaded successfully to S3'
     });
@@ -82,6 +131,7 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
+    const key = `models/${monumentId}/${filename}`;
 
     // Upload to S3
     const modelUrl = await s3Service.uploadModelToS3(
@@ -93,6 +143,7 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
 
     res.json({
       modelUrl,
+      s3Key: key,
       filename,
       message: '3D model uploaded successfully to S3'
     });

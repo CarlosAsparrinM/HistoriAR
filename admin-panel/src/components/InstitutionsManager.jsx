@@ -492,6 +492,8 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
       saturday: institution?.schedule?.saturday || { closed: true },
       sunday: institution?.schedule?.sunday || { closed: true }
     }
+    ,
+    s3ImageKey: institution?.s3ImageKey || null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -533,8 +535,12 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
     }));
   };
 
-  const handleImageUpload = (imageUrl) => {
-    setFormData(prev => ({ ...prev, imageUrl: imageUrl }));
+  const handleImageUpload = (result) => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: result?.previewUrl || result?.publicUrl || prev.imageUrl,
+      s3ImageKey: result?.key || prev.s3ImageKey
+    }));
   };
 
   const handleImageUploadError = (error) => {

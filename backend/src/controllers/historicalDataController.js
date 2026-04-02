@@ -1,6 +1,14 @@
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
 
+const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
+
+async function signIfNeeded(value) {
+  const key = s3Service.resolveS3Key(value);
+  if (!key) return value || null;
+  return s3Service.generatePresignedGetUrl({ key, expiresIn: MEDIA_URL_EXPIRATION_SECONDS });
+}
+
 /**
  * Get all historical data entries for a monument
  */
@@ -12,7 +20,13 @@ export async function getHistoricalDataByMonument(req, res) {
       .populate('createdBy', 'name email')
       .sort({ order: 1, createdAt: 1 });
 
-    res.json(historicalData);
+    const response = await Promise.all(historicalData.map(async (entry) => {
+      const plain = entry.toObject();
+      plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
+      return plain;
+    }));
+
+    res.json(response);
   } catch (err) {
     console.error('Error fetching historical data:', err);
     res.status(500).json({ message: err.message });
@@ -33,7 +47,10 @@ export async function getHistoricalDataById(req, res) {
       return res.status(404).json({ message: 'Historical data not found' });
     }
 
-    res.json(historicalData);
+    const plain = historicalData.toObject();
+    plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
+
+    res.json(plain);
   } catch (err) {
     console.error('Error fetching historical data:', err);
     res.status(500).json({ message: err.message });
@@ -139,8 +156,8 @@ export async function updateHistoricalData(req, res) {
     if (req.file) {
       try {
         // Delete old image if exists
-        if (historicalData.imageUrl) {
-          await s3Service.deleteFileFromS3(historicalData.imageUrl);
+        if (historicalData.s3ImageKey || historicalData.imageUrl) {
+          await s3Service.deleteFileFromS3(historicalData.s3ImageKey || historicalData.imageUrl);
         }
 
         // Upload new image to S3
@@ -187,9 +204,9 @@ export async function deleteHistoricalData(req, res) {
     }
 
     // Delete image from S3 if exists
-    if (historicalData.imageUrl) {
+    if (historicalData.s3ImageKey || historicalData.imageUrl) {
       try {
-        await s3Service.deleteFileFromS3(historicalData.imageUrl);
+        await s3Service.deleteFileFromS3(historicalData.s3ImageKey || historicalData.imageUrl);
       } catch (deleteError) {
         console.error('Error deleting image from S3:', deleteError);
         // Continue with deletion even if S3 deletion fails

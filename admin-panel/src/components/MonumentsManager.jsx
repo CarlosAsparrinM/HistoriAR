@@ -512,7 +512,8 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       startYear: monument?.period?.startYear || '',
       endYear: monument?.period?.endYear || ''
     },
-    imageUrl: monument?.imageUrl || null
+    imageUrl: monument?.imageUrl || null,
+    s3ImageKey: monument?.s3ImageKey || null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -589,8 +590,12 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     }
   };
 
-  const handleImageUpload = (imageUrl, fileName) => {
-    setFormData(prev => ({ ...prev, imageUrl: imageUrl }));
+  const handleImageUpload = (result) => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: result?.previewUrl || result?.publicUrl || prev.imageUrl,
+      s3ImageKey: result?.key || prev.s3ImageKey
+    }));
   };
 
   const handleImageUploadError = (error) => {

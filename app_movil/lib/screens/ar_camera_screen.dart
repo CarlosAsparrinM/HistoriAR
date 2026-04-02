@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:ar_flutter_plugin_plus/ar_flutter_plugin_plus.dart';
 import 'package:ar_flutter_plugin_plus/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin_plus/datatypes/node_types.dart';
@@ -12,6 +14,7 @@ import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
+import '../services/api_config.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
@@ -68,7 +71,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   }
 
   Future<void> _addWebObjectForMonument() async {
-    final url = widget.monument.model3DUrl;
+    final url = await _resolveModelUrl();
     if (url == null || url.isEmpty) {
       stdout.writeln('Monumento sin model3DUrl');
       setState(() {
@@ -132,6 +135,33 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         }
       }
     }
+  }
+
+  Future<String?> _resolveModelUrl() async {
+    final directUrl = widget.monument.model3DUrl;
+    if (directUrl != null && directUrl.isNotEmpty) {
+      return directUrl;
+    }
+
+    final key = widget.monument.s3ModelKey;
+    if (key == null || key.isEmpty) {
+      return null;
+    }
+
+    final uri = Uri.parse('$apiBaseUrl/api/uploads/signed-get?key=${Uri.encodeComponent(key)}&expiresIn=3600');
+    final response = await http.get(
+      uri,
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+      },
+    );
+
+    if (response.statusCode != 200) {
+      return null;
+    }
+
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    return decoded['url'] as String?;
   }
 
   void _updateNodeTransform() {
