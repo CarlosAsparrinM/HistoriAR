@@ -10,6 +10,7 @@ yarn.lock
 
 # Entornos
 .env
+.env.test
 .env.local
 .env.*.local
 
