@@ -20,6 +20,7 @@
     "cors:check": "node scripts/checkS3CORS.js",
     "fix:acls": "node scripts/fixS3ACLs.js",
     "check:env": "node scripts/checkEnvVars.js",
+    "test:health": "node scripts/testHealthEndpoint.js",
     "deploy:prepare": "npm run check:env && npm run verify && npm run migrate && npm run indexes",
     "test": "vitest --run",
     "test:watch": "vitest",

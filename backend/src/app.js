@@ -10,6 +10,7 @@ import userRoutes from './routes/users.routes.js';
 import institutionRoutes from './routes/institutions.routes.js';
 import monumentRoutes from './routes/monuments.routes.js';
 import categoryRoutes from './routes/categories.routes.js';
+import cultureRoutes from './routes/cultures.routes.js';
 import historicalDataRoutes from './routes/historicalData.routes.js';
 import visitRoutes from './routes/visits.routes.js';
 import quizRoutes from './routes/quizzes.routes.js';
@@ -82,12 +83,18 @@ app.use(morgan('dev'));
 
 app.get('/', (_req, res) => res.json({ name: 'HistoriAR API', status: 'ok' }));
 
+// Health check endpoint for AWS ALB/Target Group (simple version)
+app.get('/health', (_req, res) => {
+  res.status(200).send('OK');
+});
+
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/monuments', monumentRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/cultures', cultureRoutes);
 app.use('/api', historicalDataRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/quizzes', quizRoutes);

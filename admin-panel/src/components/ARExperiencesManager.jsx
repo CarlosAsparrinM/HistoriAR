@@ -39,6 +39,8 @@ import {
   CheckCircle,
   ArrowLeft,
   Search,
+  ChevronLeft,
+  ChevronRight,
   Box
 } from 'lucide-react';
 import PropTypes from 'prop-types';
@@ -55,11 +57,16 @@ function ARExperiencesManager() {
   const [selectedMonument, setSelectedMonument] = useState(null);
   
   // Monument list state
-  const [monuments, setMonuments] = useState([]);
   const [monumentsWithModels, setMonumentsWithModels] = useState([]);
   const [monumentsWithoutModels, setMonumentsWithoutModels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [withoutModelsPage, setWithoutModelsPage] = useState(1);
+  const [withModelsPage, setWithModelsPage] = useState(1);
+  const [withoutModelsTotal, setWithoutModelsTotal] = useState(0);
+  const [withModelsTotal, setWithModelsTotal] = useState(0);
+  const pageSize = 9;
   
   // Model version management state
   const [versions, setVersions] = useState([]);
@@ -94,10 +101,21 @@ function ARExperiencesManager() {
   // Ref for model-viewer element
   const modelViewerRef = useRef(null);
 
-  // Load monuments on component mount
   useEffect(() => {
-    loadMonuments();
-  }, []);
+    const timeoutId = setTimeout(() => {
+      setWithoutModelsPage(1);
+      setWithModelsPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (!monumentId) {
+      loadMonuments();
+    }
+  }, [withoutModelsPage, withModelsPage, debouncedSearchTerm]);
 
   // Load monument and versions when monumentId changes
   useEffect(() => {
@@ -106,9 +124,7 @@ function ARExperiencesManager() {
       const loadMonumentData = async () => {
         try {
           setLoading(true);
-          const response = await apiService.getMonuments();
-          const monumentsList = response.items || response || [];
-          const monument = monumentsList.find(m => m._id === monumentId);
+          const monument = await apiService.getMonument(monumentId);
           
           if (monument) {
             setSelectedMonument(monument);
@@ -175,20 +191,28 @@ function ARExperiencesManager() {
   const loadMonuments = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getMonuments();
-      const monumentsList = response.items || response || [];
-      
-      // Filter only monuments with images
-      const monumentsWithImages = monumentsList.filter(m => m.imageUrl);
-      
-      setMonuments(monumentsWithImages);
-      
-      // Separate monuments with and without models (prioritizing those without models)
-      const withoutModels = monumentsWithImages.filter(m => !m.model3DUrl);
-      const withModels = monumentsWithImages.filter(m => m.model3DUrl);
-      
-      setMonumentsWithoutModels(withoutModels);
-      setMonumentsWithModels(withModels);
+      const [withoutResponse, withResponse] = await Promise.all([
+        apiService.getMonuments({
+          page: withoutModelsPage,
+          limit: pageSize,
+          hasModel: false,
+          text: debouncedSearchTerm.trim() || undefined
+        }),
+        apiService.getMonuments({
+          page: withModelsPage,
+          limit: pageSize,
+          hasModel: true,
+          text: debouncedSearchTerm.trim() || undefined
+        })
+      ]);
+
+      const withoutItems = (withoutResponse.items || withoutResponse || []).filter(m => m.imageUrl);
+      const withItems = (withResponse.items || withResponse || []).filter(m => m.imageUrl);
+
+      setMonumentsWithoutModels(withoutItems);
+      setMonumentsWithModels(withItems);
+      setWithoutModelsTotal(withoutResponse.total || 0);
+      setWithModelsTotal(withResponse.total || 0);
     } catch (error) {
       console.error('Error loading monuments:', error);
       showNotification('error', 'Error al cargar monumentos');
@@ -197,17 +221,8 @@ function ARExperiencesManager() {
     }
   };
 
-  // Filter monuments based on search term
-  const filterMonuments = (monumentsList) => {
-    if (!searchTerm) return monumentsList;
-    
-    const term = searchTerm.toLowerCase();
-    return monumentsList.filter(monument => 
-      monument.name?.toLowerCase().includes(term) ||
-      monument.location?.district?.toLowerCase().includes(term) ||
-      monument.culture?.toLowerCase().includes(term)
-    );
-  };
+  const withoutModelsTotalPages = Math.max(1, Math.ceil(withoutModelsTotal / pageSize));
+  const withModelsTotalPages = Math.max(1, Math.ceil(withModelsTotal / pageSize));
 
   // Handle monument selection to navigate to Model Version Manager
   const handleMonumentClick = (monument) => {
@@ -375,8 +390,8 @@ function ARExperiencesManager() {
 
   // Render Monument List View
   if (view === 'list') {
-    const filteredWithModels = filterMonuments(monumentsWithModels);
-    const filteredWithoutModels = filterMonuments(monumentsWithoutModels);
+    const filteredWithModels = monumentsWithModels;
+    const filteredWithoutModels = monumentsWithoutModels;
 
     return (
       <div className="p-6 space-y-6">
@@ -425,7 +440,7 @@ function ARExperiencesManager() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">
-                  Monumentos sin Modelos 3D ({filteredWithoutModels.length})
+                  Monumentos sin Modelos 3D
                 </h2>
               </div>
               
@@ -436,16 +451,43 @@ function ARExperiencesManager() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {filteredWithoutModels.map((monument) => (
-                    <MonumentCard
-                      key={monument._id}
-                      monument={monument}
-                      hasModel={false}
-                      onClick={() => handleMonumentClick(monument)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {filteredWithoutModels.map((monument) => (
+                      <MonumentCard
+                        key={monument._id}
+                        monument={monument}
+                        hasModel={false}
+                        onClick={() => handleMonumentClick(monument)}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Página {withoutModelsPage} de {withoutModelsTotalPages} • {withoutModelsTotal} sin modelo
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithoutModelsPage(prev => Math.max(1, prev - 1))}
+                        disabled={loading || withoutModelsPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithoutModelsPage(prev => Math.min(withoutModelsTotalPages, prev + 1))}
+                        disabled={loading || withoutModelsPage >= withoutModelsTotalPages}
+                      >
+                        Siguiente
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -453,7 +495,7 @@ function ARExperiencesManager() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">
-                  Monumentos con Modelos 3D ({filteredWithModels.length})
+                  Monumentos con Modelos 3D
                 </h2>
               </div>
               
@@ -464,16 +506,43 @@ function ARExperiencesManager() {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {filteredWithModels.map((monument) => (
-                    <MonumentCard
-                      key={monument._id}
-                      monument={monument}
-                      hasModel={true}
-                      onClick={() => handleMonumentClick(monument)}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {filteredWithModels.map((monument) => (
+                      <MonumentCard
+                        key={monument._id}
+                        monument={monument}
+                        hasModel={true}
+                        onClick={() => handleMonumentClick(monument)}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-sm text-muted-foreground">
+                      Página {withModelsPage} de {withModelsTotalPages} • {withModelsTotal} con modelo
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithModelsPage(prev => Math.max(1, prev - 1))}
+                        disabled={loading || withModelsPage <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWithModelsPage(prev => Math.min(withModelsTotalPages, prev + 1))}
+                        disabled={loading || withModelsPage >= withModelsTotalPages}
+                      >
+                        Siguiente
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </>

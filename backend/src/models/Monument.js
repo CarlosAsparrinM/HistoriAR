@@ -18,10 +18,14 @@ const MonumentSchema = new mongoose.Schema({
   },
   discovery: {
     isDateKnown: { type: Boolean, default: false },
+    datePrecision: { type: String, enum: ['exact', 'month', 'year', 'unknown'], default: 'unknown' },
     discoveredAt: { type: Date },
+    discoveredYear: { type: Number },
+    discoveredMonth: { type: Number },
     isDiscovererKnown: { type: Boolean, default: false },
     discovererName: { type: String }
   },
+  cultures:     [{ type: String }],
   culture:      { type: String },
   imageUrl:     { type: String }, // S3 URL for monument images
   s3ImageKey:   { type: String }, // S3 object key for monument image

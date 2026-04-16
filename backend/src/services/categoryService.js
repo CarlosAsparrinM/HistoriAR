@@ -1,8 +1,16 @@
 import Category from '../models/Category.js';
 import Monument from '../models/Monument.js';
 
-export async function getAllCategories({ skip = 0, limit = 50, activeOnly = false } = {}) {
+export async function getAllCategories({ skip = 0, limit = 50, activeOnly = false, search = '' } = {}) {
   const filter = activeOnly ? { isActive: true } : {};
+
+  if (search && search.trim()) {
+    const term = search.trim();
+    filter.$or = [
+      { name: { $regex: term, $options: 'i' } },
+      { description: { $regex: term, $options: 'i' } }
+    ];
+  }
   
   const items = await Category.find(filter)
     .sort({ name: 1 })
@@ -56,4 +64,18 @@ export async function getCategoriesWithCounts() {
   );
   
   return categoriesWithCounts;
+}
+
+export async function getCategoryStats() {
+  const [total, active, uniqueColors] = await Promise.all([
+    Category.countDocuments({}),
+    Category.countDocuments({ isActive: true }),
+    Category.distinct('color')
+  ]);
+
+  return {
+    total,
+    active,
+    uniqueColors: uniqueColors.filter(Boolean).length
+  };
 }

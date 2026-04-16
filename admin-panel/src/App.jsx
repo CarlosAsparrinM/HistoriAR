@@ -10,6 +10,7 @@ import Dashboard from './components/Dashboard';
 import MonumentsManager from './components/MonumentsManager';
 import InstitutionsManager from './components/InstitutionsManager';
 import CategoriesManager from './components/CategoriesManager';
+import CulturesManager from './components/CulturesManager';
 import UsersManager from './components/UsersManager';
 import AnalyticsView from './components/AnalyticsView';
 import ToursManager from './components/ToursManager';
@@ -47,6 +48,7 @@ function AppContent() {
             <Route path="/monuments" element={<MonumentsManager />} />
             <Route path="/institutions" element={<InstitutionsManager />} />
             <Route path="/categories" element={<CategoriesManager />} />
+            <Route path="/cultures" element={<CulturesManager />} />
             
             {/* AR Experiences with nested routes */}
             <Route path="/ar-experiences" element={<ARExperiencesManager />} />

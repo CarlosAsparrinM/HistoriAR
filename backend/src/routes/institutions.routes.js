@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listInstitution, getInstitution, createInstitutionController, updateInstitutionController, deleteInstitutionController } from '../controllers/institutionsController.js';
+import { listInstitution, getInstitution, createInstitutionController, updateInstitutionController, deleteInstitutionController, getInstitutionStatsController } from '../controllers/institutionsController.js';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
 import multer from 'multer';
 
@@ -85,6 +85,7 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
 
 // Standard CRUD routes - MUST be after specific routes like /upload-image
 router.get('/', listInstitution);
+router.get('/stats', getInstitutionStatsController);
 router.get('/:id', getInstitution);
 router.post('/', verifyToken, requireRole('admin'), createInstitutionController);
 router.put('/:id', verifyToken, requireRole('admin'), updateInstitutionController);

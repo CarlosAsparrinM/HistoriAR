@@ -44,6 +44,8 @@ import { Label } from './ui/label';
 import {
   Plus,
   Search,
+  ChevronLeft,
+  ChevronRight,
   MoreHorizontal,
   Edit,
   Trash2,
@@ -78,22 +80,59 @@ function InstitutionsManager() {
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalInstitutions, setTotalInstitutions] = useState(0);
+  const [stats, setStats] = useState({ total: 0, available: 0, hidden: 0, museums: 0 });
+  const pageSize = 10;
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingInstitution, setEditingInstitution] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
     loadData();
-  }, []);
+  }, [currentPage, selectedType, selectedStatus, debouncedSearchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedType, selectedStatus]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getInstitutions();
+      const queryParams = {
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearchTerm.trim() || undefined,
+        type: selectedType,
+        status: selectedStatus,
+      };
+
+      const [data, statsData] = await Promise.all([
+        apiService.getInstitutions(queryParams),
+        apiService.getInstitutionStats()
+      ]);
+
       setInstitutions(data.items || data || []);
+      setTotalInstitutions(data.total || 0);
+      setStats({
+        total: statsData.total || 0,
+        available: statsData.available || 0,
+        hidden: statsData.hidden || 0,
+        museums: statsData.museums || 0
+      });
     } catch (error) {
       console.error('Error loading institutions:', error);
     } finally {
@@ -101,15 +140,7 @@ function InstitutionsManager() {
     }
   };
 
-  // Filtro compuesto por término de búsqueda, tipo y estado
-  const filteredInstitutions = institutions.filter(institution => {
-    const matchesSearch = institution.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         institution.location?.district?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === 'all' || institution.type === selectedType;
-    const matchesStatus = selectedStatus === 'all' || institution.status === selectedStatus;
-    
-    return matchesSearch && matchesType && matchesStatus;
-  });
+  const filteredInstitutions = institutions;
 
   // Cambiar estado de la institución
   const handleStatusChange = async (id, newStatus) => {
@@ -162,6 +193,8 @@ function InstitutionsManager() {
     setEditingInstitution(null);
     setIsEditDialogOpen(false);
   };
+
+  const totalPages = Math.max(1, Math.ceil(totalInstitutions / pageSize));
 
   // Verificar si la institución está completa
   const isInstitutionComplete = (institution) => {
@@ -286,7 +319,7 @@ function InstitutionsManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Total Instituciones</p>
-                <p className="text-2xl font-bold">{institutions.length}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -301,7 +334,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Disponibles</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.status === 'Disponible').length}
+                  {stats.available}
                 </p>
               </div>
             </div>
@@ -317,7 +350,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Ocultas</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.status === 'Oculto').length}
+                  {stats.hidden}
                 </p>
               </div>
             </div>
@@ -333,7 +366,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Museos</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.type === 'Museo').length}
+                  {stats.museums}
                 </p>
               </div>
             </div>
@@ -346,7 +379,7 @@ function InstitutionsManager() {
         <CardHeader>
           <CardTitle>Lista de Instituciones</CardTitle>
           <CardDescription>
-            {filteredInstitutions.length} instituciones encontradas
+            Página {currentPage} de {totalPages} • {totalInstitutions} instituciones en total
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -462,6 +495,35 @@ function InstitutionsManager() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {filteredInstitutions.length} de {totalInstitutions}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={loading || currentPage >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
