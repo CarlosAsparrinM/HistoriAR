@@ -23,7 +23,9 @@ import {
   Building,
   Phone,
   Mail,
-  Globe
+  Globe,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import apiService from '../services/api';
@@ -47,17 +49,26 @@ function ToursManager() {
   const [editingTour, setEditingTour] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalInstitutions, setTotalInstitutions] = useState(0);
+  const pageSize = 9;
 
   useEffect(() => {
     loadInstitutions();
-  }, []);
+  }, [currentPage]);
 
   const loadInstitutions = async () => {
     try {
       setLoading(true);
       // Solo cargar instituciones disponibles
-      const institutionsData = await apiService.getInstitutions({ availableOnly: true });
-      setInstitutions(institutionsData.items || institutionsData);
+      const institutionsData = await apiService.getInstitutions({
+        availableOnly: true,
+        page: currentPage,
+        limit: pageSize
+      });
+      const institutionsList = institutionsData.items || institutionsData || [];
+      setInstitutions(institutionsList);
+      setTotalInstitutions(institutionsData.total || institutionsList.length || 0);
     } catch (error) {
       console.error('Error loading institutions:', error);
       showNotification('error', 'Error al cargar instituciones');
@@ -144,6 +155,8 @@ function ToursManager() {
       </div>
     );
   }
+
+  const totalPages = Math.max(1, Math.ceil(totalInstitutions / pageSize));
 
   // Vista de formulario
   if (view === 'form') {
@@ -342,43 +355,70 @@ function ToursManager() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
-          {institutions.map(institution => (
-            <Card 
-              key={institution._id} 
-              className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => handleSelectInstitution(institution)}
-            >
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {institution.imageUrl ? (
-                    <ImageWithFallback
-                      src={institution.imageUrl}
-                      alt={institution.name}
-                      className="w-full h-40 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center">
-                      <Building className="w-16 h-16 text-muted-foreground" />
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            {institutions.map(institution => (
+              <Card 
+                key={institution._id} 
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => handleSelectInstitution(institution)}
+              >
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    {institution.imageUrl ? (
+                      <ImageWithFallback
+                        src={institution.imageUrl}
+                        alt={institution.name}
+                        className="w-full h-40 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center">
+                        <Building className="w-16 h-16 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-semibold line-clamp-1">{institution.name}</h3>
+                      {institution.location?.district && (
+                        <p className="text-sm text-muted-foreground line-clamp-1">
+                          {institution.location.district}
+                        </p>
+                      )}
                     </div>
-                  )}
-                  <div>
-                    <h3 className="font-semibold line-clamp-1">{institution.name}</h3>
-                    {institution.location?.district && (
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        {institution.location.district}
+                    {institution.description && (
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {institution.description}
                       </p>
                     )}
                   </div>
-                  {institution.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {institution.description}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-sm text-muted-foreground">
+              Página {currentPage} de {totalPages} • {totalInstitutions} instituciones en total
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={loading || currentPage >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -5,6 +5,14 @@ class ApiService {
     this.baseURL = API_BASE_URL;
   }
 
+  buildQueryString(params = {}) {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    );
+
+    return new URLSearchParams(cleanParams).toString();
+  }
+
   getAuthHeaders() {
     const token = localStorage.getItem('token');
     return {
@@ -44,7 +52,7 @@ class ApiService {
 
   // Monuments
   async getMonuments(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/monuments${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -72,9 +80,14 @@ class ApiService {
     });
   }
 
+  async getMonumentStats(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/monuments/stats${queryString ? `?${queryString}` : ''}`);
+  }
+
   // Institutions
   async getInstitutions(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/institutions${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -102,9 +115,13 @@ class ApiService {
     });
   }
 
+  async getInstitutionStats() {
+    return this.request('/institutions/stats');
+  }
+
   // Users
   async getUsers(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/users${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -127,13 +144,13 @@ class ApiService {
 
   // Visits
   async getVisits(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/visits${queryString ? `?${queryString}` : ''}`);
   }
 
   // Categories
   async getCategories(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/categories${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -161,9 +178,47 @@ class ApiService {
     });
   }
 
+  async getCategoryStats() {
+    return this.request('/categories/stats');
+  }
+
+  // Cultures
+  async getCultures(params = {}) {
+    const queryString = this.buildQueryString(params);
+    return this.request(`/cultures${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getCulture(id) {
+    return this.request(`/cultures/${id}`);
+  }
+
+  async createCulture(data) {
+    return this.request('/cultures', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCulture(id, data) {
+    return this.request(`/cultures/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCulture(id) {
+    return this.request(`/cultures/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getCultureStats() {
+    return this.request('/cultures/stats');
+  }
+
   // Quizzes
   async getQuizzes(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/quizzes${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -193,7 +248,7 @@ class ApiService {
 
   // Tours
   async getTours(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/tours${queryString ? `?${queryString}` : ''}`);
   }
 

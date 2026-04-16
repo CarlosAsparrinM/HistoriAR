@@ -7,6 +7,7 @@ import {
   deleteMonumentController, 
   searchMonumentsController, 
   getFilterOptionsController,
+  getMonumentStatsController,
   getModelVersionsController,
   activateModelVersionController,
   deleteModelVersionController,
@@ -30,6 +31,7 @@ const upload = multer({
 router.get('/', listMonument);
 router.get('/search', searchMonumentsController);
 router.get('/filter-options', getFilterOptionsController);
+router.get('/stats', getMonumentStatsController);
 router.get('/:id', getMonument);
 
 router.post('/',

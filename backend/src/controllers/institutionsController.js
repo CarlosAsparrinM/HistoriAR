@@ -1,5 +1,5 @@
 import { buildPagination } from '../utils/pagination.js';
-import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution } from '../services/institutionService.js';
+import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution, getInstitutionStats } from '../services/institutionService.js';
 import * as s3Service from '../services/s3Service.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
@@ -22,10 +22,26 @@ export async function listInstitution(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const availableOnly = req.query.availableOnly === 'true';
-    const { items, total } = await getAllInstitutions({ skip, limit, availableOnly });
+    const { items, total } = await getAllInstitutions({
+      skip,
+      limit,
+      availableOnly,
+      search: req.query.search || '',
+      type: req.query.type || 'all',
+      status: req.query.status || 'all'
+    });
     const hydratedItems = await Promise.all(items.map(hydrateInstitutionMedia));
     res.json({ page, total, items: hydratedItems });
   } catch (err) { res.status(500).json({ message: err.message }); }
+}
+
+export async function getInstitutionStatsController(_req, res) {
+  try {
+    const stats = await getInstitutionStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 }
 
 export async function getInstitution(req, res) {

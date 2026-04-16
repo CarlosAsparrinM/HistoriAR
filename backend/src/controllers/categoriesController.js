@@ -1,14 +1,28 @@
 import { buildPagination } from '../utils/pagination.js';
-import { getAllCategories, getCategoryById, createCategory, updateCategory, deleteCategory } from '../services/categoryService.js';
+import { getAllCategories, getCategoryById, createCategory, updateCategory, deleteCategory, getCategoryStats } from '../services/categoryService.js';
 
 export async function listCategories(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const activeOnly = req.query.activeOnly === 'true';
-    const { items, total } = await getAllCategories({ skip, limit, activeOnly });
+    const { items, total } = await getAllCategories({
+      skip,
+      limit,
+      activeOnly,
+      search: req.query.search || ''
+    });
     res.json({ page, total, items });
   } catch (err) { 
     res.status(500).json({ message: err.message }); 
+  }
+}
+
+export async function getCategoryStatsController(_req, res) {
+  try {
+    const stats = await getCategoryStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 }
 

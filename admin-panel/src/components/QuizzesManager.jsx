@@ -37,15 +37,29 @@ function QuizzesManager() {
   const [monuments, setMonuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalMonuments, setTotalMonuments] = useState(0);
+  const pageSize = 9;
   const [notification, setNotification] = useState(null);
   
   // Quiz counts
   const [quizCounts, setQuizCounts] = useState({});
 
-  // Load monuments on component mount
   useEffect(() => {
-    loadMonuments();
-  }, []);
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    if (!monumentId) {
+      loadMonuments();
+    }
+  }, [currentPage, debouncedSearchTerm]);
 
   // Load monument when monumentId changes
   useEffect(() => {
@@ -53,9 +67,7 @@ function QuizzesManager() {
       const loadMonumentData = async () => {
         try {
           setLoading(true);
-          const response = await apiService.getMonuments();
-          const monumentsList = response.items || response || [];
-          const monument = monumentsList.find(m => m._id === monumentId);
+          const monument = await apiService.getMonument(monumentId);
           
           if (monument) {
             setSelectedMonument(monument);
@@ -84,10 +96,15 @@ function QuizzesManager() {
   const loadMonuments = async () => {
     try {
       setLoading(true);
-      const response = await apiService.getMonuments();
+      const response = await apiService.getMonuments({
+        page: currentPage,
+        limit: pageSize,
+        text: debouncedSearchTerm.trim() || undefined
+      });
       const monumentsList = response.items || response || [];
       
       setMonuments(monumentsList);
+      setTotalMonuments(response.total || 0);
       
       // Load quiz counts for each monument
       await loadQuizCounts(monumentsList);
@@ -124,16 +141,8 @@ function QuizzesManager() {
   };
 
   // Filter monuments based on search term
-  const filteredMonuments = monuments.filter(monument => {
-    if (!searchTerm) return true;
-    
-    const term = searchTerm.toLowerCase();
-    return (
-      monument.name?.toLowerCase().includes(term) ||
-      monument.location?.district?.toLowerCase().includes(term) ||
-      monument.culture?.toLowerCase().includes(term)
-    );
-  });
+  const filteredMonuments = monuments;
+  const totalPages = Math.max(1, Math.ceil(totalMonuments / pageSize));
 
   // Handle monument selection
   const handleMonumentClick = (monument) => {
@@ -196,7 +205,7 @@ function QuizzesManager() {
         ) : (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">
-              Monumentos ({filteredMonuments.length})
+                Monumentos ({filteredMonuments.length})
             </h2>
             
             {filteredMonuments.length === 0 ? (
@@ -217,6 +226,29 @@ function QuizzesManager() {
                 ))}
               </div>
             )}
+            <div className="flex items-center justify-between pt-4">
+              <p className="text-sm text-muted-foreground">
+                Página {currentPage} de {totalPages} • {totalMonuments} monumentos en total
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={loading || currentPage <= 1}
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={loading || currentPage >= totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>

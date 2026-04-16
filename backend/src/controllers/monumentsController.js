@@ -1,5 +1,5 @@
 import { buildPagination } from '../utils/pagination.js';
-import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions } from '../services/monumentService.js';
+import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions, getMonumentStats } from '../services/monumentService.js';
 import * as s3Service from '../services/s3Service.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
@@ -23,6 +23,37 @@ function toNullableInteger(value) {
 function normalizeMonumentPayload(payload) {
   const normalized = { ...payload };
 
+  const shouldNormalizeCultures = Object.prototype.hasOwnProperty.call(normalized, 'cultures')
+    || Object.prototype.hasOwnProperty.call(normalized, 'culture');
+
+  if (shouldNormalizeCultures) {
+    const rawCultures = [];
+
+    if (Array.isArray(normalized.cultures)) {
+      rawCultures.push(...normalized.cultures);
+    }
+
+    if (typeof normalized.culture === 'string' && normalized.culture.trim()) {
+      rawCultures.push(normalized.culture.trim());
+    }
+
+    const uniqueCultures = [];
+    const seen = new Set();
+
+    rawCultures
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+      .forEach((cultureName) => {
+        const normalizedKey = cultureName.toLowerCase();
+        if (seen.has(normalizedKey)) return;
+        seen.add(normalizedKey);
+        uniqueCultures.push(cultureName);
+      });
+
+    normalized.cultures = uniqueCultures;
+    normalized.culture = uniqueCultures[0] || '';
+  }
+
   if (normalized.period && typeof normalized.period === 'object') {
     const period = { ...normalized.period };
     const isIdentified = parseBooleanFlag(period.isIdentified, true);
@@ -45,23 +76,64 @@ function normalizeMonumentPayload(payload) {
 
   if (normalized.discovery && typeof normalized.discovery === 'object') {
     const discovery = { ...normalized.discovery };
-    const isDateKnown = parseBooleanFlag(discovery.isDateKnown, false);
+    const isDateKnownFlag = parseBooleanFlag(discovery.isDateKnown, false);
     const isDiscovererKnown = parseBooleanFlag(discovery.isDiscovererKnown, false);
+    const allowedDatePrecisions = new Set(['exact', 'month', 'year', 'unknown']);
 
-    discovery.isDateKnown = isDateKnown;
+    const requestedPrecision = String(
+      discovery.datePrecision || (isDateKnownFlag ? 'exact' : 'unknown')
+    ).toLowerCase();
+
+    const datePrecision = allowedDatePrecisions.has(requestedPrecision)
+      ? requestedPrecision
+      : (isDateKnownFlag ? 'exact' : 'unknown');
+
+    discovery.datePrecision = datePrecision;
+    discovery.isDateKnown = datePrecision !== 'unknown';
     discovery.isDiscovererKnown = isDiscovererKnown;
 
-    if (isDateKnown) {
+    if (datePrecision === 'unknown') {
+      discovery.discoveredAt = null;
+      discovery.discoveredYear = null;
+      discovery.discoveredMonth = null;
+    } else if (datePrecision === 'exact') {
       if (!discovery.discoveredAt) {
-        throw new Error('Debe ingresar la fecha de descubrimiento o marcarla como desconocida.');
+        throw new Error('Debe ingresar la fecha exacta de descubrimiento.');
       }
+
       const parsedDate = new Date(discovery.discoveredAt);
       if (Number.isNaN(parsedDate.getTime())) {
         throw new Error('La fecha de descubrimiento no es valida.');
       }
+
       discovery.discoveredAt = parsedDate;
-    } else {
-      discovery.discoveredAt = null;
+      discovery.discoveredYear = parsedDate.getUTCFullYear();
+      discovery.discoveredMonth = parsedDate.getUTCMonth() + 1;
+    } else if (datePrecision === 'month') {
+      const discoveredYear = toNullableInteger(discovery.discoveredYear);
+      const discoveredMonth = toNullableInteger(discovery.discoveredMonth);
+
+      if (discoveredYear === null || discoveredMonth === null) {
+        throw new Error('Debe ingresar mes y anio de descubrimiento.');
+      }
+
+      if (discoveredMonth < 1 || discoveredMonth > 12) {
+        throw new Error('El mes de descubrimiento debe estar entre 1 y 12.');
+      }
+
+      discovery.discoveredYear = discoveredYear;
+      discovery.discoveredMonth = discoveredMonth;
+      discovery.discoveredAt = new Date(Date.UTC(discoveredYear, discoveredMonth - 1, 1));
+    } else if (datePrecision === 'year') {
+      const discoveredYear = toNullableInteger(discovery.discoveredYear);
+
+      if (discoveredYear === null) {
+        throw new Error('Debe ingresar el anio de descubrimiento.');
+      }
+
+      discovery.discoveredYear = discoveredYear;
+      discovery.discoveredMonth = null;
+      discovery.discoveredAt = new Date(Date.UTC(discoveredYear, 0, 1));
     }
 
     if (isDiscovererKnown) {
@@ -102,18 +174,43 @@ export async function listMonument(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const filter = {};
-    if (req.query.category) filter.category = req.query.category;
+    if (req.query.categoryId) filter.categoryId = req.query.categoryId;
+    if (req.query.category) filter.categoryId = req.query.category;
     if (req.query.status)   filter.status   = req.query.status;
+
+    if (req.query.hasModel === 'true') {
+      filter.model3DUrl = { $nin: [null, ''] };
+    } else if (req.query.hasModel === 'false') {
+      filter.$or = [{ model3DUrl: null }, { model3DUrl: '' }];
+    }
     
     // Support availableOnly filter
     if (req.query.availableOnly === 'true') {
       filter.status = 'Disponible';
     }
     
-    const { items, total } = await getAllMonuments(filter, { skip, limit, populate: req.query.populate === 'true' });
+    const { items, total } = await getAllMonuments(filter, {
+      skip,
+      limit,
+      populate: req.query.populate === 'true',
+      text: req.query.text || ''
+    });
     const hydratedItems = await Promise.all(items.map(hydrateMonumentMedia));
     res.json({ page, total, items: hydratedItems });
   } catch (err) { res.status(500).json({ message: err.message }); }
+}
+
+export async function getMonumentStatsController(req, res) {
+  try {
+    const filter = {};
+    if (req.query.categoryId) filter.categoryId = req.query.categoryId;
+    if (req.query.category) filter.categoryId = req.query.category;
+
+    const stats = await getMonumentStats(filter);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 }
 
 export async function getMonument(req, res) {

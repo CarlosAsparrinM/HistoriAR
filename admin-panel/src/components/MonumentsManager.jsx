@@ -47,10 +47,13 @@ import {
   MoreHorizontal,
   Edit,
   Eye,
+  ChevronLeft,
+  ChevronRight,
   Trash2,
   MapPin,
   Box,
-  Loader2
+  Loader2,
+  X
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
@@ -107,20 +110,20 @@ const getPeriodDisplay = (period) => {
   return 'No identificado';
 };
 
-const getDiscoveryDateDisplay = (discovery) => {
-  if (!discovery || discovery.isDateKnown === false) return 'No identificado';
-  if (!discovery.discoveredAt) return 'No identificado';
+const getCultureDisplay = (monument) => {
+  const cultures = Array.isArray(monument?.cultures)
+    ? monument.cultures.filter(Boolean)
+    : [];
 
-  const parsedDate = new Date(discovery.discoveredAt);
-  if (Number.isNaN(parsedDate.getTime())) return 'No identificado';
+  if (cultures.length > 0) {
+    return cultures.join(', ');
+  }
 
-  return parsedDate.toLocaleDateString('es-PE');
-};
+  if (monument?.culture) {
+    return monument.culture;
+  }
 
-const getDiscovererDisplay = (discovery) => {
-  if (!discovery || discovery.isDiscovererKnown === false) return 'No identificado';
-  const name = String(discovery.discovererName || '').trim();
-  return name || 'No identificado';
+  return 'Sin cultura definida';
 };
 
 function MonumentsManager() {
@@ -128,31 +131,94 @@ function MonumentsManager() {
   const [monuments, setMonuments] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [cultures, setCultures] = useState([]);
+  const [stats, setStats] = useState({ total: 0, available: 0, hidden: 0, withModel3D: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalMonuments, setTotalMonuments] = useState(0);
+  const pageSize = 10;
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingMonument, setEditingMonument] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  // Cargar datos iniciales
+  // Cargar catálogos para formularios
+  useEffect(() => {
+    loadReferenceData();
+  }, []);
+
+  // Cargar lista paginada y estadísticas al cambiar filtros o página
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentPage, selectedCategory, selectedStatus, debouncedSearchTerm]);
+
+  // Debounce del texto de búsqueda para no consultar en cada tecla
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Si cambian filtros, reiniciar a primera página
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, selectedStatus]);
+
+  const loadReferenceData = async () => {
+    try {
+      const [institutionsData, categoriesData, culturesData] = await Promise.all([
+        apiService.getInstitutions({ availableOnly: true }),
+        apiService.getCategories({ activeOnly: true }),
+        apiService.getCultures({ activeOnly: true })
+      ]);
+
+      setInstitutions(institutionsData.items || institutionsData || []);
+      setCategories(categoriesData.items || categoriesData || []);
+      setCultures(culturesData.items || culturesData || []);
+    } catch (error) {
+      console.error('Error loading reference data:', error);
+    }
+  };
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [monumentsData, institutionsData, categoriesData] = await Promise.all([
-        apiService.getMonuments(),
-        apiService.getInstitutions({ availableOnly: true }), // Solo instituciones disponibles
-        apiService.getCategories({ activeOnly: true }) // Solo categorías activas para el formulario
+      const queryParams = {
+        page: currentPage,
+        limit: pageSize,
+      };
+
+      if (debouncedSearchTerm.trim()) {
+        queryParams.text = debouncedSearchTerm.trim();
+      }
+
+      if (selectedStatus !== 'all') {
+        queryParams.status = selectedStatus;
+      }
+
+      if (selectedCategory !== 'all') {
+        queryParams.categoryId = selectedCategory;
+      }
+
+      const [monumentsData, statsData] = await Promise.all([
+        apiService.getMonuments(queryParams),
+        apiService.getMonumentStats(selectedCategory !== 'all' ? { categoryId: selectedCategory } : {})
       ]);
       
       setMonuments(monumentsData.items || monumentsData || []);
-      setInstitutions(institutionsData.items || institutionsData || []);
-      setCategories(categoriesData.items || categoriesData || []);
+      setTotalMonuments(monumentsData.total || 0);
+      setStats({
+        total: statsData.total || 0,
+        available: statsData.available || 0,
+        hidden: statsData.hidden || 0,
+        withModel3D: statsData.withModel3D || 0
+      });
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -160,17 +226,8 @@ function MonumentsManager() {
     }
   };
 
-  // Filtro compuesto por término de búsqueda, categoría y estado
-  const filteredMonuments = monuments
-    .filter(monument => {
-      const matchesSearch = monument.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           monument.location?.district?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || monument.categoryId === selectedCategory;
-      const matchesStatus = selectedStatus === 'all' || monument.status === selectedStatus;
-      
-      return matchesSearch && matchesCategory && matchesStatus;
-    })
-    .sort((a, b) => {
+  // Orden local para mantener monumentos con modelo primero
+  const filteredMonuments = [...monuments].sort((a, b) => {
       // Organizar monumentos: con modelos primero, sin modelos después
       const aHasModel = Boolean(a.model3DUrl);
       const bHasModel = Boolean(b.model3DUrl);
@@ -180,7 +237,7 @@ function MonumentsManager() {
       
       // Si ambos tienen o no tienen modelo, mantener orden alfabético
       return a.name.localeCompare(b.name);
-    });
+  });
 
   // Función para obtener el nombre de la categoría
   const getCategoryName = (categoryId) => {
@@ -197,13 +254,7 @@ function MonumentsManager() {
   const handleStatusChange = async (id, newStatus) => {
     try {
       await apiService.updateMonument(id, { status: newStatus });
-      setMonuments(prev => 
-        prev.map(monument => 
-          monument._id === id 
-            ? { ...monument, status: newStatus }
-            : monument
-        )
-      );
+      await loadData();
       toast({
         title: "Estado actualizado",
         description: `El monumento ahora está ${newStatus.toLowerCase()}`,
@@ -225,7 +276,12 @@ function MonumentsManager() {
   const handleDelete = async (id) => {
     try {
       await apiService.deleteMonument(id);
-      setMonuments(prev => prev.filter(monument => monument._id !== id));
+
+      if (monuments.length === 1 && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+      } else {
+        await loadData();
+      }
     } catch (error) {
       console.error('Error deleting monument:', error);
     }
@@ -242,6 +298,8 @@ function MonumentsManager() {
     setEditingMonument(null);
     setIsEditDialogOpen(false);
   };
+
+  const totalPages = Math.max(1, Math.ceil(totalMonuments / pageSize));
 
   return (
     <div className="p-6 space-y-6">
@@ -271,6 +329,7 @@ function MonumentsManager() {
             <MonumentForm 
               institutions={institutions}
               categories={categories}
+              cultures={cultures}
               onClose={() => setIsCreateDialogOpen(false)}
               onSave={loadData}
               toast={toast}
@@ -291,6 +350,7 @@ function MonumentsManager() {
               monument={editingMonument}
               institutions={institutions}
               categories={categories}
+              cultures={cultures}
               onClose={handleCloseEdit}
               onSave={loadData}
               toast={toast}
@@ -352,7 +412,7 @@ function MonumentsManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Total Monumentos</p>
-                <p className="text-2xl font-bold">{monuments.length}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -367,7 +427,7 @@ function MonumentsManager() {
               <div>
                 <p className="text-sm font-medium">Disponibles</p>
                 <p className="text-2xl font-bold">
-                  {monuments.filter(m => m.status === 'Disponible').length}
+                  {stats.available}
                 </p>
               </div>
             </div>
@@ -383,7 +443,7 @@ function MonumentsManager() {
               <div>
                 <p className="text-sm font-medium">Ocultos</p>
                 <p className="text-2xl font-bold">
-                  {monuments.filter(m => m.status === 'Oculto').length}
+                  {stats.hidden}
                 </p>
               </div>
             </div>
@@ -399,7 +459,7 @@ function MonumentsManager() {
               <div>
                 <p className="text-sm font-medium">Con Modelo 3D</p>
                 <p className="text-2xl font-bold">
-                  {monuments.filter(m => m.model3DUrl).length}
+                  {stats.withModel3D}
                 </p>
               </div>
             </div>
@@ -412,7 +472,7 @@ function MonumentsManager() {
         <CardHeader>
           <CardTitle>Lista de Monumentos</CardTitle>
           <CardDescription>
-            {filteredMonuments.length} monumentos encontrados
+            Página {currentPage} de {totalPages} • {totalMonuments} monumentos en total
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -425,8 +485,6 @@ function MonumentsManager() {
                 <TableHead>Estado</TableHead>
                 <TableHead>Modelo 3D</TableHead>
                 <TableHead>Período</TableHead>
-                <TableHead>Fecha descubrimiento</TableHead>
-                <TableHead>Descubridor</TableHead>
                 <TableHead>Última modificación</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -434,14 +492,14 @@ function MonumentsManager() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     <p className="mt-2 text-muted-foreground">Cargando monumentos...</p>
                   </TableCell>
                 </TableRow>
               ) : filteredMonuments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
+                  <TableCell colSpan={8} className="text-center py-8">
                     <p className="text-muted-foreground">No se encontraron monumentos</p>
                   </TableCell>
                 </TableRow>
@@ -458,7 +516,7 @@ function MonumentsManager() {
                         <div>
                           <p className="font-medium">{monument.name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {monument.culture || 'Sin cultura definida'}
+                            {getCultureDisplay(monument)}
                           </p>
                         </div>
                       </div>
@@ -487,12 +545,6 @@ function MonumentsManager() {
                     </TableCell>
                     <TableCell>
                       {getPeriodDisplay(monument.period)}
-                    </TableCell>
-                    <TableCell>
-                      {getDiscoveryDateDisplay(monument.discovery)}
-                    </TableCell>
-                    <TableCell>
-                      {getDiscovererDisplay(monument.discovery)}
                     </TableCell>
                     <TableCell>
                       {new Date(monument.updatedAt || monument.createdAt).toLocaleDateString('es-PE')}
@@ -546,13 +598,48 @@ function MonumentsManager() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {filteredMonuments.length} de {totalMonuments}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={loading || currentPage >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function MonumentForm({ onClose, monument = null, institutions = [], categories = [], onSave, toast }) {
+function MonumentForm({ onClose, monument = null, institutions = [], categories = [], cultures = [], onSave, toast }) {
+  const initialCultures = Array.isArray(monument?.cultures)
+    ? monument.cultures.filter(Boolean)
+    : monument?.culture
+      ? [monument.culture]
+      : [];
+
   const initialStartYear = monument?.period?.startYear;
   const initialEndYear = monument?.period?.endYear;
   const initialIsIdentified = monument?.period?.isIdentified
@@ -563,12 +650,18 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     if (Number.isNaN(parsedDate.getTime())) return '';
     return parsedDate.toISOString().slice(0, 10);
   })();
+  const initialDiscoveryPrecision = monument?.discovery?.datePrecision
+    || (monument?.discovery?.isDateKnown ? 'exact' : 'unknown');
+  const initialDiscoveryYear = monument?.discovery?.discoveredYear
+    ?? (initialDiscoveryDate ? Number(initialDiscoveryDate.slice(0, 4)) : '');
+  const initialDiscoveryMonth = monument?.discovery?.discoveredMonth
+    ?? (initialDiscoveryDate ? Number(initialDiscoveryDate.slice(5, 7)) : '');
 
   const [formData, setFormData] = useState({
     name: monument?.name || '',
     categoryId: monument?.categoryId || '',
     description: monument?.description || '',
-    culture: monument?.culture || '',
+    cultures: initialCultures,
     institutionId: monument?.institutionId || '',
     location: {
       lat: monument?.location?.lat || '',
@@ -584,7 +677,10 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     },
     discovery: {
       isDateKnown: monument?.discovery?.isDateKnown ?? Boolean(initialDiscoveryDate),
+      datePrecision: initialDiscoveryPrecision,
       discoveredAt: initialDiscoveryDate,
+      discoveredYear: initialDiscoveryYear,
+      discoveredMonth: initialDiscoveryMonth,
       isDiscovererKnown: monument?.discovery?.isDiscovererKnown ?? Boolean(monument?.discovery?.discovererName),
       discovererName: monument?.discovery?.discovererName || ''
     },
@@ -592,6 +688,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     s3ImageKey: monument?.s3ImageKey || null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedCultureToAdd, setSelectedCultureToAdd] = useState('');
 
   const sanitizeYearInput = (value) => {
     if (value === '' || value === null || value === undefined) return '';
@@ -654,10 +751,30 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       }
     }
 
-    if (formData.discovery.isDateKnown && !formData.discovery.discoveredAt) {
+    if (formData.discovery.datePrecision === 'exact' && !formData.discovery.discoveredAt) {
       toast({
         title: "Error de validación",
-        description: "Debes ingresar la fecha de descubrimiento o marcarla como desconocida",
+        description: "Debes ingresar la fecha exacta de descubrimiento",
+        variant: "warning"
+      });
+      return false;
+    }
+
+    if (formData.discovery.datePrecision === 'month') {
+      if (!formData.discovery.discoveredYear || !formData.discovery.discoveredMonth) {
+        toast({
+          title: "Error de validación",
+          description: "Debes ingresar mes y año de descubrimiento",
+          variant: "warning"
+        });
+        return false;
+      }
+    }
+
+    if (formData.discovery.datePrecision === 'year' && !formData.discovery.discoveredYear) {
+      toast({
+        title: "Error de validación",
+        description: "Debes ingresar el año de descubrimiento",
         variant: "warning"
       });
       return false;
@@ -687,6 +804,41 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddCulture = (cultureName) => {
+    if (!cultureName) return;
+
+    const existsInCatalog = cultures.some(
+      (culture) => culture.name.toLowerCase() === String(cultureName).toLowerCase()
+    );
+
+    if (!existsInCatalog) {
+      setSelectedCultureToAdd('');
+      return;
+    }
+
+    const alreadyExists = formData.cultures.some(
+      (culture) => culture.toLowerCase() === cultureName.toLowerCase()
+    );
+
+    if (alreadyExists) {
+      setSelectedCultureToAdd('');
+      return;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      cultures: [...prev.cultures, cultureName]
+    }));
+    setSelectedCultureToAdd('');
+  };
+
+  const handleRemoveCulture = (cultureName) => {
+    setFormData(prev => ({
+      ...prev,
+      cultures: prev.cultures.filter((culture) => culture !== cultureName)
+    }));
   };
 
   const handlePeriodChange = (partialPeriod) => {
@@ -752,6 +904,8 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     try {
       const payload = {
         ...formData,
+        culture: formData.cultures[0] || null,
+        cultures: formData.cultures,
         period: {
           ...formData.period,
           isIdentified: Boolean(formData.period.isIdentified),
@@ -760,8 +914,28 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
         },
         discovery: {
           ...formData.discovery,
-          isDateKnown: Boolean(formData.discovery.isDateKnown),
-          discoveredAt: formData.discovery.isDateKnown ? formData.discovery.discoveredAt : null,
+          isDateKnown: formData.discovery.datePrecision !== 'unknown',
+          datePrecision: formData.discovery.datePrecision,
+          discoveredAt:
+            formData.discovery.datePrecision === 'exact'
+              ? formData.discovery.discoveredAt
+              : formData.discovery.datePrecision === 'month'
+                ? `${String(formData.discovery.discoveredYear).padStart(4, '0')}-${String(formData.discovery.discoveredMonth).padStart(2, '0')}-01`
+                : formData.discovery.datePrecision === 'year'
+                  ? `${String(formData.discovery.discoveredYear).padStart(4, '0')}-01-01`
+                  : null,
+          discoveredYear:
+            formData.discovery.datePrecision === 'unknown'
+              ? null
+              : (formData.discovery.discoveredYear === '' || formData.discovery.discoveredYear === null || formData.discovery.discoveredYear === undefined
+                ? null
+                : Number(formData.discovery.discoveredYear)),
+          discoveredMonth:
+            formData.discovery.datePrecision === 'month'
+              ? (formData.discovery.discoveredMonth === '' || formData.discovery.discoveredMonth === null || formData.discovery.discoveredMonth === undefined
+                ? null
+                : Number(formData.discovery.discoveredMonth))
+              : null,
           isDiscovererKnown: Boolean(formData.discovery.isDiscovererKnown),
           discovererName: formData.discovery.isDiscovererKnown ? formData.discovery.discovererName.trim() : null
         }
@@ -845,13 +1019,64 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="culture">Cultura</Label>
-          <Input 
-            id="culture" 
-            placeholder="Ej: Inca, Moche, Colonial"
-            value={formData.culture}
-            onChange={(e) => handleInputChange('culture', e.target.value)}
-          />
+          <Label htmlFor="cultureSelect">Culturas</Label>
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Select
+                value={selectedCultureToAdd || 'none'}
+                onValueChange={(value) => setSelectedCultureToAdd(value === 'none' ? '' : value)}
+              >
+                <SelectTrigger id="cultureSelect">
+                  <SelectValue placeholder="Seleccionar cultura existente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Seleccionar cultura</SelectItem>
+                  {cultures
+                    .filter((culture) => !formData.cultures.some(
+                      (selected) => selected.toLowerCase() === culture.name.toLowerCase()
+                    ))
+                    .map((culture) => (
+                      <SelectItem key={culture._id} value={culture.name}>
+                        {culture.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleAddCulture(selectedCultureToAdd)}
+                disabled={!selectedCultureToAdd}
+              >
+                Agregar
+              </Button>
+            </div>
+
+            {cultures.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No hay culturas activas disponibles. Crea una en Gestión de Culturas.
+              </p>
+            )}
+
+            {formData.cultures.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {formData.cultures.map((cultureName) => (
+                  <Badge key={cultureName} variant="outline" className="gap-2 pr-1">
+                    <span>{cultureName}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5"
+                      onClick={() => handleRemoveCulture(cultureName)}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
         <div>
           <Label htmlFor="institutionId">Institución</Label>
@@ -1015,26 +1240,75 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
           <div>
             <Label>Fecha de descubrimiento</Label>
             <Select
-              value={formData.discovery.isDateKnown ? 'known' : 'unknown'}
+              value={formData.discovery.datePrecision}
               onValueChange={(value) => handleDiscoveryChange({
-                isDateKnown: value === 'known',
-                discoveredAt: value === 'known' ? formData.discovery.discoveredAt : ''
+                datePrecision: value,
+                isDateKnown: value !== 'unknown',
+                discoveredAt: value === 'exact' ? formData.discovery.discoveredAt : '',
+                discoveredYear: value === 'unknown' ? '' : formData.discovery.discoveredYear,
+                discoveredMonth: value === 'month' ? formData.discovery.discoveredMonth : ''
               })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="known">Conocida</SelectItem>
+                <SelectItem value="exact">Fecha exacta</SelectItem>
+                <SelectItem value="month">Mes y año</SelectItem>
+                <SelectItem value="year">Solo año</SelectItem>
                 <SelectItem value="unknown">Desconocida</SelectItem>
               </SelectContent>
             </Select>
-            {formData.discovery.isDateKnown ? (
+            {formData.discovery.datePrecision === 'exact' ? (
               <Input
                 className="mt-2"
                 type="date"
                 value={formData.discovery.discoveredAt}
                 onChange={(e) => handleDiscoveryChange({ discoveredAt: e.target.value })}
+              />
+            ) : formData.discovery.datePrecision === 'month' ? (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Select
+                  value={formData.discovery.discoveredMonth ? String(formData.discovery.discoveredMonth) : 'none'}
+                  onValueChange={(value) => handleDiscoveryChange({ discoveredMonth: value === 'none' ? '' : Number(value) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Mes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Mes</SelectItem>
+                    <SelectItem value="1">Enero</SelectItem>
+                    <SelectItem value="2">Febrero</SelectItem>
+                    <SelectItem value="3">Marzo</SelectItem>
+                    <SelectItem value="4">Abril</SelectItem>
+                    <SelectItem value="5">Mayo</SelectItem>
+                    <SelectItem value="6">Junio</SelectItem>
+                    <SelectItem value="7">Julio</SelectItem>
+                    <SelectItem value="8">Agosto</SelectItem>
+                    <SelectItem value="9">Setiembre</SelectItem>
+                    <SelectItem value="10">Octubre</SelectItem>
+                    <SelectItem value="11">Noviembre</SelectItem>
+                    <SelectItem value="12">Diciembre</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  min="1"
+                  max="9999"
+                  placeholder="Año"
+                  value={formData.discovery.discoveredYear}
+                  onChange={(e) => handleDiscoveryChange({ discoveredYear: e.target.value })}
+                />
+              </div>
+            ) : formData.discovery.datePrecision === 'year' ? (
+              <Input
+                className="mt-2"
+                type="number"
+                min="1"
+                max="9999"
+                placeholder="Año"
+                value={formData.discovery.discoveredYear}
+                onChange={(e) => handleDiscoveryChange({ discoveredYear: e.target.value })}
               />
             ) : (
               <p className="text-xs text-muted-foreground mt-2">Se guardará como fecha no identificada.</p>
@@ -1129,6 +1403,7 @@ MonumentForm.propTypes = {
   monument: PropTypes.object,
   institutions: PropTypes.array.isRequired,
   categories: PropTypes.array.isRequired,
+  cultures: PropTypes.array.isRequired,
   onSave: PropTypes.func.isRequired,
   toast: PropTypes.func.isRequired,
 };
