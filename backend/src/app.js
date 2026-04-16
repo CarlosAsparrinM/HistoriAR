@@ -83,6 +83,11 @@ app.use(morgan('dev'));
 
 app.get('/', (_req, res) => res.json({ name: 'HistoriAR API', status: 'ok' }));
 
+// Health check endpoint for AWS ALB/Target Group (simple version)
+app.get('/health', (_req, res) => {
+  res.status(200).send('OK');
+});
+
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);

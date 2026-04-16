@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -27,7 +26,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
   LatLng? _currentLatLng;
-  double _heading = 0;
   StreamSubscription<Position>? _positionSub;
 
   // Estado relacionado a monumentos
@@ -94,7 +92,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       setState(() {
         _currentLatLng = latLng;
-        _heading = pos.heading;
         _zoom = 16;
         _mapController.move(latLng, _zoom);
       });
@@ -393,7 +390,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
                 // Verificamos que haya un token válido antes de ir a RA
                 final token = authState.token;
-                if (token == null || token.isEmpty) {
+                if (token.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text(
