@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../models/monument.dart';
@@ -487,6 +488,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           );
 
                           if (!mounted) return;
+
+                          final prefs = await SharedPreferences.getInstance();
+                          final shouldAskForQuizzes =
+                              prefs.getBool('pref_askForQuizzes') ?? true;
+
+                          if (!mounted) return;
+
+                          if (!shouldAskForQuizzes) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
                           // 2) Al volver, mostrar el modal para invitar al quiz
                           final shouldGoToQuiz = await showModalBottomSheet<bool>(

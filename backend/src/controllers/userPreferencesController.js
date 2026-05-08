@@ -6,12 +6,12 @@ import userPreferencesService from '../services/userPreferencesService.js';
 export async function getUserPreferencesController(req, res) {
   try {
     const userId = req.params.id;
-    
+
     // Verificar que el usuario solo acceda a sus propias preferencias (o sea admin)
-    if (req.user?.sub !== userId && req.user?.role !== 'admin') {
+    if (req.user?.id !== userId && req.user?.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
-    
+
     const preferences = await userPreferencesService.getUserPreferences(userId);
     res.json(preferences);
   } catch (err) {
@@ -25,12 +25,12 @@ export async function getUserPreferencesController(req, res) {
 export async function updateUserPreferencesController(req, res) {
   try {
     const userId = req.params.id;
-    
+
     // Verificar que el usuario solo actualice sus propias preferencias (o sea admin)
-    if (req.user?.sub !== userId && req.user?.role !== 'admin') {
+    if (req.user?.id !== userId && req.user?.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied' });
     }
-    
+
     const preferences = await userPreferencesService.updateUserPreferences(userId, req.body);
     res.json(preferences);
   } catch (err) {

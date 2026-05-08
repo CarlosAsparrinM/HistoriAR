@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/preferences_service.dart';
+
 import '../models/user_preferences.dart';
+import '../services/preferences_service.dart';
 import 'login_screen.dart';
 
 class ConfigurationScreen extends StatefulWidget {
@@ -31,6 +32,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     // Cargar preferencias locales guardadas o usar por defecto
     final localPrefs = UserPreferences(
       userId: userId ?? 'local',
+      askForQuizzes: prefs.getBool('pref_askForQuizzes') ?? true,
       notifications: prefs.getBool('pref_notifications') ?? true,
       location: prefs.getBool('pref_location') ?? true,
       arEffects: prefs.getBool('pref_arEffects') ?? true,
@@ -45,15 +47,19 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     setState(() {
       _token = token;
       _userId = userId;
-      
+
       // Si hay sesión, intentar cargar del backend, sino usar locales
       if (token != null && userId != null) {
         _preferencesFuture = _preferencesService
             .getUserPreferences(userId: userId, token: token)
+            .then((backendPrefs) async {
+              await _persistPreferencesLocally(prefs, backendPrefs);
+              return backendPrefs;
+            })
             .catchError((e) {
-          // Si falla el backend, usar preferencias locales
-          return localPrefs;
-        });
+              // Si falla el backend, usar preferencias locales
+              return localPrefs;
+            });
       } else {
         // Sin sesión, usar directamente preferencias locales
         _preferencesFuture = Future.value(localPrefs);
@@ -61,7 +67,24 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     });
   }
 
+  Future<void> _persistPreferencesLocally(
+    SharedPreferences prefs,
+    UserPreferences preferences,
+  ) async {
+    await prefs.setBool('pref_askForQuizzes', preferences.askForQuizzes);
+    await prefs.setBool('pref_notifications', preferences.notifications);
+    await prefs.setBool('pref_location', preferences.location);
+    await prefs.setBool('pref_arEffects', preferences.arEffects);
+    await prefs.setBool('pref_sound', preferences.sound);
+    await prefs.setBool('pref_highQuality', preferences.highQuality);
+    await prefs.setBool('pref_offlineMode', preferences.offlineMode);
+    await prefs.setBool('pref_dataUsage', preferences.dataUsage);
+    await prefs.setString('pref_language', preferences.language);
+    await prefs.setString('pref_theme', preferences.theme);
+  }
+
   Future<void> _updatePreference({
+    bool? askForQuizzes,
     bool? notifications,
     bool? location,
     bool? arEffects,
@@ -73,14 +96,19 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     String? theme,
   }) async {
     final prefs = await SharedPreferences.getInstance();
-    
+
     // Guardar localmente siempre
-    if (notifications != null) await prefs.setBool('pref_notifications', notifications);
+    if (askForQuizzes != null)
+      await prefs.setBool('pref_askForQuizzes', askForQuizzes);
+    if (notifications != null)
+      await prefs.setBool('pref_notifications', notifications);
     if (location != null) await prefs.setBool('pref_location', location);
     if (arEffects != null) await prefs.setBool('pref_arEffects', arEffects);
     if (sound != null) await prefs.setBool('pref_sound', sound);
-    if (highQuality != null) await prefs.setBool('pref_highQuality', highQuality);
-    if (offlineMode != null) await prefs.setBool('pref_offlineMode', offlineMode);
+    if (highQuality != null)
+      await prefs.setBool('pref_highQuality', highQuality);
+    if (offlineMode != null)
+      await prefs.setBool('pref_offlineMode', offlineMode);
     if (dataUsage != null) await prefs.setBool('pref_dataUsage', dataUsage);
     if (language != null) await prefs.setString('pref_language', language);
     if (theme != null) await prefs.setString('pref_theme', theme);
@@ -91,6 +119,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
         final updated = await _preferencesService.partialUpdatePreferences(
           userId: _userId!,
           token: _token!,
+          askForQuizzes: askForQuizzes,
           notifications: notifications,
           location: location,
           arEffects: arEffects,
@@ -111,6 +140,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
         if (currentPrefs != null) {
           final updatedLocal = UserPreferences(
             userId: currentPrefs.userId,
+            askForQuizzes: askForQuizzes ?? currentPrefs.askForQuizzes,
             notifications: notifications ?? currentPrefs.notifications,
             location: location ?? currentPrefs.location,
             arEffects: arEffects ?? currentPrefs.arEffects,
@@ -132,6 +162,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
       if (currentPrefs != null) {
         final updatedLocal = UserPreferences(
           userId: currentPrefs.userId,
+          askForQuizzes: askForQuizzes ?? currentPrefs.askForQuizzes,
           notifications: notifications ?? currentPrefs.notifications,
           location: location ?? currentPrefs.location,
           arEffects: arEffects ?? currentPrefs.arEffects,
@@ -149,9 +180,9 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferencias guardadas')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Preferencias guardadas')));
     }
   }
 
@@ -190,44 +221,48 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
               child: CircularProgressIndicator(color: Color(0xFFFF6600)),
             )
           : FutureBuilder<UserPreferences>(
-        future: _preferencesFuture!,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
-            );
-          }
+              future: _preferencesFuture!,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFFFF6600)),
+                  );
+                }
 
-          if (snapshot.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _loadPreferences,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reintentar'),
-                  ),
-                ],
-              ),
-            );
-          }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.red,
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Error: ${snapshot.error}'),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _loadPreferences,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reintentar'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
 
-          if (!snapshot.hasData) {
-            return const Center(
-              child: Text('No se pudieron cargar las preferencias'),
-            );
-          }
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: Text('No se pudieron cargar las preferencias'),
+                  );
+                }
 
-          final preferences = snapshot.data!;
+                final preferences = snapshot.data!;
 
-          return _buildConfigContent(context, preferences, appInfo);
-        },
-      ),
+                return _buildConfigContent(context, preferences, appInfo);
+              },
+            ),
     );
   }
 
@@ -248,10 +283,17 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
             _SettingsCard(
               children: [
                 _SwitchTile(
+                  icon: Icons.quiz_outlined,
+                  title: 'Sugerir quizzes',
+                  subtitle: 'Abrir el quiz después de visitar un monumento',
+                  value: preferences.askForQuizzes,
+                  onChanged: (v) => _updatePreference(askForQuizzes: v),
+                ),
+                const Divider(height: 0),
+                _SwitchTile(
                   icon: Icons.notifications_outlined,
                   title: 'Notificaciones Push',
-                  subtitle:
-                      'Recibir alertas sobre nuevos monumentos y eventos',
+                  subtitle: 'Recibir alertas sobre nuevos monumentos y eventos',
                   value: preferences.notifications,
                   onChanged: (v) => _updatePreference(notifications: v),
                 ),
@@ -286,8 +328,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 _SwitchTile(
                   icon: Icons.phone_android_outlined,
                   title: 'Calidad Alta',
-                  subtitle:
-                      'Renderizado de alta calidad (consume más batería)',
+                  subtitle: 'Renderizado de alta calidad (consume más batería)',
                   value: preferences.highQuality,
                   onChanged: (v) => _updatePreference(highQuality: v),
                 ),
@@ -296,17 +337,13 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
 
             const SizedBox(height: 16),
 
-            _SectionTitle(
-              icon: Icons.volume_up_outlined,
-              title: 'Audio',
-            ),
+            _SectionTitle(icon: Icons.volume_up_outlined, title: 'Audio'),
             _SettingsCard(
               children: [
                 _SwitchTile(
                   icon: Icons.volume_up_outlined,
                   title: 'Efectos de Sonido',
-                  subtitle:
-                      'Reproducir sonidos al interactuar con monumentos',
+                  subtitle: 'Reproducir sonidos al interactuar con monumentos',
                   value: preferences.sound,
                   onChanged: (v) => _updatePreference(sound: v),
                 ),
@@ -354,15 +391,9 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _InfoRow(
-                      label: 'Versión',
-                      value: appInfo["version"]!,
-                    ),
+                    _InfoRow(label: 'Versión', value: appInfo["version"]!),
                     const Divider(),
-                    _InfoRow(
-                      label: 'Build',
-                      value: appInfo["build"]!,
-                    ),
+                    _InfoRow(label: 'Build', value: appInfo["build"]!),
                     const Divider(),
                     _InfoRow(
                       label: 'Última actualización',
@@ -486,10 +517,7 @@ class _SectionTitle extends StatelessWidget {
   final IconData icon;
   final String title;
 
-  const _SectionTitle({
-    required this.icon,
-    required this.title,
-  });
+  const _SectionTitle({required this.icon, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -507,10 +535,7 @@ class _SectionTitle extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -554,14 +579,8 @@ class _SwitchTile extends StatelessWidget {
         backgroundColor: Colors.grey.shade100,
         child: Icon(icon, color: Colors.grey.shade700),
       ),
-      title: Text(
-        title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(color: Colors.grey),
-      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
@@ -575,10 +594,7 @@ class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
 
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -588,12 +604,7 @@ class _InfoRow extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(color: Colors.grey)),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -625,15 +636,9 @@ class _OptionTile extends StatelessWidget {
       leading: Icon(icon, color: subtitleColor),
       title: Text(
         title,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: color,
-        ),
+        style: TextStyle(fontWeight: FontWeight.w500, color: color),
       ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(color: subtitleColor),
-      ),
+      subtitle: Text(subtitle, style: TextStyle(color: subtitleColor)),
     );
   }
 }
