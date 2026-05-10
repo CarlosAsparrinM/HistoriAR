@@ -8,8 +8,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../models/monument.dart';
+import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
+import '../services/location_service.dart';
 import '../services/monuments_service.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -23,6 +25,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final MapController _mapController = MapController();
 
   final MonumentsService _monumentsService = MonumentsService();
+  final LocationService _locationService = const LocationService();
 
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
@@ -31,12 +34,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
   StreamSubscription<Position>? _positionSub;
   Timer? _mapAnimationTimer;
   bool _followUser = true;
+  LatLng? _lastContextLatLng;
+  DateTime? _lastContextFetch;
 
   // Estado relacionado a monumentos
   List<Monument> _monuments = [];
   bool _isLoadingMonuments = false;
   String? _error;
   Monument? _selectedMonument;
+  TourContextResponse? _locationContext;
+  List<Monument> _nearbyMonuments = [];
+  bool _isLoadingLocationContext = false;
+  String? _locationContextError;
 
   @override
   void initState() {
@@ -102,8 +111,63 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 _mapController.move(latLng, _zoom);
               }
             });
+
+            _refreshLocationContext(latLng);
           },
         );
+  }
+
+  bool _shouldRefreshLocationContext(LatLng position) {
+    if (_lastContextLatLng == null || _lastContextFetch == null) {
+      return true;
+    }
+
+    final elapsed = DateTime.now().difference(_lastContextFetch!);
+    final distance = const Distance().as(
+      LengthUnit.Meter,
+      _lastContextLatLng!,
+      position,
+    );
+
+    return elapsed.inSeconds > 45 || distance > 100;
+  }
+
+  Future<void> _refreshLocationContext(LatLng position) async {
+    if (!_shouldRefreshLocationContext(position)) return;
+
+    _lastContextLatLng = position;
+    _lastContextFetch = DateTime.now();
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingLocationContext = true;
+      _locationContextError = null;
+    });
+
+    try {
+      final context = await _locationService.getContextForLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      final nearby = await _locationService.getNearbyMonuments(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        maxDistance: 1000,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _locationContext = context;
+        _nearbyMonuments = nearby;
+        _isLoadingLocationContext = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _locationContextError = e.toString();
+        _isLoadingLocationContext = false;
+      });
+    }
   }
 
   void _animateMapTo({
@@ -285,6 +349,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ],
               ),
             ),
+
+            if (_locationContext != null ||
+                _isLoadingLocationContext ||
+                _locationContextError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: _LocationContextCard(
+                  contextData: _locationContext,
+                  nearbyMonumentsCount: _nearbyMonuments.length,
+                  isLoading: _isLoadingLocationContext,
+                  errorMessage: _locationContextError,
+                ),
+              ),
 
             // Leyenda de estados
             Padding(
@@ -634,6 +711,76 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LocationContextCard extends StatelessWidget {
+  final TourContextResponse? contextData;
+  final int nearbyMonumentsCount;
+  final bool isLoading;
+  final String? errorMessage;
+
+  const _LocationContextCard({
+    required this.contextData,
+    required this.nearbyMonumentsCount,
+    required this.isLoading,
+    required this.errorMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final institutionName =
+        contextData?.institution?.name ?? 'Buscando institución';
+    final toursCount = contextData?.tours.length ?? 0;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: isLoading
+            ? const Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Actualizando contexto de ubicación...'),
+                  ),
+                ],
+              )
+            : errorMessage != null
+            ? Text(
+                'No se pudo cargar el contexto de ubicación: $errorMessage',
+                style: const TextStyle(color: Colors.red),
+              )
+            : Row(
+                children: [
+                  const Icon(Icons.location_on, color: Color(0xFFFF6600)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          institutionName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$toursCount tours disponibles · $nearbyMonumentsCount monumentos cercanos',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

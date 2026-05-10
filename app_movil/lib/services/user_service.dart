@@ -1,7 +1,9 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
-import 'api_config.dart';
+
 import '../models/user.dart';
+import 'api_config.dart';
 
 class UserService {
   static const String _basePath = '/api/users';
@@ -122,6 +124,39 @@ class UserService {
           .toList();
     } else {
       String message = 'Error al obtener usuarios';
+      try {
+        final data = jsonDecode(response.body);
+        if (data is Map && data['message'] is String) {
+          message = data['message'] as String;
+        }
+      } catch (_) {}
+      throw Exception(message);
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getUserQuizAttempts({
+    required String userId,
+    required String token,
+  }) async {
+    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId/quiz-attempts');
+
+    final response = await http.get(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = jsonDecode(response.body);
+      final items = data is Map<String, dynamic> ? data['items'] : null;
+      if (items is List) {
+        return items.whereType<Map<String, dynamic>>().toList();
+      }
+      return const [];
+    } else {
+      String message = 'Error al obtener intentos de quiz';
       try {
         final data = jsonDecode(response.body);
         if (data is Map && data['message'] is String) {
