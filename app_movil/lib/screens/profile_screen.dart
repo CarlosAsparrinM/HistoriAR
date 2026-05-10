@@ -41,9 +41,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (token == null || token.isEmpty) {
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay sesión activa')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('No hay sesión activa')));
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
@@ -70,7 +70,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     };
 
     final activities = <_ProfileActivity>[
-      ...visits.map((visit) => _ProfileActivity.fromVisit(visit, monumentsById)),
+      ...visits.map(
+        (visit) => _ProfileActivity.fromVisit(visit, monumentsById),
+      ),
       ...attempts.map(
         (attempt) => _ProfileActivity.fromQuizAttempt(attempt, monumentsById),
       ),
@@ -91,9 +93,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     authState.token = '';
     if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
   }
 
   @override
@@ -101,10 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'Mi Perfil',
-          style: TextStyle(color: Colors.black),
-        ),
+        title: const Text('Mi Perfil', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: false,
@@ -137,7 +136,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
                     const SizedBox(height: 16),
                     Text('Error: ${snapshot.error}'),
                     const SizedBox(height: 16),
@@ -153,11 +156,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
 
           final data = snapshot.data;
-          if (data == null) {
+          if (data == null)
             return const Center(
               child: Text('No se encontraron datos del usuario'),
             );
-          }
 
           return _buildProfileContent(context, data);
         },
@@ -231,7 +233,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  _InfoChip(label: 'Nivel ${userProfile.level}'),
+                                  _InfoChip(
+                                    label: 'Nivel ${userProfile.level}',
+                                  ),
                                   if (userProfile.joinDate != null)
                                     _InfoChip(label: userProfile.joinDate!),
                                 ],
@@ -322,10 +326,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Text(
               'Insignias Recientes',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             if (userProfile.badges.isNotEmpty)
@@ -375,10 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 24),
             const Text(
               'Actividad Reciente',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             if (data.activities.isEmpty)
@@ -478,221 +476,207 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-+}
-+
-+class _ProfileData {
-+  final User user;
-+  final List<Map<String, dynamic>> visits;
-+  final List<Map<String, dynamic>> attempts;
-+  final List<_ProfileActivity> activities;
-+
-+  const _ProfileData({
-+    required this.user,
-+    required this.visits,
-+    required this.attempts,
-+    required this.activities,
-+  });
-+}
-+
-+class _ProfileActivity {
-+  final IconData icon;
-+  final String title;
-+  final String dateLabel;
-+  final String metricLabel;
-+  final DateTime date;
-+
-+  const _ProfileActivity({
-+    required this.icon,
-+    required this.title,
-+    required this.dateLabel,
-+    required this.metricLabel,
-+    required this.date,
-+  });
-+
-+  factory _ProfileActivity.fromVisit(
-+    Map<String, dynamic> visit,
-+    Map<String, Monument> monumentsById,
-+  ) {
-+    final monumentId = visit['monumentId'];
-+    final monumentName = monumentId is Map<String, dynamic>
-+        ? (monumentId['name'] as String? ?? 'Visita registrada')
-+        : monumentsById[monumentId?.toString()]?.name ?? 'Visita registrada';
-+
-+    final date =
-+            _parseDate(visit['date']) ??
-+            _parseDate(visit['createdAt']) ??
-+            DateTime.now();
-+    final duration = visit['duration'];
-+    final rating = visit['rating'];
-+
-+    final metricLabel = duration != null
-+        ? '${duration.toString()} min'
-+        : rating != null
-+            ? '★ ${rating.toString()}'
-+            : 'Visita';
-+
-+    return _ProfileActivity(
-+      icon: Icons.place_outlined,
-+      title: 'Visitaste $monumentName',
-+      dateLabel: _relativeDate(date),
-+      metricLabel: metricLabel,
-+      date: date,
-+    );
-+  }
-+
-+  factory _ProfileActivity.fromQuizAttempt(
-+    Map<String, dynamic> attempt,
-+    Map<String, Monument> monumentsById,
-+  ) {
-+    final monumentId = attempt['monumentId'];
-+    final monumentName = monumentId is Map<String, dynamic>
-+        ? (monumentId['name'] as String? ?? 'Quiz completado')
-+        : monumentsById[monumentId?.toString()]?.name ?? 'Quiz completado';
-+
-+    final date =
-+            _parseDate(attempt['completedAt']) ??
-+            _parseDate(attempt['createdAt']) ??
-+            DateTime.now();
-+    final score = (attempt['percentageScore'] as num?)?.round() ?? 0;
-+
-+    return _ProfileActivity(
-+      icon: Icons.quiz_outlined,
-+      title: 'Quiz completado en $monumentName',
-+      dateLabel: _relativeDate(date),
-+      metricLabel: '$score%',
-+      date: date,
-+    );
-+  }
-+
-+  static DateTime? _parseDate(dynamic value) {
-+    if (value == null) return null;
-+    if (value is DateTime) return value;
-+    if (value is String) return DateTime.tryParse(value);
-+    return null;
-+  
-return null;
-return null;}
-+
-+  static String _relativeDate(DateTime date) {
-+    final difference = DateTime.now().difference(date);
-+    if (difference.inDays <= 0) return 'Hoy';
-+    if (difference.inDays == 1) return 'Hace 1 día';
-+    if (difference.inDays < 7) return 'Hace ${difference.inDays} días';
-+    if (difference.inDays < 30) return 'Hace ${difference.inDays ~/ 7} semanas';
-+    return 'Hace ${difference.inDays ~/ 30} meses';
-+  }
-+}
-+
-+class _InfoChip extends StatelessWidget {
-+  final String label;
-+
-+  const _InfoChip({required this.label});
-+
-+  @override
-+  @override
+}
+
+class _ProfileData {
+  final User user;
+  final List<Map<String, dynamic>> visits;
+  final List<Map<String, dynamic>> attempts;
+  final List<_ProfileActivity> activities;
+
+  const _ProfileData({
+    required this.user,
+    required this.visits,
+    required this.attempts,
+    required this.activities,
+  });
+}
+
+class _ProfileActivity {
+  final IconData icon;
+  final String title;
+  final String dateLabel;
+  final String metricLabel;
+  final DateTime date;
+
+  const _ProfileActivity({
+    required this.icon,
+    required this.title,
+    required this.dateLabel,
+    required this.metricLabel,
+    required this.date,
+  });
+
+  factory _ProfileActivity.fromVisit(
+    Map<String, dynamic> visit,
+    Map<String, Monument> monumentsById,
+  ) {
+    final monumentId = visit['monumentId'];
+    final monumentName = monumentId is Map<String, dynamic>
+        ? (monumentId['name'] as String? ?? 'Visita registrada')
+        : monumentsById[monumentId?.toString()]?.name ?? 'Visita registrada';
+
+    final date =
+        _parseDate(visit['date']) ??
+        _parseDate(visit['createdAt']) ??
+        DateTime.now();
+    final duration = visit['duration'];
+    final rating = visit['rating'];
+
+    final metricLabel = duration != null
+        ? '${duration.toString()} min'
+        : rating != null
+        ? '★ ${rating.toString()}'
+        : 'Visita';
+
+    return _ProfileActivity(
+      icon: Icons.place_outlined,
+      title: 'Visitaste $monumentName',
+      dateLabel: _relativeDate(date),
+      metricLabel: metricLabel,
+      date: date,
+    );
+  }
+
+  factory _ProfileActivity.fromQuizAttempt(
+    Map<String, dynamic> attempt,
+    Map<String, Monument> monumentsById,
+  ) {
+    final monumentId = attempt['monumentId'];
+    final monumentName = monumentId is Map<String, dynamic>
+        ? (monumentId['name'] as String? ?? 'Quiz completado')
+        : monumentsById[monumentId?.toString()]?.name ?? 'Quiz completado';
+
+    final date =
+        _parseDate(attempt['completedAt']) ??
+        _parseDate(attempt['createdAt']) ??
+        DateTime.now();
+    final score = (attempt['percentageScore'] as num?)?.round() ?? 0;
+
+    return _ProfileActivity(
+      icon: Icons.quiz_outlined,
+      title: 'Quiz completado en $monumentName',
+      dateLabel: _relativeDate(date),
+      metricLabel: '$score%',
+      date: date,
+    );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static String _relativeDate(DateTime date) {
+    final difference = DateTime.now().difference(date);
+    if (difference.inDays <= 0) return 'Hoy';
+    if (difference.inDays == 1) return 'Hace 1 día';
+    if (difference.inDays < 7) return 'Hace ${difference.inDays} días';
+    if (difference.inDays < 30) return 'Hace ${difference.inDays ~/ 7} semanas';
+    return 'Hace ${difference.inDays ~/ 30} meses';
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  const _InfoChip({required this.label});
+
+  @override
   Widget build(BuildContext context) {
-+    return Container(
-+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-+      decoration: BoxDecoration(
-+        color: const Color(0xFFFF6600),
-+        borderRadius: BorderRadius.circular(12),
-+      ),
-+      child: Text(
-+        label,
-+        style: const TextStyle(
-+          color: Colors.white,
-+          fontSize: 12,
-+          fontWeight: FontWeight.w600,
-+        ),
-+      ),
-+    );
-+  }
-+}
-+
-+class _StatCard extends StatelessWidget {
-+  final IconData icon;
-+  final String label;
-+  final String value;
-+
-+  const _StatCard({
-+    required this.icon,
-+    required this.label,
-+    required this.value,
-+  });
-+
-+  @override
-+  @override
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF6600),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _StatCard({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
   Widget build(BuildContext context) {
-+    return Expanded(
-+      child: Card(
-+        elevation: 1,
-+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-+        child: Padding(
-+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-+          child: Column(
-+            children: [
-+              CircleAvatar(
-+                radius: 18,
-+                backgroundColor: Colors.grey.shade100,
-+                child: Icon(icon, color: const Color(0xFFFF6600), size: 20),
-+              ),
-+              const SizedBox(height: 8),
-+              Text(
-+                value,
-+                style: const TextStyle(
-+                  fontSize: 18,
-+                  fontWeight: FontWeight.bold,
-+                ),
-+              ),
-+              const SizedBox(height: 4),
-+              Text(
-+                label,
-+                textAlign: TextAlign.center,
-+                style: const TextStyle(fontSize: 10, color: Colors.grey),
-+              ),
-+            ],
-+          ),
-+        ),
-+      ),
-+    );
-+  }
-+}
-+
-+class _OptionTile extends StatelessWidget {
-+  final IconData icon;
-+  final String title;
-+  final String subtitle;
-+  final VoidCallback onTap;
-+  final bool isDestructive;
-+
-+  const _OptionTile({
-+    required this.icon,
-+    required this.title,
-+    required this.subtitle,
-+    required this.onTap,
-+    this.isDestructive = false,
-+  });
-+
-+  @override
-+  @override
+    return Expanded(
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          child: Column(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: Colors.grey.shade100,
+                child: Icon(icon, color: const Color(0xFFFF6600), size: 20),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool isDestructive;
+  const _OptionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
   Widget build(BuildContext context) {
-+    final color = isDestructive ? Colors.red : Colors.black;
-+    final subtitleColor = isDestructive ? Colors.red.shade300 : Colors.grey;
-+
-+    return ListTile(
-+      onTap: onTap,
-+      leading: Icon(icon, color: subtitleColor),
-+      title: Text(
-+        title,
-+        style: TextStyle(
-+          fontWeight: FontWeight.w500,
-+          color: color,
-+        ),
-+      ),
-+      subtitle: Text(
-+        subtitle,
-+        style: TextStyle(color: subtitleColor),
-+      ),
-+    );
-+  }
-+}
+    final color = isDestructive ? Colors.red : Colors.black;
+    final subtitleColor = isDestructive ? Colors.red.shade300 : Colors.grey;
+
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(icon, color: subtitleColor),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.w500, color: color),
+      ),
+      subtitle: Text(subtitle, style: TextStyle(color: subtitleColor)),
+    );
+  }
+}
