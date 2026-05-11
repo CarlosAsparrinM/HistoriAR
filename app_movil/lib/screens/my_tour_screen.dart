@@ -8,6 +8,7 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/tours_service.dart';
+import '../styles/app_colors.dart';
 
 class MyTourScreen extends StatefulWidget {
   const MyTourScreen({super.key});
@@ -242,7 +243,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.of(sheetContext).pop(true),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF6600),
+                        backgroundColor: AppColors.primary,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -383,12 +384,12 @@ class _MyTourScreenState extends State<MyTourScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF6600).withOpacity(0.12),
+                    color: AppColors.primary.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
                     Icons.emoji_events_outlined,
-                    color: Color(0xFFFF6600),
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -668,7 +669,7 @@ class _TourStopCard extends StatelessWidget {
                       child: ElevatedButton.icon(
                         onPressed: onOpenAr,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6600),
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -684,7 +685,7 @@ class _TourStopCard extends StatelessWidget {
                       child: OutlinedButton.icon(
                         onPressed: onOpenQuiz,
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFFF6600)),
+                          side: BorderSide(color: AppColors.primary),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),
@@ -692,11 +693,11 @@ class _TourStopCard extends StatelessWidget {
                         ),
                         icon: const Icon(
                           Icons.quiz_outlined,
-                          color: Color(0xFFFF6600),
+                          color: AppColors.primary,
                         ),
                         label: const Text(
                           'Quiz',
-                          style: TextStyle(color: Color(0xFFFF6600)),
+                          style: TextStyle(color: AppColors.primary),
                         ),
                       ),
                     ),
@@ -831,7 +832,7 @@ class _EmptyTourState extends StatelessWidget {
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF6600),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
             ),
             child: const Text('Volver a intentar'),

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_preferences.dart';
 import '../services/preferences_service.dart';
+import '../styles/app_colors.dart';
 import 'login_screen.dart';
 
 class ConfigurationScreen extends StatefulWidget {
@@ -189,13 +190,13 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   @override
   Widget build(BuildContext context) {
     final appInfo = {
-      "version": "2.1.4",
-      "build": "Build 2024.01.15",
-      "lastUpdate": "15 Ene 2024",
+      "version": "0.8.1",
+      "build": "Build 2026.05.10",
+      "lastUpdate": "10 Mayo 2026",
     };
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.highlight,
       appBar: AppBar(
         title: const Text(
           'Configuración',
@@ -217,15 +218,13 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
         ),
       ),
       body: (_preferencesFuture == null)
-          ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
-            )
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
           : FutureBuilder<UserPreferences>(
               future: _preferencesFuture!,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
-                    child: CircularProgressIndicator(color: Color(0xFFFF6600)),
+                    child: CircularProgressIndicator(color: Colors.white),
                   );
                 }
 
@@ -459,9 +458,9 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
 
             Container(
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF4E6),
+                color: AppColors.highlight,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFD9A6)),
+                border: Border.all(color: AppColors.accent),
               ),
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -470,8 +469,8 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF6600),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -526,8 +525,8 @@ class _SectionTitle extends StatelessWidget {
         Container(
           width: 32,
           height: 32,
-          decoration: const BoxDecoration(
-            color: Color(0xFFFF6600),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
             shape: BoxShape.circle,
           ),
           child: Icon(icon, color: Colors.white, size: 18),
@@ -584,7 +583,7 @@ class _SwitchTile extends StatelessWidget {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: const Color(0xFFFF6600),
+        activeThumbColor: AppColors.primary,
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/monument.dart';
 import '../services/quiz_service.dart';
+import '../styles/app_colors.dart';
 
 class QuizScreen extends StatefulWidget {
 	final Monument monument;
@@ -221,7 +222,7 @@ class _QuizScreenState extends State<QuizScreen> {
 									width: 96,
 									height: 96,
 									decoration: const BoxDecoration(
-										color: Color(0xFFFF6600),
+										color: AppColors.primary,
 										shape: BoxShape.circle,
 									),
 									child: Icon(
@@ -244,14 +245,14 @@ class _QuizScreenState extends State<QuizScreen> {
 							),
 							const SizedBox(height: 12),
 							Center(
-								child: Text(
-									'$score / $maxScore puntos',
-									style: const TextStyle(
-										fontSize: 22,
-										fontWeight: FontWeight.bold,
-										color: Color(0xFFFF6600),
+									child: Text(
+										'$score / $maxScore puntos',
+										style: const TextStyle(
+											fontSize: 22,
+											fontWeight: FontWeight.bold,
+											color: AppColors.primary,
+										),
 									),
-								),
 							),
 							const SizedBox(height: 16),
 							Expanded(
@@ -321,14 +322,14 @@ class _QuizScreenState extends State<QuizScreen> {
 																			vertical: 2,
 																		),
 																		decoration: BoxDecoration(
-																			color: const Color(0xFFFFF0E0),
+																			color: AppColors.highlight,
 																			borderRadius: BorderRadius.circular(999),
 																		),
 																		child: Text(
 																			isCorrectAnswer ? '+$pts pts' : '0 pts',
 																			style: const TextStyle(
 																				fontSize: 11,
-																				color: Color(0xFFFF6600),
+																				color: AppColors.primary,
 																				fontWeight: FontWeight.bold,
 																			),
 																		),
@@ -402,14 +403,14 @@ class _QuizScreenState extends State<QuizScreen> {
 							SizedBox(
 								width: double.infinity,
 								child: ElevatedButton(
-									onPressed: () => Navigator.of(context).pop(),
-									style: ElevatedButton.styleFrom(
-										backgroundColor: const Color(0xFFFF6600),
-										padding: const EdgeInsets.symmetric(vertical: 14),
-										shape: RoundedRectangleBorder(
-											borderRadius: BorderRadius.circular(12),
-										),
-									),
+													onPressed: () => Navigator.of(context).pop(),
+													style: ElevatedButton.styleFrom(
+														backgroundColor: AppColors.primary,
+														padding: const EdgeInsets.symmetric(vertical: 14),
+														shape: RoundedRectangleBorder(
+															borderRadius: BorderRadius.circular(12),
+														),
+													),
 									child: const Text(
 										'Continuar explorando',
 										style: TextStyle(
@@ -480,7 +481,7 @@ class _QuizScreenState extends State<QuizScreen> {
 										value: progress,
 										minHeight: 6,
 										backgroundColor: Colors.grey.shade200,
-										valueColor: const AlwaysStoppedAnimation(Color(0xFFFF6600)),
+										valueColor: const AlwaysStoppedAnimation(AppColors.primary),
 									),
 								),
 								const SizedBox(height: 12),
@@ -532,14 +533,14 @@ class _QuizScreenState extends State<QuizScreen> {
 														vertical: 4,
 													),
 													decoration: BoxDecoration(
-														color: const Color(0xFFFFF0E0),
+														color: AppColors.highlight,
 														borderRadius: BorderRadius.circular(999),
 													),
 													child: Text(
 														'${currentQuestion['points'] ?? 0} pts',
 														style: const TextStyle(
 															fontSize: 12,
-															color: Color(0xFFFF6600),
+															color: AppColors.primary,
 															fontWeight: FontWeight.bold,
 														),
 													),
@@ -652,7 +653,7 @@ class _QuizScreenState extends State<QuizScreen> {
 														? null
 														: _onNext,
 											style: ElevatedButton.styleFrom(
-												backgroundColor: const Color(0xFFFF6600),
+												backgroundColor: AppColors.primary,
 												padding:
 													const EdgeInsets.symmetric(vertical: 14),
 												shape: RoundedRectangleBorder(
@@ -710,10 +711,10 @@ class _QuizOption extends StatelessWidget {
 				textColor = Colors.red.shade800;
 			}
 		} else {
-			borderColor =
-					isSelected ? const Color(0xFFFF6600) : Colors.grey.shade200;
-			backgroundColor =
-					isSelected ? const Color(0xFFFFF5EC) : Colors.white;
+				borderColor =
+					isSelected ? AppColors.primary : Colors.grey.shade200;
+				backgroundColor =
+					isSelected ? AppColors.highlight : Colors.white;
 		}
 
 		return Container(

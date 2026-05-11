@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../models/monument.dart';
+import '../styles/app_colors.dart';
 import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
@@ -664,9 +665,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             onPressed: () =>
                                                 Navigator.of(context).pop(true),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xFFFF6600,
-                                              ),
+                                              backgroundColor: AppColors.primary,
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     vertical: 12,
@@ -761,7 +760,7 @@ class _LocationContextCard extends StatelessWidget {
               )
             : Row(
                 children: [
-                  const Icon(Icons.location_on, color: Color(0xFFFF6600)),
+                  const Icon(Icons.location_on, color: AppColors.primary),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1189,7 +1188,7 @@ class _SelectedMonumentCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6600),
+                      backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

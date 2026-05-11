@@ -8,6 +8,7 @@ import '../screens/login_screen.dart';
 import '../services/monuments_service.dart';
 import '../services/user_service.dart';
 import '../services/visits_service.dart';
+import '../styles/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -101,7 +102,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Mi Perfil', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
@@ -125,7 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (_profileFuture == null ||
               snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
+              child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
 
@@ -196,7 +197,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 32,
-                          backgroundColor: const Color(0xFFFF6600),
+                          backgroundColor: AppColors.primary,
                           backgroundImage: userProfile.profileImage != null
                               ? NetworkImage(userProfile.profileImage!)
                               : null,
@@ -344,7 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF6600),
+                        color: AppColors.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -402,7 +403,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             backgroundColor: Colors.grey.shade100,
                             child: Icon(
                               activity.icon,
-                              color: const Color(0xFFFF6600),
+                              color: AppColors.primary,
                             ),
                           ),
                           title: Text(
@@ -588,7 +589,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFFFF6600),
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
@@ -626,7 +627,7 @@ class _StatCard extends StatelessWidget {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: Colors.grey.shade100,
-                child: Icon(icon, color: const Color(0xFFFF6600), size: 20),
+                child: Icon(icon, color: AppColors.primary, size: 20),
               ),
               const SizedBox(height: 8),
               Text(

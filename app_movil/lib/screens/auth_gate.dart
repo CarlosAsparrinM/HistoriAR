@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import 'login_screen.dart';
 import 'main_scaffold.dart';
+import '../styles/app_colors.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -59,7 +60,7 @@ class _AuthGateState extends State<AuthGate> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
+              child: CircularProgressIndicator(color: AppColors.primary),
             ),
           );
         }

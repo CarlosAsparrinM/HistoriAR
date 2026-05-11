@@ -8,11 +8,14 @@ import 'package:ar_flutter_plugin_plus/managers/ar_anchor_manager.dart';
 import 'package:ar_flutter_plugin_plus/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin_plus/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin_plus/managers/ar_session_manager.dart';
+import 'package:ar_flutter_plugin_plus/models/ar_anchor.dart';
+import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
+import '../styles/app_colors.dart';
 import '../models/monument.dart';
 import '../services/api_config.dart';
 
@@ -33,19 +36,22 @@ class ArCameraScreen extends StatefulWidget {
 class _ArCameraScreenState extends State<ArCameraScreen> {
   ARSessionManager? arSessionManager;
   ARObjectManager? arObjectManager;
+  ARAnchorManager? arAnchorManager;
   ARNode? webObjectNode;
 
   double _scaleFactor = 0.2;
   double _rotationY = 0.0; // en radianes
+  double _rotationX = 0.0;
   double _baseScale = 0.2;
   double _baseRotationY = 0.0;
+  double _baseRotationX = 0.0;
+  Offset _baseFocalPoint = Offset.zero;
   // Offset inicial: un poco más abajo del centro de la cámara
   vmath.Vector2 _offset = vmath.Vector2(0.0, -0.3);
   vmath.Vector2 _baseOffset = vmath.Vector2(0.0, 0.0);
 
   bool _isLoadingModel = false;
   String? _loadError;
-  String? _lastPressedButtonId;
 
   @override
   void dispose() {
@@ -61,15 +67,18 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   ) {
     this.arSessionManager = arSessionManager;
     this.arObjectManager = arObjectManager;
+    this.arAnchorManager = arAnchorManager;
 
     this.arSessionManager!.onInitialize(
       showFeaturePoints: true,
       showPlanes: true,
       customPlaneTexturePath: "Images/triangle.png",
       showWorldOrigin: false,
-      handleTaps: false,
+      handleTaps: true,
     );
     this.arObjectManager!.onInitialize();
+
+    this.arSessionManager!.onPlaneOrPointTap = _handlePlaneOrPointTap;
 
     _addWebObjectForMonument();
   }
@@ -97,6 +106,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     // Colocamos el modelo al frente y un poco más abajo de la cámara
     final transform = vmath.Matrix4.identity()
       ..setTranslationRaw(0.0, -0.4, -0.8)
+      ..rotateX(_rotationX)
       ..rotateY(_rotationY)
       ..scale(_scaleFactor);
 
@@ -173,55 +183,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
     final transform = vmath.Matrix4.identity()
       ..setTranslationRaw(_offset.x, _offset.y, -0.8)
+      ..rotateX(_rotationX)
       ..rotateY(_rotationY)
       ..scale(_scaleFactor);
 
     webObjectNode!.transform = transform;
-  }
-
-  void _zoomIn() {
-    if (webObjectNode == null) return;
-    setState(() {
-      _scaleFactor = (_scaleFactor + 0.05).clamp(0.1, 0.8);
-    });
-    _updateNodeTransform();
-  }
-
-  void _zoomOut() {
-    if (webObjectNode == null) return;
-    setState(() {
-      _scaleFactor = (_scaleFactor - 0.05).clamp(0.1, 0.8);
-    });
-    _updateNodeTransform();
-  }
-
-  void _rotateRight() {
-    if (webObjectNode == null) return;
-    setState(() {
-      _rotationY += 0.2;
-    });
-    _updateNodeTransform();
-  }
-
-  void _flashButton(String id) {
-    setState(() => _lastPressedButtonId = id);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      if (_lastPressedButtonId == id) {
-        setState(() => _lastPressedButtonId = null);
-      }
-    });
-  }
-
-  void _resetTransform() {
-    if (webObjectNode == null) return;
-    setState(() {
-      _scaleFactor = 0.2;
-      _rotationY = 0.0;
-      // Reseteamos el offset manteniendo el modelo al frente y un poco más abajo
-      _offset = vmath.Vector2(0.0, -0.3);
-    });
-    _updateNodeTransform();
   }
 
   @override
@@ -235,26 +201,48 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           GestureDetector(
             onScaleStart: (details) {
               _baseScale = _scaleFactor;
+              _baseRotationX = _rotationX;
               _baseRotationY = _rotationY;
               _baseOffset = _offset;
+              _baseFocalPoint = details.focalPoint;
             },
             onScaleUpdate: (details) {
               if (webObjectNode == null) return;
-              setState(() {
-                final newScale = _baseScale * details.scale;
-                _scaleFactor = newScale.clamp(0.1, 0.8);
-                _rotationY = _baseRotationY + details.rotation;
-                _offset = vmath.Vector2(
-                  (_baseOffset.x + details.focalPointDelta.dx / 300).clamp(
-                    -1.0,
-                    1.0,
-                  ),
-                  (_baseOffset.y - details.focalPointDelta.dy / 300).clamp(
-                    -1.0,
-                    1.0,
-                  ),
-                );
-              });
+              // Distinguimos pan de un dedo vs gesto de varios dedos
+              final bool isSingleFingerPan =
+                  (details.scale - 1.0).abs() < 0.02 &&
+                  details.rotation.abs() < 0.02;
+
+              if (isSingleFingerPan) {
+                final double deltaX =
+                    (details.focalPoint.dx - _baseFocalPoint.dx) / 150;
+                final double deltaY =
+                    (details.focalPoint.dy - _baseFocalPoint.dy) / 300;
+
+                // Interpretar como giro: horizontal = yaw, vertical = pitch
+                setState(() {
+                  _rotationY = _baseRotationY + deltaX;
+                  _rotationX = (_baseRotationX - deltaY).clamp(-1.4, 1.4);
+                });
+              } else {
+                // Gesto multitáctil: zoom, rotación y pequeño desplazamiento focal
+                setState(() {
+                  final newScale = _baseScale * details.scale;
+                  _scaleFactor = newScale.clamp(0.1, 0.8);
+                  _rotationX = _baseRotationX;
+                  _rotationY = _baseRotationY + details.rotation;
+                  _offset = vmath.Vector2(
+                    (_baseOffset.x + details.focalPointDelta.dx / 300).clamp(
+                      -1.0,
+                      1.0,
+                    ),
+                    (_baseOffset.y - details.focalPointDelta.dy / 300).clamp(
+                      -1.0,
+                      1.0,
+                    ),
+                  );
+                });
+              }
               _updateNodeTransform();
             },
             child: ARView(
@@ -360,34 +348,66 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
             ),
+          // Botón de regresar flotante en la esquina superior izquierda (estilizado)
+          Align(
+            alignment: Alignment.topLeft,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 12, top: 12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.45),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: IconButton(
+                    onPressed: _onBackPressed,
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    padding: const EdgeInsets.all(10),
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    splashRadius: 22,
+                  ),
+                ),
+              ),
+            ),
+          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  IconButton(
-                    onPressed: _onBackPressed,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           monument.name,
+                          textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
                           ),
                         ),
                         if (monument.district != null &&
                             monument.district!.isNotEmpty)
                           Text(
                             monument.district!,
+                            textAlign: TextAlign.center,
                             style: const TextStyle(
                               color: Colors.white70,
                               fontSize: 12,
@@ -396,119 +416,29 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  _ArControlButton(
-                    icon: Icons.info_outline,
-                    onPressed: () => _showMonumentInfo(context),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+                  // Botón de información con fondo circular
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.8),
-                      borderRadius: BorderRadius.circular(16),
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.35),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Text(
-                      monument.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                    child: IconButton(
+                      onPressed: () => _showMonumentInfo(context),
+                      icon: const Icon(Icons.info_outline, color: Colors.white),
+                      padding: const EdgeInsets.all(10),
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
                       ),
+                      splashRadius: 22,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _PeriodTimelineCard(
-                    periodLabel: monument.periodName,
-                    periodIsIdentified: monument.periodIsIdentified,
-                    startYear: monument.periodStartYear,
-                    endYear: monument.periodEndYear,
-                    discoveryYear: monument.discoveryDiscoveredAt?.year,
-                    discoveryIsKnown: monument.discoveryIsDateKnown,
-                  ),
-                  const SizedBox(height: 12),
-                  Stack(
-                    alignment: Alignment.center,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(26),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _ArControlButton(
-                              icon: Icons.rotate_left,
-                              onPressed: () {
-                                _flashButton('rotate_left');
-                                _rotateRight();
-                              },
-                              isHighlighted:
-                                  _lastPressedButtonId == 'rotate_left',
-                            ),
-                            const SizedBox(width: 12),
-                            _ArControlButton(
-                              icon: Icons.zoom_out,
-                              onPressed: () {
-                                _flashButton('zoom_out');
-                                _zoomOut();
-                              },
-                              isHighlighted: _lastPressedButtonId == 'zoom_out',
-                            ),
-                            const SizedBox(width: 12),
-                            _ArControlButton(
-                              icon: Icons.restart_alt,
-                              // Centra el modelo nuevamente frente a la cámara
-                              onPressed: webObjectNode != null
-                                  ? () {
-                                      _flashButton('reset');
-                                      _resetTransform();
-                                    }
-                                  : null,
-                              isPrimary: true,
-                              isHighlighted: _lastPressedButtonId == 'reset',
-                            ),
-                            const SizedBox(width: 12),
-                            _ArControlButton(
-                              icon: Icons.zoom_in,
-                              onPressed: () {
-                                _flashButton('zoom_in');
-                                _zoomIn();
-                              },
-                              isHighlighted: _lastPressedButtonId == 'zoom_in',
-                            ),
-                            const SizedBox(width: 12),
-                            _ArControlButton(
-                              icon: Icons.rotate_right,
-                              onPressed: () {
-                                _flashButton('rotate_right');
-                                _rotateRight();
-                              },
-                              isHighlighted:
-                                  _lastPressedButtonId == 'rotate_right',
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
@@ -521,6 +451,45 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   Future<void> _onBackPressed() async {
     Navigator.of(context).pop();
+  }
+
+  Future<void> _handlePlaneOrPointTap(List<ARHitTestResult> hits) async {
+    if (hits.isEmpty) return;
+    final hit = hits.first;
+
+    if (webObjectNode != null) {
+      await arObjectManager?.removeNode(webObjectNode!);
+      webObjectNode = null;
+    }
+
+    final url = await _resolveModelUrl();
+    if (url == null || url.isEmpty) return;
+
+    final planeAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
+    final transform = vmath.Matrix4.identity()
+      ..rotateX(_rotationX)
+      ..rotateY(_rotationY)
+      ..scale(_scaleFactor);
+
+    final newNode = ARNode(
+      type: NodeType.webGLB,
+      uri: url,
+      transformation: transform,
+    );
+
+    final addedToAnchor = await arAnchorManager?.addAnchor(planeAnchor);
+    if (addedToAnchor != true) return;
+
+    final didAdd = await arObjectManager?.addNode(
+      newNode,
+      planeAnchor: planeAnchor,
+    );
+
+    if (didAdd == true && mounted) {
+      setState(() {
+        webObjectNode = newNode;
+      });
+    }
   }
 
   void _showMonumentInfo(BuildContext context) {
@@ -557,38 +526,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoItem(label: 'Estado', value: monument.status),
-                  ),
-                  Expanded(
-                    child: _InfoItem(
-                      label: 'Distrito',
-                      value: (monument.district ?? '').isNotEmpty
-                          ? monument.district!
-                          : '—',
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _InfoItem(
-                      label: 'Latitud',
-                      value: monument.position.latitude.toStringAsFixed(5),
-                    ),
-                  ),
-                  Expanded(
-                    child: _InfoItem(
-                      label: 'Longitud',
-                      value: monument.position.longitude.toStringAsFixed(5),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 16),
+              if ((monument.culture ?? '').isNotEmpty)
+                _InfoItem(label: 'Cultura', value: monument.culture!),
+              _InfoItem(label: 'Periodo', value: _buildPeriodText(monument)),
+              _InfoItem(
+                label: 'Descubrimiento',
+                value: _buildDiscoveryText(monument),
               ),
               const SizedBox(height: 12),
               Text(
@@ -596,12 +540,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 12),
-              if ((monument.culture ?? '').isNotEmpty)
-                _InfoItem(label: 'Cultura', value: monument.culture!),
-              _InfoItem(label: 'Periodo', value: _buildPeriodText(monument)),
-              _InfoItem(
-                label: 'Descubrimiento',
-                value: _buildDiscoveryText(monument),
+              _PeriodTimelineCard(
+                periodLabel: monument.periodName,
+                periodIsIdentified: monument.periodIsIdentified,
+                startYear: monument.periodStartYear,
+                endYear: monument.periodEndYear,
+                discoveryYear: monument.discoveryDiscoveredAt?.year,
+                discoveryIsKnown: monument.discoveryIsDateKnown,
               ),
             ],
           ),
@@ -651,46 +596,6 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     final month = date.month.toString().padLeft(2, '0');
     final year = date.year.toString();
     return '$day/$month/$year';
-  }
-}
-
-class _ArControlButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool isPrimary;
-  final bool isHighlighted;
-
-  const _ArControlButton({
-    required this.icon,
-    required this.onPressed,
-    this.isPrimary = false,
-    this.isHighlighted = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bool enabled = onPressed != null;
-    final Color baseBg = isPrimary
-        ? (enabled ? Colors.white : Colors.white.withOpacity(0.4))
-        : (enabled
-              ? const Color(0xFFFF6600)
-              : const Color(0xFFFF6600).withOpacity(0.4));
-
-    final Color bg = isHighlighted ? Colors.white.withOpacity(0.9) : baseBg;
-
-    final Color fg = isPrimary || isHighlighted ? Colors.black : Colors.white;
-
-    return InkWell(
-      onTap: enabled ? onPressed : null,
-      borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-        child: Icon(icon, color: fg, size: 24),
-      ),
-    );
   }
 }
 
@@ -833,7 +738,6 @@ class _TimelineBar extends StatelessWidget {
         );
 
     final bool showDiscovery = discoveryYear != null;
-
     final double ratio = showDiscovery
         ? ((discoveryYear! - timelineStart) / (totalSpan == 0 ? 1 : totalSpan))
               .clamp(0.0, 1.0)
@@ -866,22 +770,6 @@ class _TimelineBar extends StatelessWidget {
                     top: 8,
                     left: 0,
                     right: 0,
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: 1,
-                      child: Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: Colors.white10,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 8,
-                    left: 0,
-                    right: 0,
                     child: Container(
                       height: 8,
                       decoration: BoxDecoration(
@@ -899,8 +787,8 @@ class _TimelineBar extends StatelessWidget {
                           (periodEndRatio - periodStartRatio),
                       height: 8,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF8A3D), Color(0xFFFF6600)],
+                        gradient: LinearGradient(
+                          colors: [AppColors.primaryVariant, AppColors.primary],
                         ),
                         borderRadius: BorderRadius.circular(99),
                       ),
@@ -961,11 +849,11 @@ class _DiscoveryPin extends StatelessWidget {
           Container(
             width: 10,
             height: 10,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFFFF6600), width: 2),
-            ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.primary, width: 2),
+              ),
           ),
           Container(width: 2, height: 10, color: Colors.white),
         ],
