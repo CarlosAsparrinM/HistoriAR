@@ -21,14 +21,24 @@ export async function login(req, res) {
 export async function googleLogin(req, res) {
   try {
     const { idToken } = req.body;
+    
+    if (!idToken) {
+      return res.status(400).json({ message: 'idToken requerido' });
+    }
+
     const { token, user } = await loginWithGoogle(idToken);
     res.json({ 
       token, 
       user: { id: user._id, name: user.name, email: user.email, role: user.role } 
     });
   } catch (err) {
-    console.error('Error en login de Google:', err);
-    res.status(400).json({ message: 'Error en la autenticación con Google' });
+    console.error('Error en login de Google:', err.message);
+    
+    // Mensajes de error específicos según el tipo de error
+    const errorMessage = err.message || 'Error en la autenticación con Google';
+    const statusCode = errorMessage.includes('Configuración') ? 500 : 400;
+    
+    res.status(statusCode).json({ message: errorMessage });
   }
 }
 

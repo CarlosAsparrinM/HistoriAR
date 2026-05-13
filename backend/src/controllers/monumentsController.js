@@ -1,7 +1,7 @@
 import { buildPagination } from '../utils/pagination.js';
 import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions, getMonumentStats } from '../services/monumentService.js';
 import * as s3Service from '../services/s3Service.js';
-import { hydrateMedia } from '../utils/s3-helpers.js';
+import { hydrateMedia, signIfNeeded } from '../utils/s3-helpers.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 

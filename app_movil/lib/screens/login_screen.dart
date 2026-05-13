@@ -73,19 +73,30 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final token = await _authService.login(email: email, password: password);
       authState.token = token;
-      // Persistimos token y userId para otras pantallas
+      
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('authToken', token);
 
       try {
         final me = await _userService.getMyProfile(token);
         await prefs.setString('userId', me.id);
-      } catch (_) {
-        // Si falla obtener el perfil, igual continuamos con token
+      } catch (e) {
+        print('⚠️ No se pudo obtener el perfil: ${e.toString()}');
       }
       _goToApp();
     } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      
+      // Errores específicos con mejor UX
+      if (errorMessage.contains('Credenciales inválidas')) {
+        _showError('Correo o contraseña incorrectos');
+      } else if (errorMessage.contains('No se puede conectar')) {
+        _showError('Sin conexión. Verifica tu internet.');
+      } else if (errorMessage.contains('Timeout')) {
+        _showError('El servidor tardó demasiado. Intenta de nuevo.');
+      } else {
+        _showError(errorMessage);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -113,10 +124,29 @@ class _LoginScreenState extends State<LoginScreen>
         email: email,
         password: password,
       );
-      _showError('Cuenta creada, ahora inicia sesión');
+      _showError('Cuenta creada exitosamente. Ahora inicia sesión.');
+      _loginEmailController.text = email;
+      _loginPasswordController.clear();
       _tabController.animateTo(0);
+      
+      // Limpiar campos de registro
+      _registerNameController.clear();
+      _registerEmailController.clear();
+      _registerPasswordController.clear();
+      _registerConfirmPasswordController.clear();
     } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      
+      // Errores específicos con mejor UX
+      if (errorMessage.contains('ya está registrado')) {
+        _showError('Este correo ya tiene una cuenta. Intenta iniciar sesión.');
+      } else if (errorMessage.contains('No se puede conectar')) {
+        _showError('Sin conexión. Verifica tu internet.');
+      } else if (errorMessage.contains('Timeout')) {
+        _showError('El servidor tardó demasiado. Intenta de nuevo.');
+      } else {
+        _showError(errorMessage);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -134,12 +164,31 @@ class _LoginScreenState extends State<LoginScreen>
       try {
         final me = await _userService.getMyProfile(token);
         await prefs.setString('userId', me.id);
-      } catch (_) {}
+      } catch (e) {
+        // Log del error pero continúa con el token
+        print('⚠️ No se pudo obtener el perfil: ${e.toString()}');
+      }
       
       _goToApp();
     } catch (e) {
-      if (e.toString().contains('cancelado')) return; // No mostrar error si cancela
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      
+      // No mostrar error si el usuario cancela
+      if (errorMessage.contains('cancelado')) {
+        print('ℹ️ Login de Google cancelado por el usuario');
+        return;
+      }
+      
+      // Errores específicos con mejor UX
+      if (errorMessage.contains('No se puede conectar')) {
+        _showError('Sin conexión. Verifica tu internet y reinicia la app.');
+      } else if (errorMessage.contains('Timeout')) {
+        _showError('El servidor tardó demasiado. Intenta de nuevo.');
+      } else if (errorMessage.contains('rechazado')) {
+        _showError('Tu cuenta de Google no es válida para esta app.');
+      } else {
+        _showError(errorMessage);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
