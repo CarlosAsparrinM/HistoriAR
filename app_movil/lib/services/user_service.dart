@@ -2,15 +2,15 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:app_movil/config/environment.dart';
 import '../models/user.dart';
-import 'api_config.dart';
 
 class UserService {
   static const String _basePath = '/api/users';
 
   /// Obtiene el perfil del usuario autenticado
   Future<User> getMyProfile(String token) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/me');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
 
     final response = await http.get(
       uri,
@@ -38,7 +38,7 @@ class UserService {
 
   /// Obtiene los datos de un usuario específico (solo admin)
   Future<User> getUser(String userId, String token) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/$userId');
 
     final response = await http.get(
       uri,
@@ -72,7 +72,7 @@ class UserService {
     String? email,
     String? profileImage,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/$userId');
 
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
@@ -106,7 +106,7 @@ class UserService {
 
   /// Lista todos los usuarios (solo admin)
   Future<List<User>> listUsers(String token) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath');
 
     final response = await http.get(
       uri,
@@ -138,7 +138,9 @@ class UserService {
     required String userId,
     required String token,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId/quiz-attempts');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}$_basePath/$userId/quiz-attempts',
+    );
 
     final response = await http.get(
       uri,

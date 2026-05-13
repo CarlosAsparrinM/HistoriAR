@@ -1,10 +1,10 @@
 import 'dart:convert';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/monument.dart';
 import '../models/tour.dart';
-import 'api_config.dart';
 
 class LocationService {
   const LocationService();
@@ -14,7 +14,7 @@ class LocationService {
     required double longitude,
   }) async {
     final uri = Uri.parse(
-      '$apiBaseUrl/api/location/context?lat=$latitude&lng=$longitude',
+      '${Environment.apiBaseUrl}/api/location/context?lat=$latitude&lng=$longitude',
     );
 
     final response = await http.get(uri);
@@ -28,7 +28,7 @@ class LocationService {
     double maxDistance = 1000,
   }) async {
     final uri = Uri.parse(
-      '$apiBaseUrl/api/location/nearby-monuments?lat=$latitude&lng=$longitude&maxDistance=$maxDistance',
+      '${Environment.apiBaseUrl}/api/location/nearby-monuments?lat=$latitude&lng=$longitude&maxDistance=$maxDistance',
     );
 
     final response = await http.get(uri);

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:ar_flutter_plugin_plus/ar_flutter_plugin_plus.dart';
 import 'package:ar_flutter_plugin_plus/datatypes/config_planedetection.dart';
 import 'package:ar_flutter_plugin_plus/datatypes/node_types.dart';
@@ -16,7 +17,6 @@ import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
-import '../services/api_config.dart';
 import '../styles/app_colors.dart';
 
 class ArCameraScreen extends StatefulWidget {
@@ -163,7 +163,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     }
 
     final uri = Uri.parse(
-      '$apiBaseUrl/api/uploads/signed-get?key=${Uri.encodeComponent(key)}&expiresIn=3600',
+      '${Environment.apiBaseUrl}/api/uploads/signed-get?key=${Uri.encodeComponent(key)}&expiresIn=3600',
     );
     final response = await http.get(
       uri,

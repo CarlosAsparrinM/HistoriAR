@@ -1,6 +1,7 @@
 import 'dart:convert';
+
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
-import 'api_config.dart';
 
 class AuthService {
   static const String _basePath = '/api/auth';
@@ -9,7 +10,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/login');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/login');
 
     final response = await http.post(
       uri,
@@ -39,7 +40,7 @@ class AuthService {
   /// Valida un token existente contra /api/auth/validate.
   /// Si es válido, devuelve true; si no, lanza una excepción.
   Future<bool> validateToken(String token) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/validate');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/validate');
 
     final response = await http.get(
       uri,
@@ -68,7 +69,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/register');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/register');
 
     final response = await http.post(
       uri,

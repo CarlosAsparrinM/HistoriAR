@@ -1,8 +1,7 @@
 import 'dart:convert';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
-
-import 'api_config.dart';
 
 class VisitsService {
   const VisitsService();
@@ -12,7 +11,9 @@ class VisitsService {
     required String token,
     int limit = 10,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl/api/visits?userId=$userId&limit=$limit');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}/api/visits?userId=$userId&limit=$limit',
+    );
 
     final response = await http.get(
       uri,

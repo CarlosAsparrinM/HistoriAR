@@ -1,9 +1,9 @@
 import 'dart:convert';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/tour.dart';
-import 'api_config.dart';
 
 class ToursService {
   const ToursService();
@@ -13,7 +13,7 @@ class ToursService {
     required double longitude,
   }) async {
     final uri = Uri.parse(
-      '$apiBaseUrl/api/location/context?lat=$latitude&lng=$longitude',
+      '${Environment.apiBaseUrl}/api/location/context?lat=$latitude&lng=$longitude',
     );
 
     final response = await http.get(uri);
@@ -24,7 +24,7 @@ class ToursService {
 
   Future<List<TourItem>> getAllTours({bool activeOnly = true}) async {
     final uri = Uri.parse(
-      '$apiBaseUrl/api/tours${activeOnly ? '?isActive=true' : ''}',
+      '${Environment.apiBaseUrl}/api/tours${activeOnly ? '?isActive=true' : ''}',
     );
 
     final response = await http.get(uri);
@@ -44,7 +44,7 @@ class ToursService {
     bool activeOnly = true,
   }) async {
     final uri = Uri.parse(
-      '$apiBaseUrl/api/tours/institution/$institutionId?activeOnly=$activeOnly',
+      '${Environment.apiBaseUrl}/api/tours/institution/$institutionId?activeOnly=$activeOnly',
     );
 
     final response = await http.get(uri);
