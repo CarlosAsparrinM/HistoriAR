@@ -50,6 +50,51 @@ class ApiService {
     return response.json();
   }
 
+  async get(endpoint, options = {}) {
+    const { params, ...rest } = options;
+    const queryString = params ? `?${this.buildQueryString(params)}` : '';
+    const data = await this.request(`${endpoint}${queryString}`, {
+      method: 'GET',
+      ...rest
+    });
+    return { data };
+  }
+
+  async post(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async put(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async patch(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async delete(endpoint, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'DELETE',
+      ...options
+    });
+    return { data: responseData };
+  }
+
   // Monuments
   async getMonuments(params = {}) {
     const queryString = this.buildQueryString(params);

@@ -62,8 +62,10 @@ router.post('/:id/model-versions/:versionId/activate', verifyToken, requireRole(
 router.delete('/:id/model-versions/:versionId', verifyToken, requireRole('admin'), deleteModelVersionController);
 
 // Upload endpoints specifically for monuments
-router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/:id/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
   try {
+    const { id: monumentId } = req.params;
+    
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
@@ -82,7 +84,7 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
-    const key = `images/monuments/${filename}`;
+    const key = `images/monuments/${monumentId}/${filename}`;
     
     // Upload to S3 in images/monuments/ folder
     const imageUrl = await uploadMonumentImageToS3(

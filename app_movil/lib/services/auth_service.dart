@@ -1,9 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'api_config.dart';
 
 class AuthService {
   static const String _basePath = '/api/auth';
+  
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'profile'],
+  );
 
   Future<String> login({
     required String email,
@@ -88,5 +93,48 @@ class AuthService {
       } catch (_) {}
       throw Exception(message);
     }
+  }
+
+  Future<String> loginWithGoogle() async {
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        throw Exception('Inicio de sesión cancelado por el usuario');
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        throw Exception('No se pudo obtener el token de Google');
+      }
+
+      final uri = Uri.parse('$apiBaseUrl$_basePath/google');
+      final response = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'idToken': idToken}),
+      );
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final data = jsonDecode(response.body);
+        return data['token'] as String;
+      } else {
+        String message = 'Error al autenticar con el servidor';
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map && data['message'] is String) {
+            message = data['message'] as String;
+          }
+        } catch (_) {}
+        throw Exception(message);
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
   }
 }

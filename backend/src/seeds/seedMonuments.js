@@ -6,6 +6,11 @@ import { config } from 'dotenv';
 
 config();
 
+const S3_BUCKET = process.env.S3_BUCKET || 'historiar-storage-prod';
+const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+
+const buildS3Url = (key) => `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
+
 async function seedMonuments() {
     try {
         await mongoose.connect(process.env.MONGODB_URI);
@@ -40,8 +45,8 @@ async function seedMonuments() {
                     endYear: 700
                 },
                 culture: 'Lima',
-                imageUrl: 'https://storage.googleapis.com/histori_ar/images/huaca-pucllana.jpg',
-                model3DUrl: 'https://storage.googleapis.com/histori_ar/models/huaca-pucllana.glb',
+                imageUrl: buildS3Url('images/huaca-pucllana.jpg'),
+                model3DUrl: buildS3Url('models/huaca-pucllana.glb'),
                 institutionId: municipalidadMiraflores?._id,
                 status: 'Disponible'
             },
@@ -61,7 +66,7 @@ async function seedMonuments() {
                     endYear: 700
                 },
                 culture: 'Lima',
-                imageUrl: 'https://storage.googleapis.com/histori_ar/images/huaca-huallamarca.jpg',
+                imageUrl: buildS3Url('images/huaca-huallamarca.jpg'),
                 institutionId: unmsm?._id,
                 status: 'Disponible'
             },
@@ -81,8 +86,8 @@ async function seedMonuments() {
                     endYear: 1821
                 },
                 culture: 'Colonial Española',
-                imageUrl: 'https://storage.googleapis.com/histori_ar/images/casa-aliaga.jpg',
-                model3DUrl: 'https://storage.googleapis.com/histori_ar/models/casa-aliaga.gltf',
+                imageUrl: buildS3Url('images/casa-aliaga.jpg'),
+                model3DUrl: buildS3Url('models/casa-aliaga.gltf'),
                 status: 'Disponible'
             },
             {
@@ -101,7 +106,7 @@ async function seedMonuments() {
                     endYear: 1821
                 },
                 culture: 'Colonial Española',
-                imageUrl: 'https://storage.googleapis.com/histori_ar/images/torre-tagle.jpg',
+                imageUrl: buildS3Url('images/torre-tagle.jpg'),
                 status: 'Disponible'
             },
             {
@@ -120,7 +125,7 @@ async function seedMonuments() {
                     endYear: 1930
                 },
                 culture: 'Republicana',
-                imageUrl: 'https://storage.googleapis.com/histori_ar/images/desamparados.jpg',
+                imageUrl: buildS3Url('images/desamparados.jpg'),
                 status: 'Oculto'
             }
         ];

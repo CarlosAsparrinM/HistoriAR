@@ -9,12 +9,23 @@ const mockMonumentModel = {
 };
 
 // Mock mongoose
-vi.mock('mongoose', () => ({
-  default: {
-    Schema: vi.fn(),
-    model: vi.fn()
+vi.mock('mongoose', () => {
+  class FakeSchema {
+    constructor() {}
+    index() {}
   }
-}));
+
+  FakeSchema.Types = {
+    ObjectId: class ObjectId {}
+  };
+
+  return {
+    default: {
+      Schema: FakeSchema,
+      model: vi.fn()
+    }
+  };
+});
 
 // Mock the Monument model
 vi.mock('../../src/models/Monument.js', () => ({
@@ -83,7 +94,7 @@ describe('Monument Service - Search Functionality', () => {
 
     it('should search monuments by category', async () => {
       const mockResults = [
-        { _id: '1', name: 'Machu Picchu', category: 'Arqueológico' }
+        { _id: '1', name: 'Machu Picchu', categoryId: 'Arqueológico' }
       ];
       
       mockQuery.exec.mockResolvedValue(mockResults);
@@ -92,7 +103,7 @@ describe('Monument Service - Search Functionality', () => {
       const result = await searchMonuments({ category: 'Arqueológico' });
 
       expect(mockMonumentModel.find).toHaveBeenCalledWith({
-        category: 'Arqueológico',
+        categoryId: 'Arqueológico',
         status: 'Disponible'
       });
       expect(result).toEqual({ items: mockResults, total: 1 });
@@ -133,7 +144,7 @@ describe('Monument Service - Search Functionality', () => {
       expect(mockMonumentModel.find).toHaveBeenCalledWith({
         $text: { $search: 'Casa' },
         'location.district': { $regex: 'Lima', $options: 'i' },
-        category: 'Colonial',
+        categoryId: 'Colonial',
         institutionId: '507f1f77bcf86cd799439011',
         status: 'Disponible'
       });
@@ -259,7 +270,7 @@ describe('Monument Service - Search Functionality', () => {
         expect.objectContaining({ status: 'Disponible' })
       );
       expect(mockMonumentModel.distinct).toHaveBeenCalledWith(
-        'category',
+        'categoryId',
         expect.objectContaining({ status: 'Disponible' })
       );
     });

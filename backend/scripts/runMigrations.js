@@ -7,7 +7,7 @@
  * Este script ejecuta las migraciones en orden:
  * 1. addLocationToInstitutions
  * 2. migrateQuizStructure
- * 3. migrateGCSStructure
+ * 3. legacy structure migration
  */
 
 import mongoose from 'mongoose';
@@ -31,8 +31,8 @@ const migrations = [
     path: join(__dirname, '../src/migrations/migrateQuizStructure.js')
   },
   {
-    name: 'Migrate GCS Structure',
-    path: join(__dirname, '../src/migrations/migrateGCSStructure.js')
+    name: 'Legacy structure migration',
+    path: join(__dirname, '../src/migrations/migrateS3Structure.js')
   }
 ];
 

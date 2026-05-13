@@ -1,6 +1,7 @@
 import { buildPagination } from '../utils/pagination.js';
 import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions, getMonumentStats } from '../services/monumentService.js';
 import * as s3Service from '../services/s3Service.js';
+import { hydrateMedia } from '../utils/s3-helpers.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
@@ -152,22 +153,12 @@ function normalizeMonumentPayload(payload) {
   return normalized;
 }
 
-async function signIfNeeded(value) {
-  const key = s3Service.resolveS3Key(value);
-  if (!key) return value || null;
-  return s3Service.generatePresignedGetUrl({ key, expiresIn: MEDIA_URL_EXPIRATION_SECONDS });
-}
-
 async function hydrateMonumentMedia(monument) {
-  if (!monument) return monument;
-
-  const plain = monument.toObject ? monument.toObject() : { ...monument };
-
-  plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
-  plain.model3DUrl = await signIfNeeded(plain.s3ModelKey || plain.model3DUrl);
-  plain.model3DTilesUrl = await signIfNeeded(plain.s3ModelTilesKey || plain.model3DTilesUrl);
-
-  return plain;
+  return hydrateMedia(monument, [
+    { urlField: 'imageUrl', keyField: 's3ImageKey' },
+    { urlField: 'model3DUrl', keyField: 's3ModelKey' },
+    { urlField: 'model3DTilesUrl', keyField: 's3ModelTilesKey' }
+  ]);
 }
 
 export async function listMonument(req, res) {

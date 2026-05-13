@@ -122,6 +122,29 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = await _authService.loginWithGoogle();
+      authState.token = token;
+      
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('authToken', token);
+
+      try {
+        final me = await _userService.getMyProfile(token);
+        await prefs.setString('userId', me.id);
+      } catch (_) {}
+      
+      _goToApp();
+    } catch (e) {
+      if (e.toString().contains('cancelado')) return; // No mostrar error si cancela
+      _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -263,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen>
                   _SocialButton(
                     icon: Icons.g_mobiledata_rounded,
                     label: 'Continuar con Google',
-                    onTap: _goToApp,
+                    onTap: _isLoading ? () {} : _handleGoogleLogin,
                   ),
                   const SizedBox(height: 10),
                   _SocialButton(

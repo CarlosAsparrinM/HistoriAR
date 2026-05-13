@@ -160,7 +160,7 @@ function ChartTooltipContent({
 
 const ChartLegend = RechartsPrimitive.Legend;
 
-function ChartLegendContent({ className, hideIcon = false, payload, verticalAlign = "bottom", nameKey }) {
+function ChartLegendContent({ className, payload, verticalAlign = "bottom", nameKey }) {
   const { config } = useChart();
   if (!payload?.length) return null;
 
