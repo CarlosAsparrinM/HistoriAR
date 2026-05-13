@@ -4,9 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
+import '../styles/app_colors.dart';
 import 'login_screen.dart';
 import 'main_scaffold.dart';
-import '../styles/app_colors.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});

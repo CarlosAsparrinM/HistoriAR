@@ -504,12 +504,14 @@ flutter pub get
 #### 2. Configuración de Ubicación
 
 **Android** (`android/app/src/main/AndroidManifest.xml`):
+
 ```xml
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 ```
 
 **iOS** (`ios/Runner/Info.plist`):
+
 ```xml
 <key>NSLocationWhenInUseUsageDescription</key>
 <string>Necesitamos tu ubicación para mostrarte el mapa.</string>
@@ -616,6 +618,7 @@ Capas de lógica de negocio:
 ### Modelos Principales
 
 #### User
+
 ```javascript
 {
   _id: ObjectId,
@@ -632,6 +635,7 @@ Capas de lógica de negocio:
 ```
 
 #### Monument
+
 ```javascript
 {
   _id: ObjectId,
@@ -670,6 +674,7 @@ Capas de lógica de negocio:
 ```
 
 #### Institution
+
 ```javascript
 {
   _id: ObjectId,
@@ -701,6 +706,7 @@ Capas de lógica de negocio:
 ```
 
 #### Tour
+
 ```javascript
 {
   _id: ObjectId,
@@ -723,6 +729,7 @@ Capas de lógica de negocio:
 ```
 
 #### Quiz
+
 ```javascript
 {
   _id: ObjectId,
@@ -748,6 +755,7 @@ Capas de lógica de negocio:
 ```
 
 #### Visit
+
 ```javascript
 {
   _id: ObjectId,
@@ -765,23 +773,23 @@ Se han creado índices para optimizar consultas frecuentes:
 
 ```javascript
 // Monument
-db.monuments.createIndex({ name: "text", description: "text" })
-db.monuments.createIndex({ status: 1, categoryId: 1 })
-db.monuments.createIndex({ status: 1, "location.district": 1 })
-db.monuments.createIndex({ status: 1, institutionId: 1 })
+db.monuments.createIndex({ name: 'text', description: 'text' });
+db.monuments.createIndex({ status: 1, categoryId: 1 });
+db.monuments.createIndex({ status: 1, 'location.district': 1 });
+db.monuments.createIndex({ status: 1, institutionId: 1 });
 
 // User
-db.users.createIndex({ email: 1 })
+db.users.createIndex({ email: 1 });
 
 // Tour
-db.tours.createIndex({ institutionId: 1, status: 1 })
+db.tours.createIndex({ institutionId: 1, status: 1 });
 
 // Quiz
-db.quizzes.createIndex({ monumentId: 1 })
+db.quizzes.createIndex({ monumentId: 1 });
 
 // Visit
-db.visits.createIndex({ userId: 1, monumentId: 1 })
-db.visits.createIndex({ createdAt: 1 })
+db.visits.createIndex({ userId: 1, monumentId: 1 });
+db.visits.createIndex({ createdAt: 1 });
 ```
 
 ---
@@ -927,16 +935,16 @@ GET    /api/visits/monument/:monumentId # Estadísticas de visitas
 
 ```javascript
 // express-validator
-check('email').isEmail()
-check('password').isLength({ min: 8 })
-check('name').trim().notEmpty()
+check('email').isEmail();
+check('password').isLength({ min: 8 });
+check('name').trim().notEmpty();
 ```
 
 #### 2. Encriptación de Contraseñas
 
 ```javascript
 // bcryptjs
-const hashedPassword = await bcrypt.hash(password, 10)
+const hashedPassword = await bcrypt.hash(password, 10);
 ```
 
 #### 3. JWT Tokens
@@ -944,8 +952,8 @@ const hashedPassword = await bcrypt.hash(password, 10)
 ```javascript
 // jsonwebtoken
 const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
-  expiresIn: '7d'
-})
+  expiresIn: '7d',
+});
 ```
 
 #### 4. CORS (Cross-Origin Resource Sharing)
@@ -953,14 +961,14 @@ const token = jwt.sign({ userId: user._id }, JWT_SECRET, {
 ```javascript
 cors({
   origin: ['http://localhost:5173', 'https://admin.historiar.com'],
-  credentials: true
-})
+  credentials: true,
+});
 ```
 
 #### 5. Helmet (Seguridad HTTP Headers)
 
 ```javascript
-helmet()  // Añade headers de seguridad
+helmet(); // Añade headers de seguridad
 ```
 
 #### 6. Rate Limiting (Admin Panel)
@@ -981,7 +989,7 @@ POST /api/monuments → requireAuth → requireAdmin → crear
 
 ```javascript
 // No se eliminan datos, se marcan como "Borrado"
-status: 'Borrado'  // No se muestran en consultas normales
+status: 'Borrado'; // No se muestran en consultas normales
 ```
 
 ### Mejores Prácticas Implementadas
@@ -1184,6 +1192,7 @@ curl -X POST http://localhost:4000/api/tours \
 **Error**: `MongooseError: connection refused`
 
 **Solución**:
+
 1. Verificar MongoDB está ejecutándose: `mongosh`
 2. Revisar `MONGODB_URI` en `.env`
 3. Verificar credenciales y red
@@ -1199,6 +1208,7 @@ npm run verify
 **Error**: `AccessDenied: User: arn:aws:iam::... is not authorized`
 
 **Solución**:
+
 1. Verificar `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY`
 2. Revisar permisos IAM en AWS Console
 3. Verificar bucket CORS está configurado
@@ -1214,6 +1224,7 @@ npm run cors:check
 **Error**: `Network error: ECONNREFUSED 127.0.0.1:4000`
 
 **Solución**:
+
 1. Verificar backend está corriendo: `npm run dev` en carpeta backend
 2. Revisar `VITE_API_BASE_URL` en `.env` del admin panel
 3. Asegurarse CORS está habilitado en backend
@@ -1228,11 +1239,13 @@ curl http://localhost:4000/api/health
 **Error**: `Location permission denied` o `No location updates`
 
 **Solución (Android)**:
+
 1. Ir a Configuración > Permisos > Ubicación
 2. Permitir para "HistoriAR"
 3. En emulador: Android Studio > Extended Controls > Location
 
 **Solución (iOS)**:
+
 1. Ir a Configuración > Privacidad > Ubicación
 2. Permitir "HistoriAR"
 3. En simulador: Simulador > Features > Location > Custom
@@ -1242,6 +1255,7 @@ curl http://localhost:4000/api/health
 **Error**: `Failed to load model` o modelo no aparece
 
 **Solución**:
+
 1. Verificar archivo GLB/GLTF es válido
 2. Comprobar URL en S3 está accesible
 3. Revisar que modelo3DUrl existe en monumento
@@ -1252,6 +1266,7 @@ curl http://localhost:4000/api/health
 **Error**: `JWT token invalid` o `Invalid credentials`
 
 **Solución**:
+
 1. Verificar `JWT_SECRET` es igual en servidor y cliente
 2. Revisar token no está expirado
 3. Borrar cache/cookies del navegador
@@ -1268,6 +1283,7 @@ console.log(decoded);
 **Error**: `Migration failed` o `Index creation failed`
 
 **Solución**:
+
 1. Verificar MongoDB está conectado
 2. Borrar colecciones antiguas si es necesario
 3. Ejecutar manualmente en orden
@@ -1282,11 +1298,13 @@ npm run indexes
 ### App móvil lenta o se congela
 
 **Causas comunes**:
+
 - API del backend lenta
 - Modelo 3D muy pesado
 - Muchas consultas a la vez
 
 **Soluciones**:
+
 1. Optimizar modelo 3D (reducir polígonos)
 2. Implementar paginación en listas
 3. Cachear respuestas con SharedPreferences
@@ -1317,6 +1335,7 @@ Para reportar problemas o sugerencias:
 ## 📝 Changelog
 
 ### Versión 1.0 (Mayo 2026)
+
 - ✅ Backend API completo
 - ✅ Admin Panel funcional
 - ✅ App Móvil con AR

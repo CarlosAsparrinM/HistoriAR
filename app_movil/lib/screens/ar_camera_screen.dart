@@ -15,9 +15,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
-import '../styles/app_colors.dart';
 import '../models/monument.dart';
 import '../services/api_config.dart';
+import '../styles/app_colors.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
@@ -849,11 +849,11 @@ class _DiscoveryPin extends StatelessWidget {
           Container(
             width: 10,
             height: 10,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.primary, width: 2),
-              ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.primary, width: 2),
+            ),
           ),
           Container(width: 2, height: 10, color: Colors.white),
         ],

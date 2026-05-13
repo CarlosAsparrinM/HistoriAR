@@ -8,12 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../models/monument.dart';
-import '../styles/app_colors.dart';
 import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
+import '../styles/app_colors.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -665,7 +665,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             onPressed: () =>
                                                 Navigator.of(context).pop(true),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.primary,
+                                              backgroundColor:
+                                                  AppColors.primary,
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     vertical: 12,
