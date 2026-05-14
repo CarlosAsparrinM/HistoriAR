@@ -1,12 +1,13 @@
 import 'dart:convert';
+
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
-import 'package:google_sign_in/google_sign_in.dart';
 import 'api_config.dart';
 
 class AuthService {
   static const String _basePath = '/api/auth';
   static const int _timeoutSeconds = 30;
-  
+
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
   );
@@ -48,7 +49,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/login');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/login');
 
     try {
       final response = await http.post(
@@ -90,7 +91,7 @@ class AuthService {
   /// Valida un token existente contra /api/auth/validate.
   /// Si es válido, devuelve true; si no, lanza una excepción.
   Future<bool> validateToken(String token) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/validate');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/validate');
 
     try {
       final response = await http.get(
@@ -129,7 +130,7 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/register');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/register');
 
     try {
       final response = await http.post(
@@ -185,7 +186,7 @@ class AuthService {
 
       // Paso 3: Enviar token al backend
       final uri = Uri.parse('$apiBaseUrl$_basePath/google');
-      
+
       final response = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
@@ -200,7 +201,7 @@ class AuthService {
         try {
           final data = jsonDecode(response.body);
           final token = data['token'] as String?;
-          
+
           if (token == null) {
             throw Exception('Respuesta inesperada del servidor: token no recibido');
           }
@@ -222,13 +223,13 @@ class AuthService {
       if (e.toString().contains('cancelado')) {
         rethrow; // No mostrar snackbar si el usuario cancela
       }
-      
+
       // Manejar errores de red específicos
-      if (e.toString().contains('SocketException') || 
+      if (e.toString().contains('SocketException') ||
           e.toString().contains('ClientException')) {
         throw Exception(_handleNetworkError(e));
       }
-      
+
       rethrow;
     } catch (e) {
       // Errores no esperados

@@ -4,12 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../models/monument.dart';
+import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
+import '../services/app_settings_service.dart';
+import '../services/local_notification_service.dart';
+import '../services/location_service.dart';
 import '../services/monuments_service.dart';
+import '../styles/app_colors.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -22,6 +28,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final MapController _mapController = MapController();
 
   final MonumentsService _monumentsService = MonumentsService();
+  final LocationService _locationService = const LocationService();
+  final AppSettingsService _settingsService = AppSettingsService();
 
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
@@ -30,18 +38,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
   StreamSubscription<Position>? _positionSub;
   Timer? _mapAnimationTimer;
   bool _followUser = true;
+  LatLng? _lastContextLatLng;
+  DateTime? _lastContextFetch;
+  AppSettings _settings = const AppSettings.defaults();
+  String? _lastNearbyNotificationMonumentId;
+  DateTime? _lastNearbyNotificationAt;
 
   // Estado relacionado a monumentos
   List<Monument> _monuments = [];
   bool _isLoadingMonuments = false;
   String? _error;
   Monument? _selectedMonument;
+  TourContextResponse? _locationContext;
+  List<Monument> _nearbyMonuments = [];
+  bool _isLoadingLocationContext = false;
+  String? _locationContextError;
 
   @override
   void initState() {
     super.initState();
-    _loadMonuments();
-    // Pedir ubicación y comenzar a seguir al usuario al cargar la pantalla
+    _initializeScreen();
+  }
+
+  Future<void> _initializeScreen() async {
+    _settings = await _settingsService.load();
+    await _loadMonuments();
+
+    if (!mounted) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startLocationUpdates();
     });
@@ -83,26 +107,117 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     await _positionSub?.cancel();
 
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.best,
-      distanceFilter: 1,
+    _positionSub =
+        Geolocator.getPositionStream(
+          locationSettings: _settings.locationAccuracyMode.locationSettings,
+        ).listen((Position pos) {
+          final LatLng latLng = LatLng(pos.latitude, pos.longitude);
+
+          setState(() {
+            _currentLatLng = latLng;
+            if (_followUser) {
+              _zoom = _zoom < 16 ? 16 : _zoom;
+              _mapCenter = latLng;
+              _mapController.move(latLng, _zoom);
+            }
+          });
+
+          _refreshLocationContext(latLng);
+        });
+  }
+
+  bool _shouldRefreshLocationContext(LatLng position) {
+    if (_lastContextLatLng == null || _lastContextFetch == null) {
+      return true;
+    }
+
+    final elapsed = DateTime.now().difference(_lastContextFetch!);
+    final distance = const Distance().as(
+      LengthUnit.Meter,
+      _lastContextLatLng!,
+      position,
     );
 
-    _positionSub =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position pos) {
-            final LatLng latLng = LatLng(pos.latitude, pos.longitude);
+    return elapsed.inSeconds > _settings.locationRefreshPreset.seconds ||
+        distance > _settings.locationRefreshPreset.distanceMeters;
+  }
 
-            setState(() {
-              _currentLatLng = latLng;
-              if (_followUser) {
-                _zoom = _zoom < 16 ? 16 : _zoom;
-                _mapCenter = latLng;
-                _mapController.move(latLng, _zoom);
-              }
-            });
-          },
-        );
+  Future<void> _refreshLocationContext(LatLng position) async {
+    if (!_shouldRefreshLocationContext(position)) return;
+
+    _lastContextLatLng = position;
+    _lastContextFetch = DateTime.now();
+
+    if (!mounted) return;
+    setState(() {
+      _isLoadingLocationContext = true;
+      _locationContextError = null;
+    });
+
+    try {
+      final context = await _locationService.getContextForLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      final nearby = await _locationService.getNearbyMonuments(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        maxDistance: 1000,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _locationContext = context;
+        _nearbyMonuments = nearby;
+        _isLoadingLocationContext = false;
+      });
+
+      await _notifyNearbyMonuments(position, nearby);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _locationContextError = e.toString();
+        _isLoadingLocationContext = false;
+      });
+    }
+  }
+
+  Future<void> _notifyNearbyMonuments(
+    LatLng currentPosition,
+    List<Monument> nearby,
+  ) async {
+    if (!_settings.nearbyNotificationsEnabled || nearby.isEmpty) return;
+
+    final nearbyLimit = _settings.nearbyNotificationDistancePreset.meters;
+    Monument? candidate;
+
+    for (final monument in nearby) {
+      final distance = _distanceInMeters(currentPosition, monument.position);
+      if (distance <= nearbyLimit) {
+        candidate = monument;
+        break;
+      }
+    }
+
+    if (candidate == null) return;
+
+    final now = DateTime.now();
+    final recentNotification =
+        _lastNearbyNotificationAt != null &&
+        now.difference(_lastNearbyNotificationAt!).inMinutes < 10;
+
+    if (candidate.id == _lastNearbyNotificationMonumentId &&
+        recentNotification) {
+      return;
+    }
+
+    _lastNearbyNotificationMonumentId = candidate.id;
+    _lastNearbyNotificationAt = now;
+
+    await LocalNotificationService.instance.showNearbyMonumentNotification(
+      monumentName: candidate.name,
+      body: 'Hay un monumento cercano y puedes explorarlo desde el mapa.',
+    );
   }
 
   void _animateMapTo({
@@ -284,6 +399,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ],
               ),
             ),
+
+            if (_locationContext != null ||
+                _isLoadingLocationContext ||
+                _locationContextError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                child: _LocationContextCard(
+                  contextData: _locationContext,
+                  nearbyMonumentsCount: _nearbyMonuments.length,
+                  isLoading: _isLoadingLocationContext,
+                  errorMessage: _locationContextError,
+                ),
+              ),
 
             // Leyenda de estados
             Padding(
@@ -476,17 +604,49 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             return;
                           }
 
+                          // Obtener userId y preferencias de SharedPreferences
+                          final prefs = await SharedPreferences.getInstance();
+                          final userId = prefs.getString('userId');
+                          if (userId == null || userId.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo obtener el ID del usuario.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
                           // 1) Ir a la cámara AR y esperar a que el usuario salga
                           await Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ArCameraScreen(
                                 monument: _selectedMonument!,
                                 token: token,
+                                userId: userId,
                               ),
                             ),
                           );
 
                           if (!mounted) return;
+
+                          final shouldAskForQuizzes =
+                              prefs.getBool('pref_askForQuizzes') ?? true;
+
+                          if (!mounted) return;
+
+                          if (!shouldAskForQuizzes) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
+                                ),
+                              ),
+                            );
+                            return;
+                          }
 
                           // 2) Al volver, mostrar el modal para invitar al quiz
                           final shouldGoToQuiz = await showModalBottomSheet<bool>(
@@ -568,9 +728,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                             onPressed: () =>
                                                 Navigator.of(context).pop(true),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(
-                                                0xFFFF6600,
-                                              ),
+                                              backgroundColor:
+                                                  AppColors.primary,
                                               padding:
                                                   const EdgeInsets.symmetric(
                                                     vertical: 12,
@@ -615,6 +774,76 @@ class _ExploreScreenState extends State<ExploreScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LocationContextCard extends StatelessWidget {
+  final TourContextResponse? contextData;
+  final int nearbyMonumentsCount;
+  final bool isLoading;
+  final String? errorMessage;
+
+  const _LocationContextCard({
+    required this.contextData,
+    required this.nearbyMonumentsCount,
+    required this.isLoading,
+    required this.errorMessage,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final institutionName =
+        contextData?.institution?.name ?? 'Buscando institución';
+    final toursCount = contextData?.tours.length ?? 0;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: isLoading
+            ? const Row(
+                children: [
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Actualizando contexto de ubicación...'),
+                  ),
+                ],
+              )
+            : errorMessage != null
+            ? Text(
+                'No se pudo cargar el contexto de ubicación: $errorMessage',
+                style: const TextStyle(color: Colors.red),
+              )
+            : Row(
+                children: [
+                  const Icon(Icons.location_on, color: AppColors.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          institutionName,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '$toursCount tours disponibles · $nearbyMonumentsCount monumentos cercanos',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }
@@ -1023,7 +1252,7 @@ class _SelectedMonumentCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6600),
+                      backgroundColor: AppColors.primary,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

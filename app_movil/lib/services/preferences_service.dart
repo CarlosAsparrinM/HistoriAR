@@ -1,6 +1,8 @@
 import 'dart:convert';
+
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
-import 'api_config.dart';
+
 import '../models/user_preferences.dart';
 
 class PreferencesService {
@@ -11,7 +13,9 @@ class PreferencesService {
     required String userId,
     required String token,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId/preferences');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}$_basePath/$userId/preferences',
+    );
 
     final response = await http.get(
       uri,
@@ -43,7 +47,9 @@ class PreferencesService {
     required String token,
     required UserPreferences preferences,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId/preferences');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}$_basePath/$userId/preferences',
+    );
 
     final response = await http.put(
       uri,
@@ -74,6 +80,7 @@ class PreferencesService {
   Future<UserPreferences> partialUpdatePreferences({
     required String userId,
     required String token,
+    bool? askForQuizzes,
     bool? notifications,
     bool? location,
     bool? arEffects,
@@ -84,9 +91,12 @@ class PreferencesService {
     String? language,
     String? theme,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$userId/preferences');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}$_basePath/$userId/preferences',
+    );
 
     final body = <String, dynamic>{};
+    if (askForQuizzes != null) body['askForQuizzes'] = askForQuizzes;
     if (notifications != null) body['notifications'] = notifications;
     if (location != null) body['location'] = location;
     if (arEffects != null) body['arEffects'] = arEffects;
