@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,16 +18,19 @@ import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
+import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
   final String token;
+  final String userId;
 
   const ArCameraScreen({
     super.key,
     required this.monument,
     required this.token,
+    required this.userId,
   });
 
   @override
@@ -53,9 +57,20 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   bool _isLoadingModel = false;
   String? _loadError;
 
+  // Variables para registro de visita
+  DateTime? _visitStartTime;
+  final VisitsService _visitsService = const VisitsService();
+
+  @override
+  void initState() {
+    super.initState();
+    _visitStartTime = DateTime.now();
+  }
+
   @override
   void dispose() {
     arSessionManager?.dispose();
+    _registerVisit();
     super.dispose();
   }
 
@@ -188,6 +203,43 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       ..scale(_scaleFactor);
 
     webObjectNode!.transform = transform;
+  }
+
+  Future<void> _registerVisit() async {
+    if (_visitStartTime == null) return;
+
+    try {
+      // Obtener contexto de autenticación desde Navigator
+      // El token se pasa en el constructor, pero para userId necesitaríamos acceso a authState
+      // Por ahora, asumimos que el usuario está autenticado (ya pasamos el token)
+
+      // Calcular duración en minutos
+      final now = DateTime.now();
+      final duration = now.difference(_visitStartTime!).inMinutes;
+
+      // Registrar visita de forma asíncrona sin bloquear la navegación
+      // No esperamos la respuesta para no ralentizar el pop de la pantalla
+      unawaited(_registerVisitInBackground(duration));
+    } catch (e) {
+      stdout.writeln('Error preparando registro de visita: $e');
+    }
+  }
+
+  Future<void> _registerVisitInBackground(int durationMinutes) async {
+    try {
+      await _visitsService.registerVisit(
+        userId: widget.userId,
+        monumentId: widget.monument.id,
+        token: widget.token,
+        durationMinutes: durationMinutes,
+      );
+      stdout.writeln(
+        'Visita registrada exitosamente: monumentId=${widget.monument.id}, duration=$durationMinutes min',
+      );
+    } catch (e) {
+      stdout.writeln('Error al registrar visita: $e');
+      // No mostrar error al usuario, solo loguear
+    }
   }
 
   @override

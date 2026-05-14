@@ -167,15 +167,26 @@ class _MyTourScreenState extends State<MyTourScreen> {
       return;
     }
 
+    // Obtener userId y preferencias de SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    if (userId == null || userId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo obtener el ID del usuario.')),
+      );
+      return;
+    }
+
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ArCameraScreen(monument: monument, token: token),
+        builder: (_) =>
+            ArCameraScreen(monument: monument, token: token, userId: userId),
       ),
     );
 
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
     final shouldAskForQuizzes = prefs.getBool('pref_askForQuizzes') ?? true;
 
     if (!mounted) return;

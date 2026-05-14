@@ -555,19 +555,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             return;
                           }
 
+                          // Obtener userId y preferencias de SharedPreferences
+                          final prefs = await SharedPreferences.getInstance();
+                          final userId = prefs.getString('userId');
+                          if (userId == null || userId.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo obtener el ID del usuario.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
                           // 1) Ir a la cámara AR y esperar a que el usuario salga
                           await Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => ArCameraScreen(
                                 monument: _selectedMonument!,
                                 token: token,
+                                userId: userId,
                               ),
                             ),
                           );
 
                           if (!mounted) return;
 
-                          final prefs = await SharedPreferences.getInstance();
                           final shouldAskForQuizzes =
                               prefs.getBool('pref_askForQuizzes') ?? true;
 
