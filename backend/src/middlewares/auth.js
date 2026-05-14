@@ -16,6 +16,7 @@ export function verifyToken(req, res, next) {
     // Normalizamos para que todos los controladores usen req.user.id
     req.user = {
       id: payload.sub,    // 👈 convierte "sub" a "id"
+      name: payload.name,
       role: payload.role,
       email: payload.email
     };

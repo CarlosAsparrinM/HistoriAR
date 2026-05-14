@@ -10,6 +10,7 @@ import userRoutes from './routes/users.routes.js';
 import institutionRoutes from './routes/institutions.routes.js';
 import monumentRoutes from './routes/monuments.routes.js';
 import categoryRoutes from './routes/categories.routes.js';
+import cultureRoutes from './routes/cultures.routes.js';
 import historicalDataRoutes from './routes/historicalData.routes.js';
 import visitRoutes from './routes/visits.routes.js';
 import quizRoutes from './routes/quizzes.routes.js';
@@ -18,29 +19,15 @@ import healthRoutes from './routes/health.routes.js';
 import tourRoutes from './routes/tours.routes.js';
 import locationRoutes from './routes/location.routes.js';
 import proxyRoutes from './routes/proxy.routes.js';
+import alertsRoutes from './routes/alerts.routes.js';
+import statsRoutes from './routes/stats.routes.js';
 
 config();
 
 const app = express();
 
-// Initialize MongoDB connection for Vercel serverless
-let isConnected = false;
-
-const initializeDB = async () => {
-  if (isConnected) {
-    return;
-  }
-  
-  try {
-    await connectDB(process.env.MONGODB_URI);
-    isConnected = true;
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error.message);
-  }
-};
-
-// Initialize DB connection (for serverless)
-initializeDB();
+// Initialize DB connection
+connectDB().catch(err => console.error('Initial DB connection failed:', err.message));
 
 // CORS configuration
 // Get allowed origins from environment variable or use defaults for development
@@ -93,6 +80,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/institutions', institutionRoutes);
 app.use('/api/monuments', monumentRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/cultures', cultureRoutes);
 app.use('/api', historicalDataRoutes);
 app.use('/api/visits', visitRoutes);
 app.use('/api/quizzes', quizRoutes);
@@ -100,6 +88,8 @@ app.use('/api/uploads', uploadRoutes);
 app.use('/api/tours', tourRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/proxy', proxyRoutes);
+app.use('/api/alerts', alertsRoutes);
+app.use('/api/stats', statsRoutes);
 
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
 

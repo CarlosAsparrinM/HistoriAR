@@ -5,6 +5,7 @@ const HistoricalDataSchema = new mongoose.Schema({
   title:        { type: String, required: true },
   description:  { type: String },
   imageUrl:     { type: String }, // S3 URL for the main image of this historical data entry
+  s3ImageKey:   { type: String }, // S3 object key for the main image
   s3ImageFileName: { type: String }, // S3 filename for image deletion
   discoveryInfo:{ type: String },
   oldImages:    [{ type: String }], // Additional URLs (legacy field, can be used for galleries)

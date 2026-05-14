@@ -4,7 +4,7 @@
  * Permite listar, filtrar y administrar instituciones (museos, universidades, etc.).
  * Incluye gestión de horarios, imágenes, ubicación y estados.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -44,19 +44,69 @@ import { Label } from './ui/label';
 import {
   Plus,
   Search,
+  ChevronLeft,
+  ChevronRight,
   MoreHorizontal,
   Edit,
   Trash2,
   Building,
   Loader2,
   Eye,
-  Clock
+  Clock,
+  X
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
-import { useToast } from './ui/toast';
+import { toast } from 'sonner';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+
+// Lista de distritos de Lima
+const LIMA_DISTRICTS = [
+  'Ancón',
+  'Ate',
+  'Barranco',
+  'Breña',
+  'Carabayllo',
+  'Chaclacayo',
+  'Chorrillos',
+  'Cieneguilla',
+  'Comas',
+  'El Agustino',
+  'Independencia',
+  'Jesús María',
+  'La Molina',
+  'La Victoria',
+  'Lima (Cercado de Lima)',
+  'Lince',
+  'Los Olivos',
+  'Lurigancho-Chosica',
+  'Lurín',
+  'Magdalena del Mar',
+  'Miraflores',
+  'Pachacámac',
+  'Pucusana',
+  'Pueblo Libre',
+  'Puente Piedra',
+  'Punta Hermosa',
+  'Punta Negra',
+  'Rímac',
+  'San Bartolo',
+  'San Borja',
+  'San Isidro',
+  'San Juan de Lurigancho',
+  'San Juan de Miraflores',
+  'San Luis',
+  'San Martín de Porres',
+  'San Miguel',
+  'Santa Anita',
+  'Santa María del Mar',
+  'Santa Rosa',
+  'Santiago de Surco',
+  'Surquillo',
+  'Villa El Salvador',
+  'Villa María del Triunfo'
+];
 
 // Etiquetas legibles para los tipos
 const typeLabels = {
@@ -74,26 +124,62 @@ const statusColors = {
 };
 
 function InstitutionsManager() {
-  const { toast } = useToast();
   const [institutions, setInstitutions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalInstitutions, setTotalInstitutions] = useState(0);
+  const [stats, setStats] = useState({ total: 0, available: 0, hidden: 0, museums: 0 });
+  const pageSize = 10;
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingInstitution, setEditingInstitution] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
     loadData();
-  }, []);
+  }, [currentPage, selectedType, selectedStatus, debouncedSearchTerm]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedType, selectedStatus]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getInstitutions();
+      const queryParams = {
+        page: currentPage,
+        limit: pageSize,
+        search: debouncedSearchTerm.trim() || undefined,
+        type: selectedType,
+        status: selectedStatus,
+      };
+
+      const [data, statsData] = await Promise.all([
+        apiService.getInstitutions(queryParams),
+        apiService.getInstitutionStats()
+      ]);
+
       setInstitutions(data.items || data || []);
+      setTotalInstitutions(data.total || 0);
+      setStats({
+        total: statsData.total || 0,
+        available: statsData.available || 0,
+        hidden: statsData.hidden || 0,
+        museums: statsData.museums || 0
+      });
     } catch (error) {
       console.error('Error loading institutions:', error);
     } finally {
@@ -101,15 +187,7 @@ function InstitutionsManager() {
     }
   };
 
-  // Filtro compuesto por término de búsqueda, tipo y estado
-  const filteredInstitutions = institutions.filter(institution => {
-    const matchesSearch = institution.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         institution.location?.district?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = selectedType === 'all' || institution.type === selectedType;
-    const matchesStatus = selectedStatus === 'all' || institution.status === selectedStatus;
-    
-    return matchesSearch && matchesType && matchesStatus;
-  });
+  const filteredInstitutions = institutions;
 
   // Cambiar estado de la institución
   const handleStatusChange = async (id, newStatus) => {
@@ -122,17 +200,13 @@ function InstitutionsManager() {
             : institution
         )
       );
-      toast({
-        title: "Estado actualizado",
+      toast.success("Estado actualizado", {
         description: `La institución ahora está ${newStatus.toLowerCase()}`,
-        variant: "success"
       });
     } catch (error) {
       console.error('Error updating institution status:', error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || 'Error al cambiar el estado de la institución',
-        variant: "error"
       });
       loadData();
     }
@@ -162,6 +236,8 @@ function InstitutionsManager() {
     setEditingInstitution(null);
     setIsEditDialogOpen(false);
   };
+
+  const totalPages = Math.max(1, Math.ceil(totalInstitutions / pageSize));
 
   // Verificar si la institución está completa
   const isInstitutionComplete = (institution) => {
@@ -205,10 +281,9 @@ function InstitutionsManager() {
             </DialogHeader>
             <div className="overflow-y-auto flex-1">
               <InstitutionForm 
-                onClose={() => setIsCreateDialogOpen(false)}
-                onSave={loadData}
-                toast={toast}
-              />
+              onClose={() => setIsCreateDialogOpen(false)}
+              onSave={loadData}
+            />
             </div>
           </DialogContent>
         </Dialog>
@@ -224,11 +299,10 @@ function InstitutionsManager() {
             </DialogHeader>
             <div className="overflow-y-auto flex-1 pr-2">
               <InstitutionForm 
-                institution={editingInstitution}
-                onClose={handleCloseEdit}
-                onSave={loadData}
-                toast={toast}
-              />
+              institution={editingInstitution}
+              onClose={handleCloseEdit}
+              onSave={loadData}
+            />
             </div>
           </DialogContent>
         </Dialog>
@@ -286,7 +360,7 @@ function InstitutionsManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Total Instituciones</p>
-                <p className="text-2xl font-bold">{institutions.length}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -301,7 +375,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Disponibles</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.status === 'Disponible').length}
+                  {stats.available}
                 </p>
               </div>
             </div>
@@ -317,7 +391,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Ocultas</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.status === 'Oculto').length}
+                  {stats.hidden}
                 </p>
               </div>
             </div>
@@ -333,7 +407,7 @@ function InstitutionsManager() {
               <div>
                 <p className="text-sm font-medium">Museos</p>
                 <p className="text-2xl font-bold">
-                  {institutions.filter(i => i.type === 'Museo').length}
+                  {stats.museums}
                 </p>
               </div>
             </div>
@@ -346,7 +420,7 @@ function InstitutionsManager() {
         <CardHeader>
           <CardTitle>Lista de Instituciones</CardTitle>
           <CardDescription>
-            {filteredInstitutions.length} instituciones encontradas
+            Página {currentPage} de {totalPages} • {totalInstitutions} instituciones en total
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -462,13 +536,142 @@ function InstitutionsManager() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {filteredInstitutions.length} de {totalInstitutions}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={loading || currentPage >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function InstitutionForm({ onClose, institution = null, onSave, toast }) {
+/**
+ * Componente DistrictSelector - Select filtrable de distritos de Lima
+ */
+function DistrictSelector({ value, onChange, required = false }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const dropdownRef = useRef(null);
+
+  const filteredDistricts = LIMA_DISTRICTS.filter(district =>
+    district.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelect = (district) => {
+    onChange(district);
+    setSearchTerm('');
+    setIsOpen(false);
+  };
+
+  const handleInputBlur = () => {
+    // Si escribe algo que no es un distrito válido, limpiar
+    if (searchTerm && !LIMA_DISTRICTS.includes(searchTerm)) {
+      setSearchTerm('');
+    }
+  };
+
+  // Cerrar dropdown cuando se hace click afuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        handleInputBlur();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen, searchTerm]);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <Label htmlFor="district">Distrito {required && <span className="text-destructive">*</span>}</Label>
+      <div className="relative">
+        <Input
+          id="district"
+          placeholder="Buscar o seleccionar distrito"
+          value={isOpen ? searchTerm : value}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={handleInputBlur}
+          className="pr-8"
+          autoComplete="off"
+          required={required}
+        />
+        {(value || searchTerm) && (
+          <button
+            onClick={() => {
+              onChange('');
+              setSearchTerm('');
+              setIsOpen(false);
+            }}
+            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            type="button"
+            tabIndex="-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+      
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 border rounded-md bg-white shadow-lg max-h-60 overflow-y-auto">
+          {filteredDistricts.length > 0 ? (
+            filteredDistricts.map((district) => (
+              <button
+                key={district}
+                onClick={() => handleSelect(district)}
+                className={`w-full text-left px-3 py-2 hover:bg-slate-100 transition-colors ${
+                  value === district ? 'bg-blue-50 font-medium' : ''
+                }`}
+                type="button"
+              >
+                {district}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              No se encontraron distritos
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InstitutionForm({ onClose, institution = null, onSave }) {
   const [formData, setFormData] = useState({
     name: institution?.name || '',
     type: institution?.type || 'Museo',
@@ -492,6 +695,8 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
       saturday: institution?.schedule?.saturday || { closed: true },
       sunday: institution?.schedule?.sunday || { closed: true }
     }
+    ,
+    s3ImageKey: institution?.s3ImageKey || null
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -533,8 +738,12 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
     }));
   };
 
-  const handleImageUpload = (imageUrl) => {
-    setFormData(prev => ({ ...prev, imageUrl: imageUrl }));
+  const handleImageUpload = (result) => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: result?.previewUrl || result?.publicUrl || prev.imageUrl,
+      s3ImageKey: result?.key || prev.s3ImageKey
+    }));
   };
 
   const handleImageUploadError = (error) => {
@@ -542,6 +751,70 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
   };
 
   const handleSubmit = async () => {
+    // Validar campos requeridos SIEMPRE
+    if (!formData.name.trim()) {
+      toast.warning("Error de validación", {
+        description: "El nombre de la institución es requerido"
+      });
+      return;
+    }
+
+    if (!formData.type) {
+      toast.warning("Error de validación", {
+        description: "El tipo de institución es requerido"
+      });
+      return;
+    }
+
+    if (!formData.location.address?.trim()) {
+      toast.warning("Error de validación", {
+        description: "La dirección es requerida"
+      });
+      return;
+    }
+
+    if (!formData.location.district?.trim()) {
+      toast.warning("Error de validación", {
+        description: "El distrito es requerido"
+      });
+      return;
+    }
+
+    if (!formData.location.lat || !formData.location.lng) {
+      toast.warning("Error de validación", {
+        description: "La ubicación (latitud y longitud) es requerida"
+      });
+      return;
+    }
+
+    if (!formData.description?.trim()) {
+      toast.warning("Error de validación", {
+        description: "La descripción es requerida"
+      });
+      return;
+    }
+
+    if (!formData.contactEmail?.trim()) {
+      toast.warning("Error de validación", {
+        description: "El email de contacto es requerido"
+      });
+      return;
+    }
+
+    if (!formData.phone?.trim()) {
+      toast.warning("Error de validación", {
+        description: "El teléfono es requerido"
+      });
+      return;
+    }
+
+    if (!formData.website?.trim()) {
+      toast.warning("Error de validación", {
+        description: "El sitio web es requerido"
+      });
+      return;
+    }
+
     // Validar horarios si estamos editando
     if (institution) {
       const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -563,10 +836,8 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
       
       if (invalidDays.length > 0) {
         const dayNames = invalidDays.map(day => dayLabelsValidation[day]).join(', ');
-        toast({
-          title: "Error de validación",
+        toast.warning("Error de validación", {
           description: `Los siguientes días están marcados como abiertos pero no tienen horarios completos: ${dayNames}. Por favor, completa los horarios o marca los días como cerrados.`,
-          variant: "warning"
         });
         return;
       }
@@ -585,24 +856,18 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
       onClose();
 
       if (!institution) {
-        toast({
-          title: "Institución creada exitosamente",
+        toast.success("Institución creada exitosamente", {
           description: "Edita la institución para agregar imagen y horarios de atención para poder hacerla disponible.",
-          variant: "success"
         });
       } else {
-        toast({
-          title: "Institución actualizada",
+        toast.success("Institución actualizada", {
           description: "Los cambios se guardaron correctamente.",
-          variant: "success"
         });
       }
     } catch (error) {
       console.error('Error saving institution:', error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: 'Error al guardar la institución: ' + error.message,
-        variant: "error"
       });
     } finally {
       setIsSubmitting(false);
@@ -625,7 +890,7 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="name">Nombre *</Label>
+          <Label htmlFor="name">Nombre <span className="text-destructive">*</span></Label>
           <Input 
             id="name" 
             placeholder="Nombre de la institución"
@@ -635,10 +900,11 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
           />
         </div>
         <div>
-          <Label htmlFor="type">Tipo</Label>
+          <Label htmlFor="type">Tipo <span className="text-destructive">*</span></Label>
           <Select 
             value={formData.type} 
             onValueChange={(value) => handleInputChange('type', value)}
+            required
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar tipo" />
@@ -654,39 +920,37 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
+        <DistrictSelector 
+          value={formData.location.district}
+          onChange={(district) => handleLocationChange('district', district)}
+          required
+        />
         <div>
-          <Label htmlFor="district">Distrito</Label>
-          <Input 
-            id="district" 
-            placeholder="Distrito"
-            value={formData.location.district}
-            onChange={(e) => handleLocationChange('district', e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="phone">Teléfono</Label>
+          <Label htmlFor="phone">Teléfono <span className="text-destructive">*</span></Label>
           <Input 
             id="phone" 
             placeholder="(01) 123-4567"
             value={formData.phone}
             onChange={(e) => handleInputChange('phone', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div>
-        <Label htmlFor="address">Dirección</Label>
+        <Label htmlFor="address">Dirección <span className="text-destructive">*</span></Label>
         <Input 
           id="address" 
           placeholder="Dirección completa"
           value={formData.location.address}
           onChange={(e) => handleLocationChange('address', e.target.value)}
+          required
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="lat">Latitud</Label>
+          <Label htmlFor="lat">Latitud <span className="text-destructive">*</span></Label>
           <Input 
             id="lat" 
             type="number"
@@ -694,10 +958,11 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
             placeholder="-12.0464"
             value={formData.location.lat}
             onChange={(e) => handleLocationChange('lat', parseFloat(e.target.value) || '')}
+            required
           />
         </div>
         <div>
-          <Label htmlFor="lng">Longitud</Label>
+          <Label htmlFor="lng">Longitud <span className="text-destructive">*</span></Label>
           <Input 
             id="lng" 
             type="number"
@@ -705,40 +970,44 @@ function InstitutionForm({ onClose, institution = null, onSave, toast }) {
             placeholder="-77.0428"
             value={formData.location.lng}
             onChange={(e) => handleLocationChange('lng', parseFloat(e.target.value) || '')}
+            required
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="contactEmail">Email de contacto</Label>
+          <Label htmlFor="contactEmail">Email de contacto <span className="text-destructive">*</span></Label>
           <Input 
             id="contactEmail" 
             type="email"
             placeholder="contacto@institucion.pe"
             value={formData.contactEmail}
             onChange={(e) => handleInputChange('contactEmail', e.target.value)}
+            required
           />
         </div>
         <div>
-          <Label htmlFor="website">Sitio web</Label>
+          <Label htmlFor="website">Sitio web <span className="text-destructive">*</span></Label>
           <Input 
             id="website" 
             placeholder="https://www.institucion.pe"
             value={formData.website}
             onChange={(e) => handleInputChange('website', e.target.value)}
+            required
           />
         </div>
       </div>
 
       <div>
-        <Label htmlFor="description">Descripción</Label>
+        <Label htmlFor="description">Descripción <span className="text-destructive">*</span></Label>
         <Textarea 
           id="description" 
           placeholder="Descripción de la institución"
           rows={3}
           value={formData.description}
           onChange={(e) => handleInputChange('description', e.target.value)}
+          required
         />
       </div>
 
@@ -845,7 +1114,6 @@ InstitutionForm.propTypes = {
   onClose: PropTypes.func.isRequired,
   institution: PropTypes.object,
   onSave: PropTypes.func.isRequired,
-  toast: PropTypes.func.isRequired,
 };
 
 export default InstitutionsManager;

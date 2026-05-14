@@ -31,6 +31,7 @@ import {
   Building2,
   Camera,
   ChevronUp,
+  BookOpen,
   FileText,
   Flag,
   HelpCircle,
@@ -83,6 +84,12 @@ function AppSidebar() {
           path: "/categories",
           title: "Categorías",
           icon: Flag,
+          permission: "content:read",
+        },
+        {
+          path: "/cultures",
+          title: "Culturas",
+          icon: BookOpen,
           permission: "content:read",
         },
         {

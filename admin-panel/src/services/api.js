@@ -5,6 +5,14 @@ class ApiService {
     this.baseURL = API_BASE_URL;
   }
 
+  buildQueryString(params = {}) {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
+    );
+
+    return new URLSearchParams(cleanParams).toString();
+  }
+
   getAuthHeaders() {
     const token = localStorage.getItem('token');
     return {
@@ -42,9 +50,54 @@ class ApiService {
     return response.json();
   }
 
+  async get(endpoint, options = {}) {
+    const { params, ...rest } = options;
+    const queryString = params ? `?${this.buildQueryString(params)}` : '';
+    const data = await this.request(`${endpoint}${queryString}`, {
+      method: 'GET',
+      ...rest
+    });
+    return { data };
+  }
+
+  async post(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async put(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async patch(endpoint, data, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      ...options
+    });
+    return { data: responseData };
+  }
+
+  async delete(endpoint, options = {}) {
+    const responseData = await this.request(endpoint, {
+      method: 'DELETE',
+      ...options
+    });
+    return { data: responseData };
+  }
+
   // Monuments
   async getMonuments(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/monuments${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -72,9 +125,14 @@ class ApiService {
     });
   }
 
+  async getMonumentStats(params = {}) {
+    const queryString = new URLSearchParams(params).toString();
+    return this.request(`/monuments/stats${queryString ? `?${queryString}` : ''}`);
+  }
+
   // Institutions
   async getInstitutions(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/institutions${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -102,9 +160,13 @@ class ApiService {
     });
   }
 
+  async getInstitutionStats() {
+    return this.request('/institutions/stats');
+  }
+
   // Users
   async getUsers(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/users${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -127,13 +189,13 @@ class ApiService {
 
   // Visits
   async getVisits(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/visits${queryString ? `?${queryString}` : ''}`);
   }
 
   // Categories
   async getCategories(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/categories${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -161,9 +223,47 @@ class ApiService {
     });
   }
 
+  async getCategoryStats() {
+    return this.request('/categories/stats');
+  }
+
+  // Cultures
+  async getCultures(params = {}) {
+    const queryString = this.buildQueryString(params);
+    return this.request(`/cultures${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getCulture(id) {
+    return this.request(`/cultures/${id}`);
+  }
+
+  async createCulture(data) {
+    return this.request('/cultures', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCulture(id, data) {
+    return this.request(`/cultures/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCulture(id) {
+    return this.request(`/cultures/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getCultureStats() {
+    return this.request('/cultures/stats');
+  }
+
   // Quizzes
   async getQuizzes(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/quizzes${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -193,7 +293,7 @@ class ApiService {
 
   // Tours
   async getTours(params = {}) {
-    const queryString = new URLSearchParams(params).toString();
+    const queryString = this.buildQueryString(params);
     return this.request(`/tours${queryString ? `?${queryString}` : ''}`);
   }
 
@@ -223,6 +323,43 @@ class ApiService {
 
   async getToursByInstitution(institutionId, activeOnly = true) {
     return this.request(`/tours/institution/${institutionId}?activeOnly=${activeOnly}`);
+  }
+
+  // S3 signed uploads
+  buildStorageKey({ entityType, entityId, folder, fileName }) {
+    const safeFileName = fileName.replace(/\s+/g, '_');
+    const normalizedFolder = folder ? `${folder.replace(/^\/+|\/+$/g, '')}/` : '';
+    return `${normalizedFolder}${entityType}/${entityId}/${Date.now()}_${safeFileName}`;
+  }
+
+  async getPresignedUploadUrl({ key, contentType, expiresIn = 3600 }) {
+    return this.request('/uploads/signed-url', {
+      method: 'POST',
+      body: JSON.stringify({ key, contentType, expiresIn }),
+    });
+  }
+
+  async uploadFileToPresignedUrl(presignedUrl, file) {
+    const response = await fetch(presignedUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error al subir a S3: ${response.status}`);
+    }
+
+    return true;
+  }
+
+  async confirmModelVersionUpload(monumentId, payload) {
+    return this.request(`/monuments/${monumentId}/model-versions/complete`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // Model Versions

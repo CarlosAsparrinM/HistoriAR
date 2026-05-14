@@ -1,19 +1,46 @@
 import { buildPagination } from '../utils/pagination.js';
-import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution } from '../services/institutionService.js';
+import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution, getInstitutionStats } from '../services/institutionService.js';
+import * as s3Service from '../services/s3Service.js';
+import { hydrateMedia } from '../utils/s3-helpers.js';
+
+const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
+
+async function hydrateInstitutionMedia(institution) {
+  return hydrateMedia(institution, [
+    { urlField: 'imageUrl', keyField: 's3ImageKey' }
+  ]);
+}
 
 export async function listInstitution(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const availableOnly = req.query.availableOnly === 'true';
-    const { items, total } = await getAllInstitutions({ skip, limit, availableOnly });
-    res.json({ page, total, items });
+    const { items, total } = await getAllInstitutions({
+      skip,
+      limit,
+      availableOnly,
+      search: req.query.search || '',
+      type: req.query.type || 'all',
+      status: req.query.status || 'all'
+    });
+    const hydratedItems = await Promise.all(items.map(hydrateInstitutionMedia));
+    res.json({ page, total, items: hydratedItems });
   } catch (err) { res.status(500).json({ message: err.message }); }
+}
+
+export async function getInstitutionStatsController(_req, res) {
+  try {
+    const stats = await getInstitutionStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 }
 
 export async function getInstitution(req, res) {
   const doc = await getInstitutionById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'No encontrado' });
-  res.json(doc);
+  res.json(await hydrateInstitutionMedia(doc));
 }
 
 export async function createInstitutionController(req, res) {
@@ -32,6 +59,15 @@ export async function updateInstitutionController(req, res) {
 }
 
 export async function deleteInstitutionController(req, res) {
+  const currentInstitution = await getInstitutionById(req.params.id);
+  if (currentInstitution && (currentInstitution.s3ImageKey || currentInstitution.imageUrl)) {
+    try {
+      await s3Service.deleteFileFromS3(currentInstitution.s3ImageKey || currentInstitution.imageUrl);
+    } catch (error) {
+      console.error('Error deleting institution image from S3:', error.message);
+    }
+  }
+
   const doc = await deleteInstitution(req.params.id);
   if (!doc) return res.status(404).json({ message: 'No encontrado' });
   res.json({ message: 'Eliminado' });

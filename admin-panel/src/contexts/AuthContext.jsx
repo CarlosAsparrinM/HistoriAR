@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { AuthContext, rolePermissions } from './authContextConfig';
+import { AuthContext } from './authContextConfig';
 import { API_BASE_URL } from '../services/api';
 
 export function AuthProvider({ children }) {
@@ -48,7 +48,7 @@ export function AuthProvider({ children }) {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
           }
-        } catch (error) {
+        } catch {
           // Error al validar, limpiar sesión
           localStorage.removeItem('token');
           localStorage.removeItem('user');
@@ -87,8 +87,6 @@ export function AuthProvider({ children }) {
       setUser(data.user);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-    } catch (error) {
-      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +98,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
   }, []);
 
-  const hasPermission = useCallback((permission) => {
+  const hasPermission = useCallback(() => {
     if (!user) return false;
     // Los usuarios admin tienen todos los permisos
     return user.role === 'admin';

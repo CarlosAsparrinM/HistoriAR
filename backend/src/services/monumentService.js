@@ -3,10 +3,28 @@ import ModelVersion from '../models/ModelVersion.js';
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from './s3Service.js';
 
-export async function getAllMonuments(filter = {}, { skip = 0, limit = 10, populate = false } = {}) {
-  const query = Monument.find(filter).skip(skip).limit(limit);
+export async function getAllMonuments(filter = {}, { skip = 0, limit = 10, populate = false, text = '' } = {}) {
+  const hasText = Boolean(text && String(text).trim());
+  const queryFilter = { ...filter };
+
+  if (hasText) {
+    queryFilter.$text = { $search: String(text).trim() };
+  }
+
+  let query = Monument.find(queryFilter);
+
+  if (hasText) {
+    query = query.select({ score: { $meta: 'textScore' } });
+    query = query.sort({ score: { $meta: 'textScore' }, name: 1 });
+  } else {
+    query = query.sort({ name: 1 });
+  }
+
+  query = query.skip(skip).limit(limit);
+
   if (populate) query.populate('institutionId createdBy');
-  const [items, total] = await Promise.all([ query, Monument.countDocuments(filter) ]);
+
+  const [items, total] = await Promise.all([ query.exec(), Monument.countDocuments(queryFilter) ]);
   return { items, total };
 }
 
@@ -69,7 +87,7 @@ export async function searchMonuments(searchParams, { skip = 0, limit = 10, popu
   
   // Filter by category (Requirements 4.3)
   if (category && category.trim()) {
-    query.category = category.trim();
+    query.categoryId = category.trim();
   }
   
   // Filter by institution (Requirements 4.4)
@@ -113,7 +131,7 @@ export async function getFilterOptions() {
   // Get unique districts, categories, and institutions for filter dropdowns (Requirements 4.5, 5.4)
   const [districts, categories, institutions] = await Promise.all([
     Monument.distinct('location.district', { status: 'Disponible', 'location.district': { $ne: null, $ne: '' } }),
-    Monument.distinct('category', { status: 'Disponible' }),
+    Monument.distinct('categoryId', { status: 'Disponible' }),
     Monument.aggregate([
       { $match: { status: 'Disponible', institutionId: { $ne: null } } },
       { $group: { _id: '$institutionId' } },
@@ -128,5 +146,22 @@ export async function getFilterOptions() {
     districts: districts.filter(d => d).sort(),
     categories: categories.sort(),
     institutions: institutions
+  };
+}
+
+export async function getMonumentStats(filter = {}) {
+  const total = await Monument.countDocuments(filter);
+
+  const [available, hidden, withModel3D] = await Promise.all([
+    Monument.countDocuments({ ...filter, status: 'Disponible' }),
+    Monument.countDocuments({ ...filter, status: 'Oculto' }),
+    Monument.countDocuments({ ...filter, model3DUrl: { $nin: [null, ''] } })
+  ]);
+
+  return {
+    total,
+    available,
+    hidden,
+    withModel3D
   };
 }

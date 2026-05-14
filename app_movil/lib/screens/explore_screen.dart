@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../contexts/auth_state.dart';
 import '../models/monument.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
 import '../services/monuments_service.dart';
-import '../contexts/auth_state.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -26,9 +25,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
+  LatLng _mapCenter = _initialCenter;
   LatLng? _currentLatLng;
-  double _heading = 0;
   StreamSubscription<Position>? _positionSub;
+  Timer? _mapAnimationTimer;
+  bool _followUser = true;
 
   // Estado relacionado a monumentos
   List<Monument> _monuments = [];
@@ -88,22 +89,96 @@ class _ExploreScreenState extends State<ExploreScreen> {
     );
 
     _positionSub =
-        Geolocator.getPositionStream(locationSettings: locationSettings)
-            .listen((Position pos) {
-      final LatLng latLng = LatLng(pos.latitude, pos.longitude);
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (Position pos) {
+            final LatLng latLng = LatLng(pos.latitude, pos.longitude);
 
-      setState(() {
-        _currentLatLng = latLng;
-        _heading = pos.heading;
-        _zoom = 16;
-        _mapController.move(latLng, _zoom);
-      });
+            setState(() {
+              _currentLatLng = latLng;
+              if (_followUser) {
+                _zoom = _zoom < 16 ? 16 : _zoom;
+                _mapCenter = latLng;
+                _mapController.move(latLng, _zoom);
+              }
+            });
+          },
+        );
+  }
+
+  void _animateMapTo({
+    required LatLng target,
+    required double targetZoom,
+    Duration duration = const Duration(milliseconds: 450),
+  }) {
+    _mapAnimationTimer?.cancel();
+
+    final LatLng startCenter = _mapCenter;
+    final double startZoom = _zoom;
+    const int steps = 24;
+    final int msPerStep = (duration.inMilliseconds / steps).round().clamp(
+      1,
+      1000,
+    );
+    int currentStep = 0;
+
+    _mapAnimationTimer = Timer.periodic(Duration(milliseconds: msPerStep), (
+      timer,
+    ) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      currentStep++;
+      final double t = (currentStep / steps).clamp(0.0, 1.0);
+      final double eased = Curves.easeInOut.transform(t);
+
+      final LatLng center = LatLng(
+        startCenter.latitude + (target.latitude - startCenter.latitude) * eased,
+        startCenter.longitude +
+            (target.longitude - startCenter.longitude) * eased,
+      );
+      final double zoom = startZoom + (targetZoom - startZoom) * eased;
+
+      _mapCenter = center;
+      _zoom = zoom;
+      _mapController.move(center, zoom);
+
+      if (currentStep >= steps) {
+        timer.cancel();
+      }
     });
+  }
+
+  Future<void> _centerMapOnUser() async {
+    await _startLocationUpdates();
+
+    LatLng? target = _currentLatLng;
+    if (target == null) {
+      try {
+        final pos = await Geolocator.getCurrentPosition();
+        target = LatLng(pos.latitude, pos.longitude);
+      } catch (_) {
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    final LatLng center = target;
+    final double targetZoom = _zoom < 16 ? 16 : _zoom;
+
+    setState(() {
+      _followUser = true;
+      _zoom = targetZoom;
+    });
+
+    _animateMapTo(target: center, targetZoom: targetZoom);
   }
 
   @override
   void dispose() {
     _positionSub?.cancel();
+    _mapAnimationTimer?.cancel();
     super.dispose();
   }
 
@@ -174,8 +249,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
             },
             child: _MonumentMarker(
               name: m.name,
-              distanceText:
-                  visual.distanceMeters != null ? '${visual.distanceMeters!.round()}m' : '--',
+              distanceText: visual.distanceMeters != null
+                  ? '${visual.distanceMeters!.round()}m'
+                  : '--',
               imageUrl: m.imageUrl,
               statusIcon: visual.statusIcon,
             ),
@@ -198,18 +274,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: const [
                   Text(
                     'Explorar',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'Monumentos de Lima',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
               ),
@@ -255,12 +325,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     options: MapOptions(
                       initialCenter: _initialCenter,
                       initialZoom: _zoom,
-                      minZoom: 17,
-                      maxZoom: 18,
+                      minZoom: 3,
+                      maxZoom: 19,
                       interactionOptions: const InteractionOptions(
-                        enableMultiFingerGestureRace: false,
-                        flags: InteractiveFlag.none,
+                        flags: InteractiveFlag.all,
                       ),
+                      onPositionChanged: (position, hasGesture) {
+                        _mapCenter = position.center;
+                        _zoom = position.zoom;
+
+                        if (hasGesture && _followUser) {
+                          setState(() {
+                            _followUser = false;
+                          });
+                        }
+                      },
                     ),
                     children: [
                       TileLayer(
@@ -268,22 +347,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.example.historiar',
                       ),
-                      if (markers.isNotEmpty)
-                        MarkerLayer(
-                          markers: markers,
-                        ),
+                      if (markers.isNotEmpty) MarkerLayer(markers: markers),
                     ],
                   ),
-
 
                   // Indicadores de carga / error
                   if (_isLoadingMonuments)
                     const Positioned(
                       top: 16,
                       left: 16,
-                      child: Chip(
-                        label: Text('Cargando monumentos...'),
-                      ),
+                      child: Chip(label: Text('Cargando monumentos...')),
                     ),
                   if (_error != null)
                     Positioned(
@@ -315,8 +388,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           icon: Icons.add,
                           onTap: () {
                             setState(() {
+                              _followUser = false;
                               _zoom += 1;
-                              final center = _currentLatLng ?? _initialCenter;
+                              final center = _mapCenter;
                               _mapController.move(center, _zoom);
                             });
                           },
@@ -326,8 +400,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           icon: Icons.remove,
                           onTap: () {
                             setState(() {
+                              _followUser = false;
                               _zoom -= 1;
-                              final center = _currentLatLng ?? _initialCenter;
+                              final center = _mapCenter;
                               _mapController.move(center, _zoom);
                             });
                           },
@@ -342,10 +417,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     right: 20,
                     child: Row(
                       children: [
-                        _SquareIconButton(
-                          icon: Icons.search,
-                          onTap: () {},
-                        ),
+                        _SquareIconButton(icon: Icons.search, onTap: () {}),
                         const SizedBox(width: 8),
                         _SquareIconButton(
                           icon: Icons.layers_outlined,
@@ -363,7 +435,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       backgroundColor: Colors.white,
                       elevation: 4,
                       onPressed: () {
-                        _startLocationUpdates();
+                        _centerMapOnUser();
                       },
                       child: const Icon(
                         Icons.navigation_rounded,
@@ -388,125 +460,154 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             _selectedMonument = null;
                           });
                         },
-              onViewAr: () async {
-                if (_selectedMonument == null) return;
+                        onViewAr: () async {
+                          if (_selectedMonument == null) return;
 
-                // Verificamos que haya un token válido antes de ir a RA
-                final token = authState.token;
-                if (token == null || token.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Sesión inválida o expirada. Vuelve a iniciar sesión.',
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                // 1) Ir a la cámara AR y esperar a que el usuario salga
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ArCameraScreen(
-                      monument: _selectedMonument!,
-                      token: token,
-                    ),
-                  ),
-                );
-
-                if (!mounted) return;
-
-                // 2) Al volver, mostrar el modal para invitar al quiz
-                final shouldGoToQuiz = await showModalBottomSheet<bool>(
-                  context: context,
-                  backgroundColor: Colors.white,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  builder: (context) {
-                    final monument = _selectedMonument!;
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            '¿Listo para poner a prueba lo que aprendiste?',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Responde un quiz sobre ${monument.name} y gana puntos.',
-                            style: const TextStyle(fontSize: 14, color: Colors.grey),
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () => Navigator.of(context).pop(false),
-                                  style: OutlinedButton.styleFrom(
-                                    side: BorderSide(color: Colors.grey.shade300),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: const Text('Ahora no'),
+                          // Verificamos que haya un token válido antes de ir a RA
+                          final token = authState.token;
+                          if (token.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Sesión inválida o expirada. Vuelve a iniciar sesión.',
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () => Navigator.of(context).pop(true),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFFF6600),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                            );
+                            return;
+                          }
+
+                          // 1) Ir a la cámara AR y esperar a que el usuario salga
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ArCameraScreen(
+                                monument: _selectedMonument!,
+                                token: token,
+                              ),
+                            ),
+                          );
+
+                          if (!mounted) return;
+
+                          // 2) Al volver, mostrar el modal para invitar al quiz
+                          final shouldGoToQuiz = await showModalBottomSheet<bool>(
+                            context: context,
+                            backgroundColor: Colors.white,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(24),
+                              ),
+                            ),
+                            builder: (context) {
+                              final monument = _selectedMonument!;
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  24,
+                                  24,
+                                  32,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Center(
+                                      child: Container(
+                                        width: 40,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  child: const Text(
-                                    'Realizar Quiz',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      '¿Listo para poner a prueba lo que aprendiste?',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Responde un quiz sobre ${monument.name} y gana puntos.',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton(
+                                            onPressed: () => Navigator.of(
+                                              context,
+                                            ).pop(false),
+                                            style: OutlinedButton.styleFrom(
+                                              side: BorderSide(
+                                                color: Colors.grey.shade300,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                            child: const Text('Ahora no'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFFFF6600,
+                                              ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Realizar Quiz',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+
+                          // 3) Si acepta, ir al Quiz
+                          if (shouldGoToQuiz == true && mounted) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-
-                // 3) Si acepta, ir al Quiz
-                if (shouldGoToQuiz == true && mounted) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => QuizScreen(
-                        monument: _selectedMonument!,
-                        token: token,
-                      ),
-                    ),
-                  );
-                }
-              },
+                            );
+                          }
+                        },
                       ),
                     ),
                 ],
@@ -612,15 +713,8 @@ class _MonumentMarker extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: imageUrl != null && imageUrl!.isNotEmpty
-              ? Image.network(
-                  imageUrl!,
-                  fit: BoxFit.cover,
-                )
-              : const Icon(
-                  Icons.location_city,
-                  color: Colors.white,
-                  size: 24,
-                ),
+              ? Image.network(imageUrl!, fit: BoxFit.cover)
+              : const Icon(Icons.location_city, color: Colors.white, size: 24),
         ),
         // Nombre arriba
         Positioned(
@@ -645,10 +739,7 @@ class _MonumentMarker extends StatelessWidget {
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -673,10 +764,7 @@ class _MonumentMarker extends StatelessWidget {
             child: Text(
               distanceText,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -692,11 +780,7 @@ class _MonumentMarker extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
-            child: Icon(
-              statusIcon,
-              size: 14,
-              color: Colors.black87,
-            ),
+            child: Icon(statusIcon, size: 14, color: Colors.black87),
           ),
         ),
       ],
@@ -724,12 +808,10 @@ class _UserLocationMarkerState extends State<_UserLocationMarker>
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    _pulseAnimation = Tween<double>(begin: 0.7, end: 1.3).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOut,
-      ),
-    );
+    _pulseAnimation = Tween<double>(
+      begin: 0.7,
+      end: 1.3,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
   }
 
   @override
@@ -775,10 +857,7 @@ class _UserLocationMarkerState extends State<_UserLocationMarker>
                     offset: const Offset(0, 4),
                   ),
                 ],
-                border: Border.all(
-                  color: Colors.white,
-                  width: 2,
-                ),
+                border: Border.all(color: Colors.white, width: 2),
               ),
               child: const Icon(
                 Icons.navigation_rounded,
@@ -806,16 +885,10 @@ class _LegendDot extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12)),
       ],
     );
   }
@@ -836,11 +909,7 @@ class _SquareIconButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, size: 22),
-        ),
+        child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 22)),
       ),
     );
   }
@@ -917,15 +986,19 @@ class _SelectedMonumentCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.location_on_outlined, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  distanceText,
-                  style: const TextStyle(fontSize: 12),
+                const Icon(
+                  Icons.location_on_outlined,
+                  size: 16,
+                  color: Colors.grey,
                 ),
+                const SizedBox(width: 4),
+                Text(distanceText, style: const TextStyle(fontSize: 12)),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: monument.status.toLowerCase() == 'visitado'
                         ? Colors.green.shade100
@@ -957,7 +1030,10 @@ class _SelectedMonumentCard extends StatelessWidget {
                       ),
                     ),
                     onPressed: onViewAr,
-                    icon: const Icon(Icons.remove_red_eye_outlined, color: Colors.white),
+                    icon: const Icon(
+                      Icons.remove_red_eye_outlined,
+                      color: Colors.white,
+                    ),
                     label: const Text(
                       'Ver en RA',
                       style: TextStyle(color: Colors.white),

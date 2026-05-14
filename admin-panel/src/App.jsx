@@ -3,15 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import Toaster from './components/ui/sonner';
-import { ToastProvider } from './components/ui/toast';
 import LoginForm from './components/LoginForm';
 import AppSidebar from './components/AppSidebar';
 import Dashboard from './components/Dashboard';
 import MonumentsManager from './components/MonumentsManager';
 import InstitutionsManager from './components/InstitutionsManager';
 import CategoriesManager from './components/CategoriesManager';
+import CulturesManager from './components/CulturesManager';
 import UsersManager from './components/UsersManager';
-import AnalyticsView from './components/AnalyticsView';
 import ToursManager from './components/ToursManager';
 import ARExperiencesManager from './components/ARExperiencesManager';
 import HistoricalDataManager from './components/HistoricalDataManager';
@@ -47,6 +46,7 @@ function AppContent() {
             <Route path="/monuments" element={<MonumentsManager />} />
             <Route path="/institutions" element={<InstitutionsManager />} />
             <Route path="/categories" element={<CategoriesManager />} />
+            <Route path="/cultures" element={<CulturesManager />} />
             
             {/* AR Experiences with nested routes */}
             <Route path="/ar-experiences" element={<ARExperiencesManager />} />
@@ -83,10 +83,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <AppContent />
-          <Toaster />
-        </ToastProvider>
+        <AppContent />
+        <Toaster />
       </AuthProvider>
     </BrowserRouter>
   );

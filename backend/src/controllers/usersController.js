@@ -13,7 +13,7 @@ import {
 export async function listUsers(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
-    const filter = {};
+    const filter = { status: { $ne: 'Eliminado' } };
 
     if (req.query.role) filter.role = req.query.role;
     if (req.query.status) filter.status = req.query.status;

@@ -7,10 +7,12 @@ import {
   deleteMonumentController, 
   searchMonumentsController, 
   getFilterOptionsController,
+  getMonumentStatsController,
   getModelVersionsController,
   activateModelVersionController,
   deleteModelVersionController,
-  uploadModelVersionController
+  uploadModelVersionController,
+  confirmModelVersionUploadController
 } from '../controllers/monumentsController.js';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
 import { uploadMonumentImageToS3 } from '../services/s3Service.js';
@@ -29,6 +31,7 @@ const upload = multer({
 router.get('/', listMonument);
 router.get('/search', searchMonumentsController);
 router.get('/filter-options', getFilterOptionsController);
+router.get('/stats', getMonumentStatsController);
 router.get('/:id', getMonument);
 
 router.post('/',
@@ -54,12 +57,15 @@ router.delete('/:id', verifyToken, requireRole('admin'), deleteMonumentControlle
 // Model versioning endpoints
 router.get('/:id/model-versions', verifyToken, requireRole('admin'), getModelVersionsController);
 router.post('/:id/upload-model', verifyToken, requireRole('admin'), upload.single('model'), uploadModelVersionController);
+router.post('/:id/model-versions/complete', verifyToken, requireRole('admin'), confirmModelVersionUploadController);
 router.post('/:id/model-versions/:versionId/activate', verifyToken, requireRole('admin'), activateModelVersionController);
 router.delete('/:id/model-versions/:versionId', verifyToken, requireRole('admin'), deleteModelVersionController);
 
 // Upload endpoints specifically for monuments
-router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/:id/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
   try {
+    const { id: monumentId } = req.params;
+    
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
     }
@@ -78,6 +84,7 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
+    const key = `images/monuments/${monumentId}/${filename}`;
     
     // Upload to S3 in images/monuments/ folder
     const imageUrl = await uploadMonumentImageToS3(
@@ -86,8 +93,16 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
       req.file.mimetype
     );
 
+    const Monument = (await import('../models/Monument.js')).default;
+    await Monument.findByIdAndUpdate(monumentId, {
+      imageUrl,
+      s3ImageKey: key,
+      s3ImageFileName: filename
+    });
+
     res.json({
       imageUrl,
+      s3ImageKey: key,
       filename,
       message: 'Image uploaded successfully to S3'
     });
@@ -126,6 +141,7 @@ router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('m
     // Generate unique filename
     const timestamp = Date.now();
     const filename = `${timestamp}_${req.file.originalname}`;
+    const key = `models/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
     const modelUrl = await s3Service.uploadModelToS3(
@@ -135,8 +151,16 @@ router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('m
       req.file.mimetype
     );
 
+    const Monument = (await import('../models/Monument.js')).default;
+    await Monument.findByIdAndUpdate(monumentId, {
+      model3DUrl: modelUrl,
+      s3ModelKey: key,
+      s3ModelFileName: filename
+    });
+
     res.json({
       modelUrl,
+      s3ModelKey: key,
       filename,
       message: '3D model uploaded successfully to S3'
     });

@@ -1,14 +1,13 @@
 import * as React from "react"
 import { X } from "lucide-react"
+import { ToastContext } from "./toastContext"
 
 // Utility function to merge classNames
 function cn(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
-const ToastContext = React.createContext({})
-
-export function ToastProvider({ children }) {
+function ToastProvider({ children }) {
   const [toasts, setToasts] = React.useState([])
 
   const toast = React.useCallback(({ title, description, variant = "default" }) => {
@@ -34,14 +33,6 @@ export function ToastProvider({ children }) {
       </div>
     </ToastContext.Provider>
   )
-}
-
-export function useToast() {
-  const context = React.useContext(ToastContext)
-  if (!context) {
-    throw new Error("useToast must be used within ToastProvider")
-  }
-  return context
 }
 
 function Toast({ title, description, variant, onClose }) {
@@ -87,3 +78,5 @@ function Toast({ title, description, variant, onClose }) {
     </div>
   )
 }
+
+export { ToastProvider }

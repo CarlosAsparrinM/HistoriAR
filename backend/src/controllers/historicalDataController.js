@@ -1,5 +1,14 @@
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
+import { hydrateMedia } from '../utils/s3-helpers.js';
+
+const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
+
+async function hydrateHistoricalDataMedia(entry) {
+  return hydrateMedia(entry, [
+    { urlField: 'imageUrl', keyField: 's3ImageKey' }
+  ]);
+}
 
 /**
  * Get all historical data entries for a monument
@@ -12,7 +21,9 @@ export async function getHistoricalDataByMonument(req, res) {
       .populate('createdBy', 'name email')
       .sort({ order: 1, createdAt: 1 });
 
-    res.json(historicalData);
+    const response = await Promise.all(historicalData.map(hydrateHistoricalDataMedia));
+
+    res.json(response);
   } catch (err) {
     console.error('Error fetching historical data:', err);
     res.status(500).json({ message: err.message });
@@ -33,7 +44,9 @@ export async function getHistoricalDataById(req, res) {
       return res.status(404).json({ message: 'Historical data not found' });
     }
 
-    res.json(historicalData);
+    const response = await hydrateHistoricalDataMedia(historicalData);
+
+    res.json(response);
   } catch (err) {
     console.error('Error fetching historical data:', err);
     res.status(500).json({ message: err.message });
@@ -59,6 +72,7 @@ export async function createHistoricalData(req, res) {
     }
 
     let imageUrl = null;
+    let s3ImageKey = null;
     let s3ImageFileName = null;
 
     // Handle image upload if provided
@@ -69,9 +83,10 @@ export async function createHistoricalData(req, res) {
         const timestamp = Date.now();
         const filename = `historical_${timestamp}_${req.file.originalname}`;
         
+        s3ImageKey = `images/monuments/${monumentId}/historical/${filename}`;
         imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
-          `images/historical/${monumentId}/${filename}`,
+          s3ImageKey,
           req.file.mimetype
         );
         s3ImageFileName = filename;
@@ -94,6 +109,7 @@ export async function createHistoricalData(req, res) {
       title,
       description,
       imageUrl,
+      s3ImageKey,
       s3ImageFileName,
       discoveryInfo,
       activities: activities ? JSON.parse(activities) : [],
@@ -139,21 +155,23 @@ export async function updateHistoricalData(req, res) {
     if (req.file) {
       try {
         // Delete old image if exists
-        if (historicalData.imageUrl) {
-          await s3Service.deleteFileFromS3(historicalData.imageUrl);
+        if (historicalData.s3ImageKey || historicalData.imageUrl) {
+          await s3Service.deleteFileFromS3(historicalData.s3ImageKey || historicalData.imageUrl);
         }
 
         // Upload new image to S3
         const timestamp = Date.now();
         const filename = `historical_${timestamp}_${req.file.originalname}`;
         
+        const s3ImageKey = `images/monuments/${historicalData.monumentId}/historical/${filename}`;
         const imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
-          `images/historical/${historicalData.monumentId}/${filename}`,
+          s3ImageKey,
           req.file.mimetype
         );
         
         historicalData.imageUrl = imageUrl;
+        historicalData.s3ImageKey = s3ImageKey;
         historicalData.s3ImageFileName = filename;
       } catch (uploadError) {
         console.error('Error uploading image:', uploadError);
@@ -187,9 +205,9 @@ export async function deleteHistoricalData(req, res) {
     }
 
     // Delete image from S3 if exists
-    if (historicalData.imageUrl) {
+    if (historicalData.s3ImageKey || historicalData.imageUrl) {
       try {
-        await s3Service.deleteFileFromS3(historicalData.imageUrl);
+        await s3Service.deleteFileFromS3(historicalData.s3ImageKey || historicalData.imageUrl);
       } catch (deleteError) {
         console.error('Error deleting image from S3:', deleteError);
         // Continue with deletion even if S3 deletion fails

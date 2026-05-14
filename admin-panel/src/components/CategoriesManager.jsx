@@ -41,6 +41,8 @@ import { Label } from './ui/label';
 import {
   Plus,
   Search,
+  ChevronLeft,
+  ChevronRight,
   MoreHorizontal,
   Edit,
   Trash2,
@@ -161,20 +163,44 @@ function CategoriesManager() {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCategories, setTotalCategories] = useState(0);
+  const [stats, setStats] = useState({ total: 0, active: 0, uniqueColors: 0 });
+  const pageSize = 10;
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchTerm(searchTerm);
+    }, 350);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  useEffect(() => {
     loadData();
-  }, []);
+  }, [currentPage, debouncedSearchTerm]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const data = await apiService.getCategories();
+      const [data, statsData] = await Promise.all([
+        apiService.getCategories({ page: currentPage, limit: pageSize, search: debouncedSearchTerm.trim() || undefined }),
+        apiService.getCategoryStats()
+      ]);
+
       setCategories(data.items || data || []);
+      setTotalCategories(data.total || 0);
+      setStats({
+        total: statsData.total || 0,
+        active: statsData.active || 0,
+        uniqueColors: statsData.uniqueColors || 0
+      });
     } catch (error) {
       console.error('Error loading categories:', error);
     } finally {
@@ -182,12 +208,9 @@ function CategoriesManager() {
     }
   };
 
-  // Filtro por término de búsqueda
-  const filteredCategories = categories.filter(category => {
-    const matchesSearch = category.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         category.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const filteredCategories = categories;
+
+  const totalPages = Math.max(1, Math.ceil(totalCategories / pageSize));
 
   // Eliminar categoría
   const handleDelete = async (id) => {
@@ -289,7 +312,7 @@ function CategoriesManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Total Categorías</p>
-                <p className="text-2xl font-bold">{categories.length}</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
               </div>
             </div>
           </CardContent>
@@ -303,9 +326,7 @@ function CategoriesManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Categorías Activas</p>
-                <p className="text-2xl font-bold">
-                  {categories.filter(c => c.isActive).length}
-                </p>
+                <p className="text-2xl font-bold">{stats.active}</p>
               </div>
             </div>
           </CardContent>
@@ -319,9 +340,7 @@ function CategoriesManager() {
               </div>
               <div>
                 <p className="text-sm font-medium">Colores Únicos</p>
-                <p className="text-2xl font-bold">
-                  {new Set(categories.map(c => c.color)).size}
-                </p>
+                <p className="text-2xl font-bold">{stats.uniqueColors}</p>
               </div>
             </div>
           </CardContent>
@@ -333,7 +352,7 @@ function CategoriesManager() {
         <CardHeader>
           <CardTitle>Lista de Categorías</CardTitle>
           <CardDescription>
-            {filteredCategories.length} categorías encontradas
+            Página {currentPage} de {totalPages} • {totalCategories} categorías en total
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -429,6 +448,35 @@ function CategoriesManager() {
               )}
             </TableBody>
           </Table>
+
+          <div className="flex items-center justify-between mt-4">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {filteredCategories.length} de {totalCategories}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={loading || currentPage <= 1}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Anterior
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                {currentPage} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={loading || currentPage >= totalPages}
+              >
+                Siguiente
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
