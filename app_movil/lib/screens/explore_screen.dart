@@ -11,6 +11,8 @@ import '../models/monument.dart';
 import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
+import '../services/app_settings_service.dart';
+import '../services/local_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
 import '../styles/app_colors.dart';
@@ -27,6 +29,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   final MonumentsService _monumentsService = MonumentsService();
   final LocationService _locationService = const LocationService();
+  final AppSettingsService _settingsService = AppSettingsService();
 
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
@@ -37,6 +40,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _followUser = true;
   LatLng? _lastContextLatLng;
   DateTime? _lastContextFetch;
+  AppSettings _settings = const AppSettings.defaults();
+  String? _lastNearbyNotificationMonumentId;
+  DateTime? _lastNearbyNotificationAt;
 
   // Estado relacionado a monumentos
   List<Monument> _monuments = [];
@@ -51,8 +57,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMonuments();
-    // Pedir ubicación y comenzar a seguir al usuario al cargar la pantalla
+    _initializeScreen();
+  }
+
+  Future<void> _initializeScreen() async {
+    _settings = await _settingsService.load();
+    await _loadMonuments();
+
+    if (!mounted) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startLocationUpdates();
     });
@@ -94,28 +107,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     await _positionSub?.cancel();
 
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.best,
-      distanceFilter: 1,
-    );
-
     _positionSub =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-          (Position pos) {
-            final LatLng latLng = LatLng(pos.latitude, pos.longitude);
+        Geolocator.getPositionStream(
+          locationSettings: _settings.locationAccuracyMode.locationSettings,
+        ).listen((Position pos) {
+          final LatLng latLng = LatLng(pos.latitude, pos.longitude);
 
-            setState(() {
-              _currentLatLng = latLng;
-              if (_followUser) {
-                _zoom = _zoom < 16 ? 16 : _zoom;
-                _mapCenter = latLng;
-                _mapController.move(latLng, _zoom);
-              }
-            });
+          setState(() {
+            _currentLatLng = latLng;
+            if (_followUser) {
+              _zoom = _zoom < 16 ? 16 : _zoom;
+              _mapCenter = latLng;
+              _mapController.move(latLng, _zoom);
+            }
+          });
 
-            _refreshLocationContext(latLng);
-          },
-        );
+          _refreshLocationContext(latLng);
+        });
   }
 
   bool _shouldRefreshLocationContext(LatLng position) {
@@ -130,7 +138,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
       position,
     );
 
-    return elapsed.inSeconds > 45 || distance > 100;
+    return elapsed.inSeconds > _settings.locationRefreshPreset.seconds ||
+        distance > _settings.locationRefreshPreset.distanceMeters;
   }
 
   Future<void> _refreshLocationContext(LatLng position) async {
@@ -162,6 +171,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _nearbyMonuments = nearby;
         _isLoadingLocationContext = false;
       });
+
+      await _notifyNearbyMonuments(position, nearby);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -169,6 +180,44 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _isLoadingLocationContext = false;
       });
     }
+  }
+
+  Future<void> _notifyNearbyMonuments(
+    LatLng currentPosition,
+    List<Monument> nearby,
+  ) async {
+    if (!_settings.nearbyNotificationsEnabled || nearby.isEmpty) return;
+
+    final nearbyLimit = _settings.nearbyNotificationDistancePreset.meters;
+    Monument? candidate;
+
+    for (final monument in nearby) {
+      final distance = _distanceInMeters(currentPosition, monument.position);
+      if (distance <= nearbyLimit) {
+        candidate = monument;
+        break;
+      }
+    }
+
+    if (candidate == null) return;
+
+    final now = DateTime.now();
+    final recentNotification =
+        _lastNearbyNotificationAt != null &&
+        now.difference(_lastNearbyNotificationAt!).inMinutes < 10;
+
+    if (candidate.id == _lastNearbyNotificationMonumentId &&
+        recentNotification) {
+      return;
+    }
+
+    _lastNearbyNotificationMonumentId = candidate.id;
+    _lastNearbyNotificationAt = now;
+
+    await LocalNotificationService.instance.showNearbyMonumentNotification(
+      monumentName: candidate.name,
+      body: 'Hay un monumento cercano y puedes explorarlo desde el mapa.',
+    );
   }
 
   void _animateMapTo({

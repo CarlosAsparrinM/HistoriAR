@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/monument.dart';
+import '../services/app_settings_service.dart';
 import '../services/quiz_service.dart';
 import '../styles/app_colors.dart';
 
@@ -26,12 +27,22 @@ class _QuizScreenState extends State<QuizScreen> {
   final List<Map<String, dynamic>> _answers = [];
   Map<String, dynamic>? _finalResult; // datos de resultado general
   late final DateTime _startTime;
+  Duration _feedbackDelay = const Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
     _startTime = DateTime.now();
+    _loadQuizFeedbackPreset();
     _loadQuiz();
+  }
+
+  Future<void> _loadQuizFeedbackPreset() async {
+    final settings = await AppSettingsService().load();
+    if (!mounted) return;
+    setState(() {
+      _feedbackDelay = Duration(seconds: settings.quizFeedbackPreset.seconds);
+    });
   }
 
   Future<void> _loadQuiz() async {
@@ -125,7 +136,7 @@ class _QuizScreenState extends State<QuizScreen> {
       _showFeedback = true;
     });
 
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(_feedbackDelay);
     if (!mounted) return;
 
     if (_currentQuestionIndex < _questions.length - 1) {

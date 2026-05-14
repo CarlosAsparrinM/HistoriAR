@@ -7,6 +7,7 @@ import '../models/monument.dart';
 import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
+import '../services/app_settings_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
 
@@ -178,6 +179,10 @@ class _MyTourScreenState extends State<MyTourScreen> {
       return;
     }
 
+    final quizMode = (await AppSettingsService().load()).quizPostVisitMode;
+
+    if (!mounted) return;
+
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
@@ -187,11 +192,11 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
     if (!mounted) return;
 
-    final shouldAskForQuizzes = prefs.getBool('pref_askForQuizzes') ?? true;
+    if (quizMode == QuizPostVisitMode.neverShow) {
+      return;
+    }
 
-    if (!mounted) return;
-
-    if (!shouldAskForQuizzes) {
+    if (quizMode == QuizPostVisitMode.autoOpen) {
       await Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => QuizScreen(monument: monument, token: token),

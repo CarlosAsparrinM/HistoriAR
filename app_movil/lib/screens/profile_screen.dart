@@ -22,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final UserService _userService = UserService();
   final VisitsService _visitsService = VisitsService();
   final MonumentsService _monumentsService = MonumentsService();
+  static const int _recentActivityLimit = 3;
 
   @override
   void initState() {
@@ -83,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       user: user,
       visits: visits,
       attempts: attempts,
-      activities: activities.take(6).toList(),
+      activities: activities,
     );
   }
 
@@ -97,6 +98,67 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  void _showFullActivities(
+    BuildContext context,
+    List<_ProfileActivity> activities,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Actividad completa',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: activities.length,
+                    separatorBuilder: (_, __) => const Divider(height: 0),
+                    itemBuilder: (context, index) {
+                      final activity = activities[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.grey.shade100,
+                          child: Icon(activity.icon, color: AppColors.primary),
+                        ),
+                        title: Text(activity.title),
+                        subtitle: Text(activity.dateLabel),
+                        trailing: Text(
+                          activity.metricLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -115,7 +177,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: EdgeInsets.only(bottom: 8.0),
             child: Text(
               'Configuración y estadísticas',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.muted),
             ),
           ),
         ),
@@ -185,7 +247,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: ListView(
           children: [
             Card(
-              elevation: 1,
+              elevation: 2,
+              color: AppColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -234,9 +297,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  _InfoChip(
-                                    label: 'Nivel ${userProfile.level}',
-                                  ),
                                   if (userProfile.joinDate != null)
                                     _InfoChip(label: userProfile.joinDate!),
                                 ],
@@ -251,53 +311,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                userProfile.totalPoints.toString(),
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Puntos Totales',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                userProfile.achievements.toString(),
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Logros',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -316,15 +330,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   label: 'Quizzes',
                   value: quizCount.toString(),
                 ),
-                const SizedBox(width: 8),
-                _StatCard(
-                  icon: Icons.camera_alt_outlined,
-                  label: 'Escaneos AR',
-                  value: userProfile.arScans.toString(),
-                ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             const Text(
               'Insignias Recientes',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -345,7 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary,
+                        color: AppColors.primaryVariant,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -374,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'Sin insignias por el momento',
                 style: TextStyle(color: Colors.grey),
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             const Text(
               'Actividad Reciente',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -391,77 +399,82 @@ class _ProfileScreenState extends State<ProfileScreen> {
             else
               Card(
                 elevation: 1,
+                color: AppColors.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Column(
-                  children: data.activities.map((activity) {
-                    return Column(
-                      children: [
-                        ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.grey.shade100,
-                            child: Icon(
-                              activity.icon,
-                              color: AppColors.primary,
+                  children: [
+                    // Mostrar solo las primeras actividades y permitir ver más
+                    ...data.activities.take(_recentActivityLimit).map((
+                      activity,
+                    ) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.grey.shade100,
+                              child: Icon(
+                                activity.icon,
+                                color: AppColors.primary,
+                              ),
                             ),
-                          ),
-                          title: Text(
-                            activity.title,
-                            style: const TextStyle(fontWeight: FontWeight.w500),
-                          ),
-                          subtitle: Text(
-                            activity.dateLabel,
-                            style: const TextStyle(color: Colors.grey),
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                            title: Text(
+                              activity.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.shade100,
-                              borderRadius: BorderRadius.circular(12),
+                            subtitle: Text(
+                              activity.dateLabel,
+                              style: const TextStyle(color: Colors.grey),
                             ),
-                            child: Text(
-                              activity.metricLabel,
-                              style: TextStyle(
-                                color: Colors.green.shade700,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.highlight,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                activity.metricLabel,
+                                style: TextStyle(
+                                  color: AppColors.primaryVariant,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
+                          if (activity !=
+                              data.activities.take(_recentActivityLimit).last)
+                            const Divider(height: 0),
+                        ],
+                      );
+                    }),
+                    if (data.activities.length > _recentActivityLimit)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: TextButton(
+                          onPressed: () =>
+                              _showFullActivities(context, data.activities),
+                          child: const Text('Ver más actividad'),
                         ),
-                        if (activity != data.activities.last)
-                          const Divider(height: 0),
-                      ],
-                    );
-                  }).toList(),
+                      ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             Card(
-              elevation: 1,
+              elevation: 2,
+              color: AppColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
-                  _OptionTile(
-                    icon: Icons.security_outlined,
-                    title: 'Privacidad y Seguridad',
-                    subtitle: 'Gestiona tu privacidad',
-                    onTap: () {},
-                  ),
-                  const Divider(height: 0),
-                  _OptionTile(
-                    icon: Icons.help_outline,
-                    title: 'Ayuda y Soporte',
-                    subtitle: 'Obtén ayuda con la app',
-                    onTap: () {},
-                  ),
-                  const Divider(height: 0),
                   _OptionTile(
                     icon: Icons.logout,
                     title: 'Cerrar Sesión',
@@ -619,6 +632,7 @@ class _StatCard extends StatelessWidget {
     return Expanded(
       child: Card(
         elevation: 1,
+        color: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
