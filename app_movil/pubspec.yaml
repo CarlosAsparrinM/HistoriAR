@@ -41,6 +41,9 @@ dependencies:
   ar_flutter_plugin_plus: ^1.0.0
   flutter_launcher_icons: ^0.14.4
   shared_preferences: ^2.2.0
+  flutter_dotenv: ^6.0.0
+  google_sign_in: ^6.1.0
+  flutter_local_notifications: 21.0.0
 
 dev_dependencies:
   flutter_test:

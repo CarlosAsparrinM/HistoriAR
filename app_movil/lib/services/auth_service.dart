@@ -1,16 +1,14 @@
 import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
-import 'api_config.dart';
 
 class AuthService {
   static const String _basePath = '/api/auth';
   static const int _timeoutSeconds = 30;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   /// Extrae mensaje de error del response de forma segura
   String _extractErrorMessage(String responseBody, String defaultMessage) {
@@ -52,20 +50,26 @@ class AuthService {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/login');
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email, 'password': password}),
-      ).timeout(
-        const Duration(seconds: _timeoutSeconds),
-        onTimeout: () => throw Exception('Timeout: El servidor tardó más de 30 segundos en responder'),
-      );
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(
+            const Duration(seconds: _timeoutSeconds),
+            onTimeout: () => throw Exception(
+              'Timeout: El servidor tardó más de 30 segundos en responder',
+            ),
+          );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final data = jsonDecode(response.body);
         final token = data['token'] as String?;
         if (token == null) {
-          throw Exception('Respuesta inesperada del servidor: token no recibido');
+          throw Exception(
+            'Respuesta inesperada del servidor: token no recibido',
+          );
         }
         return token;
       } else if (response.statusCode == 401) {
@@ -73,14 +77,17 @@ class AuthService {
       } else if (response.statusCode == 500) {
         throw Exception('Error del servidor. Intenta más tarde.');
       } else {
-        String message = 'Error al iniciar sesión (código: ${response.statusCode})';
+        String message =
+            'Error al iniciar sesión (código: ${response.statusCode})';
         message = _extractErrorMessage(response.body, message);
         throw Exception(message);
       }
     } on http.ClientException catch (e) {
       throw Exception(_handleNetworkError(e));
     } on FormatException catch (e) {
-      throw Exception('Error al procesar la respuesta del servidor: ${e.message}');
+      throw Exception(
+        'Error al procesar la respuesta del servidor: ${e.message}',
+      );
     } on Exception {
       rethrow;
     } catch (e) {
@@ -94,16 +101,20 @@ class AuthService {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/validate');
 
     try {
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      ).timeout(
-        const Duration(seconds: _timeoutSeconds),
-        onTimeout: () => throw Exception('Timeout: El servidor tardó más de 30 segundos en responder'),
-      );
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(
+            const Duration(seconds: _timeoutSeconds),
+            onTimeout: () => throw Exception(
+              'Timeout: El servidor tardó más de 30 segundos en responder',
+            ),
+          );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return true;
@@ -112,7 +123,8 @@ class AuthService {
       } else if (response.statusCode == 500) {
         throw Exception('Error del servidor');
       } else {
-        String message = 'Error al validar token (código: ${response.statusCode})';
+        String message =
+            'Error al validar token (código: ${response.statusCode})';
         message = _extractErrorMessage(response.body, message);
         throw Exception(message);
       }
@@ -133,14 +145,22 @@ class AuthService {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/register');
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'name': name, 'email': email, 'password': password}),
-      ).timeout(
-        const Duration(seconds: _timeoutSeconds),
-        onTimeout: () => throw Exception('Timeout: El servidor tardó más de 30 segundos en responder'),
-      );
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'name': name,
+              'email': email,
+              'password': password,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: _timeoutSeconds),
+            onTimeout: () => throw Exception(
+              'Timeout: El servidor tardó más de 30 segundos en responder',
+            ),
+          );
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return;
@@ -153,14 +173,17 @@ class AuthService {
       } else if (response.statusCode == 500) {
         throw Exception('Error del servidor. Intenta más tarde.');
       } else {
-        String message = 'Error al crear la cuenta (código: ${response.statusCode})';
+        String message =
+            'Error al crear la cuenta (código: ${response.statusCode})';
         message = _extractErrorMessage(response.body, message);
         throw Exception(message);
       }
     } on http.ClientException catch (e) {
       throw Exception(_handleNetworkError(e));
     } on FormatException catch (e) {
-      throw Exception('Error al procesar la respuesta del servidor: ${e.message}');
+      throw Exception(
+        'Error al procesar la respuesta del servidor: ${e.message}',
+      );
     } on Exception {
       rethrow;
     } catch (e) {
@@ -177,24 +200,31 @@ class AuthService {
       }
 
       // Paso 2: Obtener autenticación de Google
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
       if (idToken == null) {
-        throw Exception('No se pudo obtener el token de Google. Intenta de nuevo.');
+        throw Exception(
+          'No se pudo obtener el token de Google. Intenta de nuevo.',
+        );
       }
 
       // Paso 3: Enviar token al backend
-      final uri = Uri.parse('$apiBaseUrl$_basePath/google');
+      final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/google');
 
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'idToken': idToken}),
-      ).timeout(
-        const Duration(seconds: _timeoutSeconds),
-        onTimeout: () => throw Exception('Timeout: El servidor tardó más de 30 segundos en responder'),
-      );
+      final response = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'idToken': idToken}),
+          )
+          .timeout(
+            const Duration(seconds: _timeoutSeconds),
+            onTimeout: () => throw Exception(
+              'Timeout: El servidor tardó más de 30 segundos en responder',
+            ),
+          );
 
       // Paso 4: Procesar respuesta
       if (response.statusCode >= 200 && response.statusCode < 300) {
@@ -203,7 +233,9 @@ class AuthService {
           final token = data['token'] as String?;
 
           if (token == null) {
-            throw Exception('Respuesta inesperada del servidor: token no recibido');
+            throw Exception(
+              'Respuesta inesperada del servidor: token no recibido',
+            );
           }
           return token;
         } on FormatException {
@@ -214,7 +246,8 @@ class AuthService {
       } else if (response.statusCode == 500) {
         throw Exception('Error del servidor. Intenta más tarde.');
       } else {
-        String message = 'Error en la autenticación con Google (código: ${response.statusCode})';
+        String message =
+            'Error en la autenticación con Google (código: ${response.statusCode})';
         message = _extractErrorMessage(response.body, message);
         throw Exception(message);
       }

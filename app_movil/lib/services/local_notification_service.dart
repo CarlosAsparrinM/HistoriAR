@@ -18,7 +18,7 @@ class LocalNotificationService {
       macOS: DarwinInitializationSettings(),
     );
 
-    await _plugin.initialize(initializationSettings);
+    await _plugin.initialize(settings: initializationSettings);
     _initialized = true;
   }
 
@@ -71,10 +71,10 @@ class LocalNotificationService {
     );
 
     await _plugin.show(
-      monumentName.hashCode & 0x7fffffff,
-      'Monumento cercano: $monumentName',
-      body,
-      notificationDetails,
+      id: monumentName.hashCode & 0x7fffffff,
+      title: 'Monumento cercano: $monumentName',
+      body: body,
+      notificationDetails: notificationDetails,
     );
   }
 }

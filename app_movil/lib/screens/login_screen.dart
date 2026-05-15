@@ -348,24 +348,6 @@ class _LoginScreenState extends State<LoginScreen>
 
                   const SizedBox(height: 16),
 
-                  // Botones sociales
-                  _SocialButton(
-                    icon: Icons.email_outlined,
-                    label: 'Continuar con Email',
-                    onTap: _goToApp,
-                  ),
-                  const SizedBox(height: 10),
-                  _SocialButton(
-                    icon: Icons.g_mobiledata_rounded,
-                    label: 'Continuar con Google',
-                    onTap: _goToApp,
-                  ),
-                  const SizedBox(height: 10),
-                  _SocialButton(
-                    icon: Icons.facebook_outlined,
-                    label: 'Continuar con Facebook',
-                    onTap: _goToApp,
-                  ),
                 ],
               ),
             ),
