@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/user_service.dart';
+
+import '../contexts/auth_state.dart';
+import '../models/monument.dart';
 import '../models/user.dart';
+import '../screens/login_screen.dart';
+import '../services/monuments_service.dart';
+import '../services/user_service.dart';
+import '../services/visits_service.dart';
+import '../styles/app_colors.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -12,8 +18,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  Future<User>? _userFuture;
+  Future<_ProfileData>? _profileFuture;
   final UserService _userService = UserService();
+  final VisitsService _visitsService = VisitsService();
+  final MonumentsService _monumentsService = MonumentsService();
+  static const int _recentActivityLimit = 3;
 
   @override
   void initState() {
@@ -22,38 +31,142 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadUserProfile() async {
+    setState(() {
+      _profileFuture = _buildProfileData();
+    });
+  }
+
+  Future<_ProfileData> _buildProfileData() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('authToken');
-    
-    if (token == null) {
+
+    if (token == null || token.isEmpty) {
       if (mounted) {
-        // Mostrar aviso y redirigir al login en el siguiente frame
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No hay sesión activa')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('No hay sesión activa')));
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => LoginScreen()),
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
         });
       }
-      return;
+      throw StateError('No hay sesión activa');
     }
 
-    setState(() {
-      _userFuture = _userService.getMyProfile(token);
-    });
+    final user = await _userService.getMyProfile(token);
+    final userId = prefs.getString('userId') ?? user.id;
+    await prefs.setString('userId', userId);
+
+    final results = await Future.wait([
+      _visitsService.getVisitsByUser(userId: userId, token: token),
+      _userService.getUserQuizAttempts(userId: userId, token: token),
+      _monumentsService.fetchMonuments(),
+    ]);
+
+    final visits = results[0] as List<Map<String, dynamic>>;
+    final attempts = results[1] as List<Map<String, dynamic>>;
+    final monuments = results[2] as List<Monument>;
+    final monumentsById = {
+      for (final monument in monuments) monument.id: monument,
+    };
+
+    final activities = <_ProfileActivity>[
+      ...visits.map(
+        (visit) => _ProfileActivity.fromVisit(visit, monumentsById),
+      ),
+      ...attempts.map(
+        (attempt) => _ProfileActivity.fromQuizAttempt(attempt, monumentsById),
+      ),
+    ]..sort((a, b) => b.date.compareTo(a.date));
+
+    return _ProfileData(
+      user: user,
+      visits: visits,
+      attempts: attempts,
+      activities: activities,
+    );
+  }
+
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('authToken');
+    await prefs.remove('userId');
+    authState.token = '';
+    if (!mounted) return;
+
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  void _showFullActivities(
+    BuildContext context,
+    List<_ProfileActivity> activities,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Actividad completa',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: activities.length,
+                    separatorBuilder: (_, __) => const Divider(height: 0),
+                    itemBuilder: (context, index) {
+                      final activity = activities[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.grey.shade100,
+                          child: Icon(activity.icon, color: AppColors.primary),
+                        ),
+                        title: Text(activity.title),
+                        subtitle: Text(activity.dateLabel),
+                        trailing: Text(
+                          activity.metricLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Mi Perfil',
-          style: TextStyle(color: Colors.black),
-        ),
+        title: const Text('Mi Perfil', style: TextStyle(color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 0.5,
         centerTitle: false,
@@ -64,97 +177,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
             padding: EdgeInsets.only(bottom: 8.0),
             child: Text(
               'Configuración y estadísticas',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.muted),
             ),
           ),
         ),
       ),
-      body: FutureBuilder<User>(
-        future: _userFuture,
+      body: FutureBuilder<_ProfileData>(
+        future: _profileFuture,
         builder: (context, snapshot) {
-          if (_userFuture == null) {
+          if (_profileFuture == null ||
+              snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
-            );
-          }
-
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFFFF6600)),
+              child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
 
           if (snapshot.hasError) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 16),
-                  Text('Error: ${snapshot.error}'),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _loadUserProfile,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Reintentar'),
-                  ),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Error: ${snapshot.error}'),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: _loadUserProfile,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
               ),
             );
           }
 
-          if (!snapshot.hasData) {
+          final data = snapshot.data;
+          if (data == null)
             return const Center(
               child: Text('No se encontraron datos del usuario'),
             );
-          }
 
-          final userProfile = snapshot.data!;
-          return _buildProfileContent(context, userProfile);
+          return _buildProfileContent(context, data);
         },
       ),
     );
   }
 
-  Widget _buildProfileContent(BuildContext context, User userProfile) {
-    final List<Map<String, dynamic>> recentActivity = [
-      {
-        "type": "visit",
-        "title": "Visitaste Palacio de Torre Tagle",
-        "date": "Hace 2 días",
-        "points": 150,
-        "icon": Icons.place_outlined,
-      },
-      {
-        "type": "achievement",
-        "title": "Logro desbloqueado: Explorador de Lima",
-        "date": "Hace 3 días",
-        "points": 500,
-        "icon": Icons.emoji_events_outlined,
-      },
-      {
-        "type": "scan",
-        "title": "Escaneaste 5 objetos AR",
-        "date": "Hace 1 semana",
-        "points": 100,
-        "icon": Icons.camera_alt_outlined,
-      },
-    ];
-
+  Widget _buildProfileContent(BuildContext context, _ProfileData data) {
+    final userProfile = data.user;
     final initials = userProfile.name
         .split(' ')
-        .where((p) => p.isNotEmpty)
-        .map((p) => p[0].toUpperCase())
+        .where((part) => part.isNotEmpty)
+        .map((part) => part[0].toUpperCase())
         .join();
+
+    final visitCount = data.visits.length;
+    final quizCount = data.attempts.length;
 
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         child: ListView(
           children: [
-            // Header de perfil
             Card(
-              elevation: 1,
+              elevation: 2,
+              color: AppColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -166,7 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         CircleAvatar(
                           radius: 32,
-                          backgroundColor: const Color(0xFFFF6600),
+                          backgroundColor: AppColors.primary,
                           backgroundImage: userProfile.profileImage != null
                               ? NetworkImage(userProfile.profileImage!)
                               : null,
@@ -196,161 +290,52 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 userProfile.email,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                ),
+                                style: const TextStyle(color: Colors.grey),
                               ),
                               const SizedBox(height: 8),
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFF6600),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'Nivel ${userProfile.level}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
                                   if (userProfile.joinDate != null)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: Colors.grey.shade300,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.calendar_today_outlined,
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            userProfile.joinDate!,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
+                                    _InfoChip(label: userProfile.joinDate!),
                                 ],
                               ),
                             ],
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () {
-                            // TODO: editar perfil
-                          },
+                          onPressed: () {},
                           icon: const Icon(Icons.edit_outlined, size: 16),
                           label: const Text('Editar'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                userProfile.totalPoints.toString(),
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Puntos Totales',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            children: [
-                              Text(
-                                userProfile.achievements.toString(),
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Logros',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // Stats
             Row(
               children: [
                 _StatCard(
                   icon: Icons.place_outlined,
                   label: 'Monumentos Visitados',
-                  value: userProfile.monumentsVisited.toString(),
+                  value: visitCount.toString(),
                 ),
                 const SizedBox(width: 8),
                 _StatCard(
-                  icon: Icons.camera_alt_outlined,
-                  label: 'Escaneos AR',
-                  value: userProfile.arScans.toString(),
-                ),
-                const SizedBox(width: 8),
-                _StatCard(
-                  icon: Icons.access_time,
-                  label: 'Tiempo Total',
-                  value: userProfile.timeSpent ?? '0h',
+                  icon: Icons.quiz_outlined,
+                  label: 'Quizzes',
+                  value: quizCount.toString(),
                 ),
               ],
             ),
-
-            const SizedBox(height: 24),
-
-            // Insignias
+            const SizedBox(height: 20),
             const Text(
               'Insignias Recientes',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
             if (userProfile.badges.isNotEmpty)
@@ -368,7 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF6600),
+                        color: AppColors.primaryVariant,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -397,111 +382,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 'Sin insignias por el momento',
                 style: TextStyle(color: Colors.grey),
               ),
-
-            const SizedBox(height: 24),
-
-            // Actividad reciente
+            const SizedBox(height: 20),
             const Text(
               'Actividad Reciente',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            Card(
-              elevation: 1,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: recentActivity.map((activity) {
-                  final icon = activity["icon"] as IconData;
-                  final title = activity["title"] as String;
-                  final date = activity["date"] as String;
-                  final points = activity["points"] as int;
-
-                  return Column(
-                    children: [
-                      ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.grey.shade100,
-                          child: Icon(
-                            icon,
-                            color: const Color(0xFFFF6600),
-                          ),
-                        ),
-                        title: Text(
-                          title,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        subtitle: Text(
-                          date,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        trailing: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '+$points XP',
-                            style: TextStyle(
-                              color: Colors.green.shade700,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+            if (data.activities.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  'Todavía no hay visitas ni quizzes registrados.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              )
+            else
+              Card(
+                elevation: 1,
+                color: AppColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    // Mostrar solo las primeras actividades y permitir ver más
+                    ...data.activities.take(_recentActivityLimit).map((
+                      activity,
+                    ) {
+                      return Column(
+                        children: [
+                          ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.grey.shade100,
+                              child: Icon(
+                                activity.icon,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: Text(
+                              activity.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            subtitle: Text(
+                              activity.dateLabel,
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.highlight,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                activity.metricLabel,
+                                style: TextStyle(
+                                  color: AppColors.primaryVariant,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
                           ),
+                          if (activity !=
+                              data.activities.take(_recentActivityLimit).last)
+                            const Divider(height: 0),
+                        ],
+                      );
+                    }),
+                    if (data.activities.length > _recentActivityLimit)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: TextButton(
+                          onPressed: () =>
+                              _showFullActivities(context, data.activities),
+                          child: const Text('Ver más actividad'),
                         ),
                       ),
-                      if (activity != recentActivity.last)
-                        const Divider(height: 0),
-                    ],
-                  );
-                }).toList(),
+                  ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Opciones adicionales
+            const SizedBox(height: 20),
             Card(
-              elevation: 1,
+              elevation: 2,
+              color: AppColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
                   _OptionTile(
-                    icon: Icons.security_outlined,
-                    title: 'Privacidad y Seguridad',
-                    subtitle: 'Gestiona tu privacidad',
-                    onTap: () {},
-                  ),
-                  const Divider(height: 0),
-                  _OptionTile(
-                    icon: Icons.help_outline,
-                    title: 'Ayuda y Soporte',
-                    subtitle: 'Obtén ayuda con la app',
-                    onTap: () {},
-                  ),
-                  const Divider(height: 0),
-                  _OptionTile(
                     icon: Icons.logout,
                     title: 'Cerrar Sesión',
                     subtitle: 'Salir de tu cuenta',
-                    onTap: () async {
-                      final prefs = await SharedPreferences.getInstance();
-                      await prefs.remove('authToken');
-                      if (mounted) {
-                        // ignore: use_build_context_synchronously
-                        Navigator.of(context).pushReplacementNamed('/login');
-                      }
-                    },
+                    onTap: _logout,
                     isDestructive: true,
                   ),
                 ],
@@ -514,11 +492,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _ProfileData {
+  final User user;
+  final List<Map<String, dynamic>> visits;
+  final List<Map<String, dynamic>> attempts;
+  final List<_ProfileActivity> activities;
+
+  const _ProfileData({
+    required this.user,
+    required this.visits,
+    required this.attempts,
+    required this.activities,
+  });
+}
+
+class _ProfileActivity {
+  final IconData icon;
+  final String title;
+  final String dateLabel;
+  final String metricLabel;
+  final DateTime date;
+
+  const _ProfileActivity({
+    required this.icon,
+    required this.title,
+    required this.dateLabel,
+    required this.metricLabel,
+    required this.date,
+  });
+
+  factory _ProfileActivity.fromVisit(
+    Map<String, dynamic> visit,
+    Map<String, Monument> monumentsById,
+  ) {
+    final monumentId = visit['monumentId'];
+    final monumentName = monumentId is Map<String, dynamic>
+        ? (monumentId['name'] as String? ?? 'Visita registrada')
+        : monumentsById[monumentId?.toString()]?.name ?? 'Visita registrada';
+
+    final date =
+        _parseDate(visit['date']) ??
+        _parseDate(visit['createdAt']) ??
+        DateTime.now();
+    final duration = visit['duration'];
+    final rating = visit['rating'];
+
+    final metricLabel = duration != null
+        ? '${duration.toString()} min'
+        : rating != null
+        ? '★ ${rating.toString()}'
+        : 'Visita';
+
+    return _ProfileActivity(
+      icon: Icons.place_outlined,
+      title: 'Visitaste $monumentName',
+      dateLabel: _relativeDate(date),
+      metricLabel: metricLabel,
+      date: date,
+    );
+  }
+
+  factory _ProfileActivity.fromQuizAttempt(
+    Map<String, dynamic> attempt,
+    Map<String, Monument> monumentsById,
+  ) {
+    final monumentId = attempt['monumentId'];
+    final monumentName = monumentId is Map<String, dynamic>
+        ? (monumentId['name'] as String? ?? 'Quiz completado')
+        : monumentsById[monumentId?.toString()]?.name ?? 'Quiz completado';
+
+    final date =
+        _parseDate(attempt['completedAt']) ??
+        _parseDate(attempt['createdAt']) ??
+        DateTime.now();
+    final score = (attempt['percentageScore'] as num?)?.round() ?? 0;
+
+    return _ProfileActivity(
+      icon: Icons.quiz_outlined,
+      title: 'Quiz completado en $monumentName',
+      dateLabel: _relativeDate(date),
+      metricLabel: '$score%',
+      date: date,
+    );
+  }
+
+  static DateTime? _parseDate(dynamic value) {
+    if (value == null) return null;
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value);
+    return null;
+  }
+
+  static String _relativeDate(DateTime date) {
+    final difference = DateTime.now().difference(date);
+    if (difference.inDays <= 0) return 'Hoy';
+    if (difference.inDays == 1) return 'Hace 1 día';
+    if (difference.inDays < 7) return 'Hace ${difference.inDays} días';
+    if (difference.inDays < 30) return 'Hace ${difference.inDays ~/ 7} semanas';
+    return 'Hace ${difference.inDays ~/ 30} meses';
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  const _InfoChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
 class _StatCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-
   const _StatCard({
     required this.icon,
     required this.label,
@@ -530,6 +632,7 @@ class _StatCard extends StatelessWidget {
     return Expanded(
       child: Card(
         elevation: 1,
+        color: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
@@ -538,22 +641,21 @@ class _StatCard extends StatelessWidget {
               CircleAvatar(
                 radius: 18,
                 backgroundColor: Colors.grey.shade100,
-                child: Icon(icon, color: const Color(0xFFFF6600), size: 20),
+                child: Icon(icon, color: AppColors.primary, size: 20),
               ),
               const SizedBox(height: 8),
               Text(
                 value,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey,
-                ),
+                style: const TextStyle(fontSize: 10, color: Colors.grey),
               ),
             ],
           ),
@@ -569,7 +671,6 @@ class _OptionTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
   final bool isDestructive;
-
   const _OptionTile({
     required this.icon,
     required this.title,
@@ -588,15 +689,9 @@ class _OptionTile extends StatelessWidget {
       leading: Icon(icon, color: subtitleColor),
       title: Text(
         title,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: color,
-        ),
+        style: TextStyle(fontWeight: FontWeight.w500, color: color),
       ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(color: subtitleColor),
-      ),
+      subtitle: Text(subtitle, style: TextStyle(color: subtitleColor)),
     );
   }
 }

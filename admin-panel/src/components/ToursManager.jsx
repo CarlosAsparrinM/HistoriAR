@@ -5,7 +5,7 @@
  * Flujo: Lista de instituciones → Vista detallada con tours → Formulario de creación
  */
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -25,7 +25,8 @@ import {
   Mail,
   Globe,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Route
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import apiService from '../services/api';
@@ -39,7 +40,6 @@ const TOUR_TYPES = [
 
 function ToursManager() {
   const { tourId } = useParams();
-  const navigate = useNavigate();
   
   const [view, setView] = useState(tourId ? 'form' : 'institutions'); // 'institutions', 'tours', 'form'
   const [institutions, setInstitutions] = useState([]);
@@ -51,6 +51,7 @@ function ToursManager() {
   const [notification, setNotification] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalInstitutions, setTotalInstitutions] = useState(0);
+  const [tourCounts, setTourCounts] = useState({});
   const pageSize = 9;
 
   useEffect(() => {
@@ -69,11 +70,34 @@ function ToursManager() {
       const institutionsList = institutionsData.items || institutionsData || [];
       setInstitutions(institutionsList);
       setTotalInstitutions(institutionsData.total || institutionsList.length || 0);
+      
+      // Cargar conteo de tours para cada institución
+      loadTourCounts(institutionsList);
     } catch (error) {
       console.error('Error loading institutions:', error);
       showNotification('error', 'Error al cargar instituciones');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTourCounts = async (institutionsList) => {
+    try {
+      const counts = {};
+      await Promise.all(
+        institutionsList.map(async (inst) => {
+          try {
+            const data = await apiService.getToursByInstitution(inst._id, true);
+            counts[inst._id] = data.items?.length || data.length || 0;
+          } catch (err) {
+            console.error(`Error loading tours for ${inst.name}:`, err);
+            counts[inst._id] = 0;
+          }
+        })
+      );
+      setTourCounts(counts);
+    } catch (error) {
+      console.error('Error loading tour counts:', error);
     }
   };
 
@@ -389,6 +413,21 @@ function ToursManager() {
                         {institution.description}
                       </p>
                     )}
+                    
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <div className="flex items-center gap-2">
+                        <Route className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {tourCounts[institution._id] || 0} {tourCounts[institution._id] === 1 ? 'recorrido' : 'recorridos'}
+                        </span>
+                      </div>
+                      {(!tourCounts[institution._id] || tourCounts[institution._id] === 0) && (
+                        <Badge variant="secondary">Sin recorridos</Badge>
+                      )}
+                      {tourCounts[institution._id] > 0 && (
+                        <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">Configurado</Badge>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>

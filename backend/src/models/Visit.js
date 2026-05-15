@@ -6,7 +6,8 @@ const VisitSchema = new mongoose.Schema({
   date:       { type: Date, default: Date.now },
   duration:   { type: Number },   // minutos
   rating:     { type: Number, min: 1, max: 5 },
-  device:     { type: String }
+  device:     { type: String },
+  isAR:       { type: Boolean, default: false }
 }, { timestamps: true });
 
 export default mongoose.model('Visit', VisitSchema);

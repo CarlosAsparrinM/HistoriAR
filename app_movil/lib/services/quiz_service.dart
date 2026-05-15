@@ -1,8 +1,7 @@
 import 'dart:convert';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
-
-import 'api_config.dart';
 
 /// Servicio para consumir la API de quizzes
 class QuizService {
@@ -14,7 +13,9 @@ class QuizService {
     required String monumentId,
     required String token,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath?monumentId=$monumentId');
+    final uri = Uri.parse(
+      '${Environment.apiBaseUrl}$_basePath?monumentId=$monumentId',
+    );
 
     final response = await http.get(
       uri,
@@ -57,7 +58,7 @@ class QuizService {
     required Duration timeSpent,
     required String token,
   }) async {
-    final uri = Uri.parse('$apiBaseUrl$_basePath/$quizId/submit');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/$quizId/submit');
 
     final body = jsonEncode({
       'answers': answers,

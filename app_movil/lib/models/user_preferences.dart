@@ -1,5 +1,6 @@
 class UserPreferences {
   final String userId;
+  final bool askForQuizzes;
   final bool notifications;
   final bool location;
   final bool arEffects;
@@ -12,6 +13,7 @@ class UserPreferences {
 
   UserPreferences({
     required this.userId,
+    this.askForQuizzes = true,
     this.notifications = true,
     this.location = true,
     this.arEffects = true,
@@ -26,6 +28,7 @@ class UserPreferences {
   factory UserPreferences.fromJson(Map<String, dynamic> json) {
     return UserPreferences(
       userId: json['userId'] ?? json['_id'] ?? '',
+      askForQuizzes: json['askForQuizzes'] ?? true,
       notifications: json['notifications'] ?? true,
       location: json['location'] ?? true,
       arEffects: json['arEffects'] ?? true,
@@ -41,6 +44,7 @@ class UserPreferences {
   Map<String, dynamic> toJson() {
     return {
       'userId': userId,
+      'askForQuizzes': askForQuizzes,
       'notifications': notifications,
       'location': location,
       'arEffects': arEffects,
@@ -55,6 +59,7 @@ class UserPreferences {
 
   UserPreferences copyWith({
     String? userId,
+    bool? askForQuizzes,
     bool? notifications,
     bool? location,
     bool? arEffects,
@@ -67,6 +72,7 @@ class UserPreferences {
   }) {
     return UserPreferences(
       userId: userId ?? this.userId,
+      askForQuizzes: askForQuizzes ?? this.askForQuizzes,
       notifications: notifications ?? this.notifications,
       location: location ?? this.location,
       arEffects: arEffects ?? this.arEffects,

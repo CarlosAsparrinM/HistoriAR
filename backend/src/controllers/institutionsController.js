@@ -1,21 +1,14 @@
 import { buildPagination } from '../utils/pagination.js';
 import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution, getInstitutionStats } from '../services/institutionService.js';
 import * as s3Service from '../services/s3Service.js';
+import { hydrateMedia } from '../utils/s3-helpers.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
-async function signIfNeeded(value) {
-  const key = s3Service.resolveS3Key(value);
-  if (!key) return value || null;
-  return s3Service.generatePresignedGetUrl({ key, expiresIn: MEDIA_URL_EXPIRATION_SECONDS });
-}
-
 async function hydrateInstitutionMedia(institution) {
-  if (!institution) return institution;
-
-  const plain = institution.toObject ? institution.toObject() : { ...institution };
-  plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
-  return plain;
+  return hydrateMedia(institution, [
+    { urlField: 'imageUrl', keyField: 's3ImageKey' }
+  ]);
 }
 
 export async function listInstitution(req, res) {

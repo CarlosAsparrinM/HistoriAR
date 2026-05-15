@@ -22,7 +22,7 @@ Script para migrar modelos 3D existentes a la nueva estructura de carpetas basad
 
 - ✅ Copia archivos a nueva ubicación sin eliminar los antiguos
 - ✅ Crea registros `ModelVersion` para cada modelo
-- ✅ Actualiza referencias en `Monument` (model3DUrl, gcsModelFileName)
+- ✅ Actualiza referencias en `Monument` (model3DUrl, s3ModelFileName)
 - ✅ Maneja errores y continúa con el siguiente monumento
 - ✅ Incluye función de rollback para revertir cambios
 
@@ -49,7 +49,7 @@ node src/migrations/migrateGCSStructure.js --rollback
 
 1. **Preparación:**
    - Asegúrate de tener un backup de la base de datos
-   - Verifica que las credenciales de GCS estén configuradas correctamente
+   - Verifica que las credenciales de AWS estén configuradas correctamente
    - Revisa que el archivo `.env` tenga `MONGODB_URI` configurado
 
 2. **Ejecución:**
@@ -60,7 +60,7 @@ node src/migrations/migrateGCSStructure.js --rollback
 3. **Verificación:**
    - Revisa los logs de la migración
    - Verifica que los monumentos tengan los modelos correctos en la aplicación
-   - Comprueba que los archivos nuevos existan en GCS
+   - Comprueba que los archivos nuevos existan en S3
 
 4. **Limpieza (Opcional):**
    - Una vez verificado que todo funciona correctamente
@@ -95,8 +95,8 @@ Encontrados 15 monumentos con modelos 3D
 #### Monumentos ya migrados
 El script detecta automáticamente si un monumento ya tiene un `ModelVersion` activo y lo salta.
 
-#### Archivos no encontrados en GCS
-Si un archivo referenciado en Monument no existe en GCS, el script crea un registro ModelVersion con la URL existente pero no intenta copiar el archivo.
+#### Archivos no encontrados en S3
+Si un archivo referenciado en Monument no existe en S3, el script crea un registro ModelVersion con la URL existente pero no intenta copiar el archivo.
 
 #### Errores durante la migración
 Si ocurre un error con un monumento específico, el script lo registra y continúa con el siguiente. Al final muestra un resumen con el número de errores.
@@ -107,12 +107,11 @@ Si ocurre un error con un monumento específico, el script lo registra y contin�
 - Verifica que `MONGODB_URI` esté configurado en `.env`
 - Asegúrate de que la base de datos esté accesible
 
-**Error: "GCS credentials not found"**
-- Verifica que `GOOGLE_APPLICATION_CREDENTIALS` esté configurado
-- O que las credenciales estén en el archivo especificado
+**Error: "AWS credentials not found"**
+- Verifica que `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y `AWS_REGION` estén configurados
 
-**Error: "File not found in GCS"**
-- El archivo referenciado en Monument no existe en GCS
+**Error: "File not found in S3"**
+- El archivo referenciado en Monument no existe en S3
 - El script creará un registro con la URL existente
 - Revisa manualmente estos casos después de la migración
 

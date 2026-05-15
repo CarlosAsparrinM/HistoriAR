@@ -1,0 +1,38 @@
+{
+  "project_info": {
+    "project_number": "874824294700",
+    "project_id": "gen-lang-client-0583857862",
+    "storage_bucket": "gen-lang-client-0583857862.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:874824294700:android:ea650d05beb46e384e4c89",
+        "android_client_info": {
+          "package_name": "com.carlos.historiar"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "874824294700-bul2g1722gjt188b93coa5tuc0ti2fco.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.carlos.historiar",
+            "certificate_hash": "56:80:E4:80:53:AC:BA:28:C1:7F:1E:9D:B6:CA:5A:5B:58:11:2E:83"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCX4-tx8_pBCs7qBW--oTohqOQntw74sdQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

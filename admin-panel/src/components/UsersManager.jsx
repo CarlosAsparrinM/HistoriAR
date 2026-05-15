@@ -41,21 +41,33 @@ import {
 } from './ui/select';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
-import {
-  Search,
-  MoreHorizontal,
-  Ban,
+import { 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Loader2,
+  AlertCircle,
   CheckCircle,
-  Trash2,
-  Mail,
-  Activity,
-  Smartphone,
   MapPin,
+  Clock,
+  ArrowLeft,
+  Building,
+  Phone,
+  Mail,
+  Globe,
+  ChevronLeft,
+  ChevronRight,
+  Route,
+  RefreshCcw,
+  Send,
   Users,
   UserCheck,
   UserX,
-  Send,
-  Loader2
+  Search,
+  MoreHorizontal,
+  Ban,
+  Activity,
+  Smartphone
 } from 'lucide-react';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
@@ -63,15 +75,13 @@ import PropTypes from 'prop-types';
 // Etiquetas legibles para estado
 const statusLabels = {
   'Activo': 'Activo',
-  'Suspendido': 'Suspendido',
-  'Eliminado': 'Eliminado'
+  'Suspendido': 'Suspendido'
 };
 
 // Mapeo de colores de badge por estado
 const statusColors = {
   'Activo': 'default',
-  'Suspendido': 'destructive',
-  'Eliminado': 'secondary'
+  'Suspendido': 'destructive'
 };
 
 // Etiquetas legibles para roles
@@ -85,8 +95,8 @@ function UsersManager() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedRole, setSelectedRole] = useState('all');
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
+  const [selectedUserForMessage, setSelectedUserForMessage] = useState(null);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -97,7 +107,9 @@ function UsersManager() {
     try {
       setLoading(true);
       const data = await apiService.getUsers();
-      setUsers(data.items || data || []);
+      // Filtrar para mostrar SOLO usuarios (no administradores) y que NO estén eliminados
+      const allUsers = data.items || data || [];
+      setUsers(allUsers.filter(u => u.role !== 'admin' && u.status !== 'Eliminado'));
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
@@ -105,14 +117,22 @@ function UsersManager() {
     }
   };
 
-  // Filtro compuesto por nombre/email, estado y rol
+  const handleRefresh = () => {
+    loadData();
+  };
+
+  const handleOpenMessageDialog = (user = null) => {
+    setSelectedUserForMessage(user);
+    setIsMessageDialogOpen(true);
+  };
+
+  // Filtro compuesto por nombre/email y estado
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
-    const matchesRole = selectedRole === 'all' || user.role === selectedRole;
     
-    return matchesSearch && matchesStatus && matchesRole;
+    return matchesSearch && matchesStatus;
   });
 
   // Alterna estado activo/suspendido
@@ -133,59 +153,51 @@ function UsersManager() {
     }
   };
 
-  // Elimina usuario
-  const handleDelete = async (id) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar este usuario?')) return;
-    
-    try {
-      await apiService.deleteUser(id);
-      setUsers(prev => prev.filter(user => user._id !== id));
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      alert('Error al eliminar el usuario');
-    }
-  };
-
-  // Formatea “última conexión” a horas/días
-  const formatLastActive = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
-    
-    if (diffHours < 1) return 'Hace menos de 1 hora';
-    if (diffHours < 24) return `Hace ${diffHours} horas`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `Hace ${diffDays} días`;
-  };
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1>Gestión de Usuarios</h1>
+          <h1 className="text-3xl font-bold">Gestión de Usuarios</h1>
           <p className="text-muted-foreground">
             Administra los usuarios de la aplicación móvil HistoriAR
           </p>
         </div>
         
-        {/* Diálogo de mensaje a usuarios */}
-        <Dialog open={isMessageDialogOpen} onOpenChange={setIsMessageDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Mail className="w-4 h-4" />
-              Enviar Mensaje
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Enviar Mensaje a Usuarios</DialogTitle>
-              <DialogDescription>
-                Envía un correo electrónico o notificación push a los usuarios seleccionados
-              </DialogDescription>
-            </DialogHeader>
-            <MessageForm onClose={() => setIsMessageDialogOpen(false)} />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading}>
+            <RefreshCcw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </Button>
+
+          {/* Diálogo de mensaje a usuarios */}
+          <Dialog open={isMessageDialogOpen} onOpenChange={setIsMessageDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="gap-2" onClick={() => handleOpenMessageDialog(null)}>
+                <Mail className="w-4 h-4" />
+                Mensaje Masivo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedUserForMessage 
+                    ? `Enviar Mensaje a ${selectedUserForMessage.name}` 
+                    : 'Enviar Mensaje a Usuarios'}
+                </DialogTitle>
+                <DialogDescription>
+                  {selectedUserForMessage 
+                    ? `El mensaje se enviará al correo ${selectedUserForMessage.email}` 
+                    : 'Envía un correo electrónico o notificación push a los usuarios seleccionados'}
+                </DialogDescription>
+              </DialogHeader>
+              <MessageForm 
+                selectedUser={selectedUserForMessage} 
+                onClose={() => setIsMessageDialogOpen(false)} 
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Filtros y búsqueda */}
@@ -203,25 +215,13 @@ function UsersManager() {
             </div>
             
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Estado" />
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filtrar por estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="Activo">Activos</SelectItem>
-                <SelectItem value="Suspendido">Suspendidos</SelectItem>
-                <SelectItem value="Eliminado">Eliminados</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={selectedRole} onValueChange={setSelectedRole}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Rol" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="user">Usuarios</SelectItem>
-                <SelectItem value="admin">Administradores</SelectItem>
+                <SelectItem value="all">Todos los usuarios</SelectItem>
+                <SelectItem value="Activo">Usuarios Activos</SelectItem>
+                <SelectItem value="Suspendido">Usuarios Suspendidos</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -229,7 +229,7 @@ function UsersManager() {
       </Card>
 
       {/* Estadísticas rápidas */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
@@ -237,7 +237,7 @@ function UsersManager() {
                 <Users className="w-4 h-4 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm font-medium">Total Usuarios</p>
+                <p className="text-sm font-medium">Total Usuarios App</p>
                 <p className="text-2xl font-bold">{users.length}</p>
               </div>
             </div>
@@ -275,22 +275,6 @@ function UsersManager() {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Activity className="w-4 h-4 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Administradores</p>
-                <p className="text-2xl font-bold">
-                  {users.filter(u => u.role === 'admin').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Tabla de usuarios */}
@@ -306,8 +290,8 @@ function UsersManager() {
             <TableHeader>
               <TableRow>
                 <TableHead>Usuario</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Rol</TableHead>
                 <TableHead>Distrito</TableHead>
                 <TableHead>Fecha registro</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
@@ -338,20 +322,18 @@ function UsersManager() {
                             {user.name?.split(' ').map(n => n[0]).join('') || 'U'}
                           </AvatarFallback>
                         </Avatar>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
-                        </div>
+                        <p className="font-medium">{user.name}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Mail className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm">{user.email}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={statusColors[user.status] || 'secondary'}>
                         {statusLabels[user.status] || user.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {roleLabels[user.role] || user.role}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -373,7 +355,7 @@ function UsersManager() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleOpenMessageDialog(user)}>
                             <Mail className="mr-2 h-4 w-4" />
                             Enviar mensaje
                           </DropdownMenuItem>
@@ -392,13 +374,6 @@ function UsersManager() {
                               </>
                             )}
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => handleDelete(user._id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Eliminar usuario
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -413,43 +388,81 @@ function UsersManager() {
   );
 }
 
-function MessageForm({ onClose }) {
+import { toast } from 'sonner';
+
+function MessageForm({ onClose, selectedUser }) {
   const [messageType, setMessageType] = useState('email');
+  const [loading, setLoading] = useState(false);
+  const [recipients, setRecipients] = useState(selectedUser ? 'single' : 'all');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+
+  const handleSend = async () => {
+    if (!subject.trim() || !message.trim()) {
+      toast.error('Por favor completa el asunto y el mensaje');
+      return;
+    }
+
+    setLoading(true);
+    // Simular envío
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      toast.success(selectedUser 
+        ? `Mensaje enviado a ${selectedUser.name}` 
+        : 'Mensaje masivo enviado correctamente');
+      onClose();
+    } catch (error) {
+      toast.error('Error al enviar el mensaje');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   return (
     <div className="space-y-4">
-      <div>
-        <Label htmlFor="message-type">Tipo de mensaje</Label>
-        <Select value={messageType} onValueChange={setMessageType}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="email">Correo electrónico</SelectItem>
-            <SelectItem value="push">Notificación push</SelectItem>
-            <SelectItem value="both">Ambos</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="message-type">Tipo de mensaje</Label>
+          <Select value={messageType} onValueChange={setMessageType}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="email">Correo electrónico</SelectItem>
+              <SelectItem value="push">Notificación push</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-      <div>
-        <Label htmlFor="recipients">Destinatarios</Label>
-        <Select>
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccionar usuarios" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los usuarios</SelectItem>
-            <SelectItem value="active">Solo usuarios activos</SelectItem>
-            <SelectItem value="android">Usuarios Android</SelectItem>
-            <SelectItem value="ios">Usuarios iOS</SelectItem>
-          </SelectContent>
-        </Select>
+        <div>
+          <Label htmlFor="recipients">Destinatarios</Label>
+          {selectedUser ? (
+            <div className="h-10 px-3 py-2 rounded-md border bg-muted text-sm flex items-center">
+              {selectedUser.email}
+            </div>
+          ) : (
+            <Select value={recipients} onValueChange={setRecipients}>
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar usuarios" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los usuarios</SelectItem>
+                <SelectItem value="active">Solo usuarios activos</SelectItem>
+                <SelectItem value="suspended">Usuarios suspendidos</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       </div>
 
       <div>
         <Label htmlFor="subject">Asunto</Label>
-        <Input id="subject" placeholder="Asunto del mensaje" />
+        <Input 
+          id="subject" 
+          placeholder="Asunto del mensaje" 
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
       </div>
 
       <div>
@@ -458,16 +471,22 @@ function MessageForm({ onClose }) {
           id="message" 
           placeholder="Escribe tu mensaje aquí..."
           rows={4}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
         />
       </div>
 
       <div className="flex justify-end gap-2 pt-4">
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={loading}>
           Cancelar
         </Button>
-        <Button onClick={onClose} className="gap-2">
-          <Send className="w-4 h-4" />
-          Enviar Mensaje
+        <Button onClick={handleSend} className="gap-2" disabled={loading}>
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+          {loading ? 'Enviando...' : 'Enviar Mensaje'}
         </Button>
       </div>
     </div>
@@ -478,4 +497,5 @@ export default UsersManager;
 
 MessageForm.propTypes = {
   onClose: PropTypes.func.isRequired,
+  selectedUser: PropTypes.object
 };

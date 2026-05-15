@@ -111,28 +111,8 @@ const handleS3Error = (error) => {
  * @returns {Promise<string>} Public URL of uploaded file
  */
 export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentType = 'image/jpeg') => {
-  try {
-    const s3Client = getS3Client();
-    const bucketName = getBucketName();
-    const key = `images/monuments/${monumentId}/${fileName}`;
-
-    console.log(`[S3] Uploading image: ${fileName} to ${key}`);
-
-    const command = new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command);
-    const url = buildPublicS3Url(key);
-    
-    console.log(`[S3] Upload successful: ${url}`);
-    return url;
-  } catch (error) {
-    handleS3Error(error);
-  }
+  const key = `images/monuments/${monumentId}/${fileName}`;
+  return uploadFileToS3(fileBuffer, key, contentType);
 };
 
 /**
@@ -143,28 +123,8 @@ export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentT
  * @returns {Promise<string>} Public URL of uploaded file
  */
 export const uploadMonumentImageToS3 = async (fileBuffer, fileName, contentType = 'image/jpeg') => {
-  try {
-    const s3Client = getS3Client();
-    const bucketName = getBucketName();
-    const key = `images/monuments/${fileName}`;
-
-    console.log(`[S3] Uploading monument image: ${fileName} to ${key}`);
-
-    const command = new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command);
-    const url = buildPublicS3Url(key);
-    
-    console.log(`[S3] Upload successful: ${url}`);
-    return url;
-  } catch (error) {
-    handleS3Error(error);
-  }
+  const key = `images/monuments/${fileName}`;
+  return uploadFileToS3(fileBuffer, key, contentType);
 };
 
 /**
@@ -176,28 +136,8 @@ export const uploadMonumentImageToS3 = async (fileBuffer, fileName, contentType 
  * @returns {Promise<string>} Public URL of uploaded file
  */
 export const uploadModelToS3 = async (fileBuffer, fileName, monumentId, contentType = 'model/gltf-binary') => {
-  try {
-    const s3Client = getS3Client();
-    const bucketName = getBucketName();
-    const key = `models/monuments/${monumentId}/${fileName}`;
-
-    console.log(`[S3] Uploading model: ${fileName} to ${key}`);
-
-    const command = new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: contentType,
-    });
-
-    await s3Client.send(command);
-    const url = buildPublicS3Url(key);
-    
-    console.log(`[S3] Upload successful: ${url}`);
-    return url;
-  } catch (error) {
-    handleS3Error(error);
-  }
+  const key = `models/monuments/${monumentId}/${fileName}`;
+  return uploadFileToS3(fileBuffer, key, contentType);
 };
 
 /**

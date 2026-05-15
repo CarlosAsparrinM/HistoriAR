@@ -2,7 +2,7 @@
  * Componente ImageUpload
  * 
  * Maneja la subida de archivos de imágenes para monumentos con soporte de arrastrar y soltar,
- * validación de archivos, seguimiento de progreso y manejo de errores para integración con GCS.
+ * validación de archivos, seguimiento de progreso y manejo de errores para integración con S3.
  */
 import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from './ui/card';
@@ -116,7 +116,7 @@ function ImageUpload({
     }
   }, [disabled, handleFileSelect]);
 
-  // Subir archivo a GCS
+  // Subir archivo a S3
   const uploadFile = useCallback(async () => {
     if (!selectedFile) return;
     

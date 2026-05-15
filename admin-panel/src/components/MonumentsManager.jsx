@@ -57,7 +57,7 @@ import {
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
-import { useToast } from './ui/toast';
+import { toast } from 'sonner';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
 
@@ -127,7 +127,6 @@ const getCultureDisplay = (monument) => {
 };
 
 function MonumentsManager() {
-  const { toast } = useToast();
   const [monuments, setMonuments] = useState([]);
   const [institutions, setInstitutions] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -255,17 +254,13 @@ function MonumentsManager() {
     try {
       await apiService.updateMonument(id, { status: newStatus });
       await loadData();
-      toast({
-        title: "Estado actualizado",
+      toast.success("Estado actualizado", {
         description: `El monumento ahora está ${newStatus.toLowerCase()}`,
-        variant: "success"
       });
     } catch (error) {
       console.error('Error updating monument status:', error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || 'Error al cambiar el estado del monumento',
-        variant: "error"
       });
       // Recargar para asegurar consistencia
       loadData();
@@ -332,7 +327,6 @@ function MonumentsManager() {
               cultures={cultures}
               onClose={() => setIsCreateDialogOpen(false)}
               onSave={loadData}
-              toast={toast}
             />
           </DialogContent>
         </Dialog>
@@ -353,7 +347,6 @@ function MonumentsManager() {
               cultures={cultures}
               onClose={handleCloseEdit}
               onSave={loadData}
-              toast={toast}
             />
           </DialogContent>
         </Dialog>
@@ -633,7 +626,7 @@ function MonumentsManager() {
   );
 }
 
-function MonumentForm({ onClose, monument = null, institutions = [], categories = [], cultures = [], onSave, toast }) {
+function MonumentForm({ onClose, monument = null, institutions = [], categories = [], cultures = [], onSave }) {
   const initialCultures = Array.isArray(monument?.cultures)
     ? monument.cultures.filter(Boolean)
     : monument?.culture
@@ -708,30 +701,74 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
   const validateForm = () => {
     // Validar nombre
     if (!formData.name.trim()) {
-      toast({
-        title: "Error de validación",
-        description: "El nombre del monumento es requerido",
-        variant: "warning"
+      toast.warning("Error de validación", {
+        description: "El nombre del monumento es requerido"
       });
       return false;
     }
 
     // Validar categoría
     if (!formData.categoryId) {
-      toast({
-        title: "Error de validación",
-        description: "Debes seleccionar una categoría",
-        variant: "warning"
+      toast.warning("Error de validación", {
+        description: "Debes seleccionar una categoría"
+      });
+      return false;
+    }
+
+    // Validar descripción
+    if (!formData.description.trim()) {
+      toast.warning("Error de validación", {
+        description: "La descripción es requerida"
+      });
+      return false;
+    }
+
+    // Validar institución
+    if (!formData.institutionId) {
+      toast.warning("Error de validación", {
+        description: "Debes seleccionar una institución"
+      });
+      return false;
+    }
+
+    // Validar culturas
+    if (formData.cultures.length === 0) {
+      toast.warning("Error de validación", {
+        description: "Debes agregar al menos una cultura"
+      });
+      return false;
+    }
+
+    // Validar dirección y distrito
+    if (!formData.location.address.trim() || !formData.location.district.trim()) {
+      toast.warning("Error de validación", {
+        description: "La dirección y el distrito son requeridos"
+      });
+      return false;
+    }
+
+    // Validar coordenadas
+    if (!formData.location.lat || !formData.location.lng) {
+      toast.warning("Error de validación", {
+        description: "Debes proporcionar tanto latitud como longitud"
+      });
+      return false;
+    }
+
+    // Validar nombre del periodo
+    if (!formData.period.name.trim()) {
+      toast.warning("Error de validación", {
+        description: "El nombre del periodo es requerido"
       });
       return false;
     }
 
     // Validar cronología identificada
-    if (formData.period.isIdentified && !formData.period.startYear && formData.period.startYear !== 0) {
-      toast({
-        title: "Error de validación",
-        description: "Debes seleccionar al menos un año en la línea de tiempo o marcar como no identificado",
-        variant: "warning"
+    if (formData.period.isIdentified && 
+        ((!formData.period.startYear && formData.period.startYear !== 0) || 
+         (!formData.period.endYear && formData.period.endYear !== 0))) {
+      toast.warning("Error de validación", {
+        description: "Debes ingresar tanto el año de inicio como el de fin en la línea de tiempo o marcar como no identificado"
       });
       return false;
     }
@@ -742,59 +779,39 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       const endYear = parseInt(formData.period.endYear);
       
       if (endYear < startYear) {
-        toast({
-          title: "Error de validación",
-          description: "El año de fin no puede ser menor al año de inicio",
-          variant: "warning"
+        toast.warning("Error de validación", {
+          description: "El año de fin no puede ser menor al año de inicio"
         });
         return false;
       }
     }
 
     if (formData.discovery.datePrecision === 'exact' && !formData.discovery.discoveredAt) {
-      toast({
-        title: "Error de validación",
-        description: "Debes ingresar la fecha exacta de descubrimiento",
-        variant: "warning"
+      toast.warning("Error de validación", {
+        description: "Debes ingresar la fecha exacta de descubrimiento"
       });
       return false;
     }
 
     if (formData.discovery.datePrecision === 'month') {
       if (!formData.discovery.discoveredYear || !formData.discovery.discoveredMonth) {
-        toast({
-          title: "Error de validación",
-          description: "Debes ingresar mes y año de descubrimiento",
-          variant: "warning"
+        toast.warning("Error de validación", {
+          description: "Debes ingresar mes y año de descubrimiento"
         });
         return false;
       }
     }
 
     if (formData.discovery.datePrecision === 'year' && !formData.discovery.discoveredYear) {
-      toast({
-        title: "Error de validación",
-        description: "Debes ingresar el año de descubrimiento",
-        variant: "warning"
+      toast.warning("Error de validación", {
+        description: "Debes ingresar el año de descubrimiento"
       });
       return false;
     }
 
     if (formData.discovery.isDiscovererKnown && !formData.discovery.discovererName.trim()) {
-      toast({
-        title: "Error de validación",
-        description: "Debes ingresar el nombre del descubridor o marcarlo como desconocido",
-        variant: "warning"
-      });
-      return false;
-    }
-
-    // Validar coordenadas (si se proporciona una, se debe proporcionar la otra)
-    if ((formData.location.lat && !formData.location.lng) || (!formData.location.lat && formData.location.lng)) {
-      toast({
-        title: "Error de validación",
-        description: "Debes proporcionar tanto latitud como longitud, o ninguna",
-        variant: "warning"
+      toast.warning("Error de validación", {
+        description: "Debes ingresar el nombre del descubridor o marcarlo como desconocido"
       });
       return false;
     }
@@ -958,24 +975,18 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       
       // Mostrar mensaje informativo al crear
       if (!monument) {
-        toast({
-          title: "Monumento creado exitosamente",
+        toast.success("Monumento creado exitosamente", {
           description: "Edita el monumento para agregar una imagen y modelo 3D para poder hacerlo disponible en la aplicación.",
-          variant: "success"
         });
       } else {
-        toast({
-          title: "Monumento actualizado",
+        toast.success("Monumento actualizado", {
           description: "Los cambios se guardaron correctamente.",
-          variant: "success"
         });
       }
     } catch (error) {
       console.error('Error saving monument:', error);
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: 'Error al guardar el monumento: ' + error.message,
-        variant: "error"
       });
     } finally {
       setIsSubmitting(false);
@@ -988,7 +999,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="name">Nombre</Label>
+          <Label htmlFor="name">Nombre <span className="text-destructive">*</span></Label>
           <Input 
             id="name" 
             placeholder="Nombre del monumento"
@@ -998,10 +1009,11 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
           />
         </div>
         <div>
-          <Label htmlFor="categoryId">Categoría</Label>
+          <Label htmlFor="categoryId">Categoría <span className="text-destructive">*</span></Label>
           <Select 
             value={formData.categoryId} 
             onValueChange={(value) => handleInputChange('categoryId', value)}
+            required
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar categoría" />
@@ -1019,12 +1031,13 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="cultureSelect">Culturas</Label>
+          <Label htmlFor="cultureSelect">Culturas <span className="text-destructive">*</span></Label>
           <div className="space-y-2">
             <div className="flex gap-2">
               <Select
                 value={selectedCultureToAdd || 'none'}
                 onValueChange={(value) => setSelectedCultureToAdd(value === 'none' ? '' : value)}
+                required
               >
                 <SelectTrigger id="cultureSelect">
                   <SelectValue placeholder="Seleccionar cultura existente" />
@@ -1079,10 +1092,11 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
           </div>
         </div>
         <div>
-          <Label htmlFor="institutionId">Institución</Label>
+          <Label htmlFor="institutionId">Institución <span className="text-destructive">*</span></Label>
           <Select 
             value={formData.institutionId} 
             onValueChange={handleInstitutionChange}
+            required
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar institución" />
@@ -1100,28 +1114,30 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="district">Distrito</Label>
+          <Label htmlFor="district">Distrito <span className="text-destructive">*</span></Label>
           <Input 
             id="district" 
             placeholder="Distrito"
             value={formData.location.district}
             onChange={(e) => handleInputChange('location', { ...formData.location, district: e.target.value })}
+            required
           />
         </div>
         <div>
-          <Label htmlFor="address">Dirección</Label>
+          <Label htmlFor="address">Dirección <span className="text-destructive">*</span></Label>
           <Input 
             id="address" 
             placeholder="Dirección completa"
             value={formData.location.address}
             onChange={(e) => handleInputChange('location', { ...formData.location, address: e.target.value })}
+            required
           />
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="lat">Latitud</Label>
+          <Label htmlFor="lat">Latitud <span className="text-destructive">*</span></Label>
           <Input 
             id="lat" 
             type="number"
@@ -1129,10 +1145,11 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
             placeholder="-12.0464"
             value={formData.location.lat}
             onChange={(e) => handleInputChange('location', { ...formData.location, lat: parseFloat(e.target.value) || '' })}
+            required
           />
         </div>
         <div>
-          <Label htmlFor="lng">Longitud</Label>
+          <Label htmlFor="lng">Longitud <span className="text-destructive">*</span></Label>
           <Input 
             id="lng" 
             type="number"
@@ -1140,6 +1157,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
             placeholder="-77.0428"
             value={formData.location.lng}
             onChange={(e) => handleInputChange('location', { ...formData.location, lng: parseFloat(e.target.value) || '' })}
+            required
           />
         </div>
       </div>
@@ -1147,12 +1165,13 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       <div className="space-y-4 border rounded-lg p-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label htmlFor="periodName">Período</Label>
+            <Label htmlFor="periodName">Período <span className="text-destructive">*</span></Label>
             <Input
               id="periodName"
               placeholder="Ej: Horizonte Tardío"
               value={formData.period.name}
               onChange={(e) => handlePeriodChange({ name: e.target.value })}
+              required
             />
           </div>
           <div>
@@ -1203,23 +1222,25 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="startYear">Año inicio</Label>
+                <Label htmlFor="startYear">Año inicio <span className="text-destructive">*</span></Label>
                 <Input
                   id="startYear"
                   type="number"
                   placeholder="1200"
                   value={formData.period.startYear}
                   onChange={(e) => handlePeriodChange({ startYear: sanitizeYearInput(e.target.value) })}
+                  required
                 />
               </div>
               <div>
-                <Label htmlFor="endYear">Año fin</Label>
+                <Label htmlFor="endYear">Año fin <span className="text-destructive">*</span></Label>
                 <Input
                   id="endYear"
                   type="number"
                   placeholder="1532"
                   value={formData.period.endYear}
                   onChange={(e) => handlePeriodChange({ endYear: sanitizeYearInput(e.target.value) })}
+                  required
                 />
               </div>
             </div>
@@ -1238,7 +1259,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
         <h3 className="text-sm font-medium">Datos de descubrimiento</h3>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>Fecha de descubrimiento</Label>
+            <Label>Fecha de descubrimiento <span className="text-destructive">*</span></Label>
             <Select
               value={formData.discovery.datePrecision}
               onValueChange={(value) => handleDiscoveryChange({
@@ -1248,6 +1269,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
                 discoveredYear: value === 'unknown' ? '' : formData.discovery.discoveredYear,
                 discoveredMonth: value === 'month' ? formData.discovery.discoveredMonth : ''
               })}
+              required
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar" />
@@ -1265,12 +1287,14 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
                 type="date"
                 value={formData.discovery.discoveredAt}
                 onChange={(e) => handleDiscoveryChange({ discoveredAt: e.target.value })}
+                required
               />
             ) : formData.discovery.datePrecision === 'month' ? (
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <Select
                   value={formData.discovery.discoveredMonth ? String(formData.discovery.discoveredMonth) : 'none'}
                   onValueChange={(value) => handleDiscoveryChange({ discoveredMonth: value === 'none' ? '' : Number(value) })}
+                  required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Mes" />
@@ -1298,6 +1322,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
                   placeholder="Año"
                   value={formData.discovery.discoveredYear}
                   onChange={(e) => handleDiscoveryChange({ discoveredYear: e.target.value })}
+                  required
                 />
               </div>
             ) : formData.discovery.datePrecision === 'year' ? (
@@ -1309,6 +1334,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
                 placeholder="Año"
                 value={formData.discovery.discoveredYear}
                 onChange={(e) => handleDiscoveryChange({ discoveredYear: e.target.value })}
+                required
               />
             ) : (
               <p className="text-xs text-muted-foreground mt-2">Se guardará como fecha no identificada.</p>
@@ -1316,13 +1342,14 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
           </div>
 
           <div>
-            <Label>Nombre del descubridor</Label>
+            <Label>Nombre del descubridor <span className="text-destructive">*</span></Label>
             <Select
               value={formData.discovery.isDiscovererKnown ? 'known' : 'unknown'}
               onValueChange={(value) => handleDiscoveryChange({
                 isDiscovererKnown: value === 'known',
                 discovererName: value === 'known' ? formData.discovery.discovererName : ''
               })}
+              required
             >
               <SelectTrigger>
                 <SelectValue placeholder="Seleccionar" />
@@ -1338,6 +1365,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
                 placeholder="Nombre del descubridor"
                 value={formData.discovery.discovererName}
                 onChange={(e) => handleDiscoveryChange({ discovererName: e.target.value })}
+                required
               />
             ) : (
               <p className="text-xs text-muted-foreground mt-2">Se guardará como descubridor no identificado.</p>
@@ -1347,13 +1375,14 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
       </div>
 
       <div>
-        <Label htmlFor="description">Descripción</Label>
+        <Label htmlFor="description">Descripción <span className="text-destructive">*</span></Label>
         <Textarea 
           id="description" 
           placeholder="Descripción del monumento o sitio histórico"
           rows={3}
           value={formData.description}
           onChange={(e) => handleInputChange('description', e.target.value)}
+          required
         />
       </div>
 
@@ -1404,8 +1433,7 @@ MonumentForm.propTypes = {
   institutions: PropTypes.array.isRequired,
   categories: PropTypes.array.isRequired,
   cultures: PropTypes.array.isRequired,
-  onSave: PropTypes.func.isRequired,
-  toast: PropTypes.func.isRequired,
+  onSave: PropTypes.func.isRequired
 };
 
 export default MonumentsManager;

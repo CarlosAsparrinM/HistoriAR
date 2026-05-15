@@ -2,7 +2,7 @@
  * Componente ModelUpload
  * 
  * Maneja la subida de archivos de modelos 3D en formatos GLB/GLTF con soporte de arrastrar y soltar,
- * validación de archivos, seguimiento de progreso y manejo de errores para integración con GCS.
+ * validación de archivos, seguimiento de progreso y manejo de errores para integración con S3.
  */
 import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from './ui/card';

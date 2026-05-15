@@ -1,12 +1,13 @@
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
+import { hydrateMedia } from '../utils/s3-helpers.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
-async function signIfNeeded(value) {
-  const key = s3Service.resolveS3Key(value);
-  if (!key) return value || null;
-  return s3Service.generatePresignedGetUrl({ key, expiresIn: MEDIA_URL_EXPIRATION_SECONDS });
+async function hydrateHistoricalDataMedia(entry) {
+  return hydrateMedia(entry, [
+    { urlField: 'imageUrl', keyField: 's3ImageKey' }
+  ]);
 }
 
 /**
@@ -20,11 +21,7 @@ export async function getHistoricalDataByMonument(req, res) {
       .populate('createdBy', 'name email')
       .sort({ order: 1, createdAt: 1 });
 
-    const response = await Promise.all(historicalData.map(async (entry) => {
-      const plain = entry.toObject();
-      plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
-      return plain;
-    }));
+    const response = await Promise.all(historicalData.map(hydrateHistoricalDataMedia));
 
     res.json(response);
   } catch (err) {
@@ -47,10 +44,9 @@ export async function getHistoricalDataById(req, res) {
       return res.status(404).json({ message: 'Historical data not found' });
     }
 
-    const plain = historicalData.toObject();
-    plain.imageUrl = await signIfNeeded(plain.s3ImageKey || plain.imageUrl);
+    const response = await hydrateHistoricalDataMedia(historicalData);
 
-    res.json(plain);
+    res.json(response);
   } catch (err) {
     console.error('Error fetching historical data:', err);
     res.status(500).json({ message: err.message });
