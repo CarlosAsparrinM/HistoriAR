@@ -1,10 +1,10 @@
 "use client";
 
-import { useTheme } from "next-themes";
+import { useTheme } from "../../contexts/ThemeContext";
 import { Toaster as Sonner } from "sonner";
 
 export default function Toaster(props) {
-  const { theme = "system" } = useTheme();
+  const { theme } = useTheme();
 
   return (
     <Sonner

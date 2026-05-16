@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Calendar } from 'lucide-react';
 import { Input } from './ui/input';
+import { toast } from 'sonner';
 
 /**
  * Componente DateRangeFilter - Selector de rango de fechas para el dashboard
@@ -45,7 +46,7 @@ export default function DateRangeFilter({ onDateRangeChange, initialRange = 'wee
         setShowCustom(false);
         setSelectedRange('custom');
       } else {
-        alert('La fecha de inicio debe ser anterior a la fecha de fin');
+        toast.error('La fecha de inicio debe ser anterior a la fecha de fin');
       }
     }
   };

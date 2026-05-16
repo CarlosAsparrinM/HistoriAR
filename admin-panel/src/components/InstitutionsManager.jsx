@@ -4,7 +4,7 @@
  * Permite listar, filtrar y administrar instituciones (museos, universidades, etc.).
  * Incluye gestión de horarios, imágenes, ubicación y estados.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -52,8 +52,7 @@ import {
   Building,
   Loader2,
   Eye,
-  Clock,
-  X
+  Clock
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
@@ -214,15 +213,20 @@ function InstitutionsManager() {
 
   // Eliminar institución
   const handleDelete = async (id) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta institución?')) return;
-    
-    try {
-      await apiService.deleteInstitution(id);
-      setInstitutions(prev => prev.filter(institution => institution._id !== id));
-    } catch (error) {
-      console.error('Error deleting institution:', error);
-      alert('Error al eliminar la institución');
-    }
+    toast.promise(
+      apiService.deleteInstitution(id),
+      {
+        loading: 'Eliminando institución...',
+        success: () => {
+          setInstitutions(prev => prev.filter(institution => institution._id !== id));
+          return 'Institución eliminada correctamente';
+        },
+        error: (error) => {
+          console.error('Error deleting institution:', error);
+          return 'Error al eliminar la institución';
+        }
+      }
+    );
   };
 
   // Abrir diálogo de edición
@@ -571,105 +575,7 @@ function InstitutionsManager() {
   );
 }
 
-/**
- * Componente DistrictSelector - Select filtrable de distritos de Lima
- */
-function DistrictSelector({ value, onChange, required = false }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef(null);
 
-  const filteredDistricts = LIMA_DISTRICTS.filter(district =>
-    district.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSelect = (district) => {
-    onChange(district);
-    setSearchTerm('');
-    setIsOpen(false);
-  };
-
-  const handleInputBlur = () => {
-    // Si escribe algo que no es un distrito válido, limpiar
-    if (searchTerm && !LIMA_DISTRICTS.includes(searchTerm)) {
-      setSearchTerm('');
-    }
-  };
-
-  // Cerrar dropdown cuando se hace click afuera
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-        handleInputBlur();
-      }
-    };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen, searchTerm]);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <Label htmlFor="district">Distrito {required && <span className="text-destructive">*</span>}</Label>
-      <div className="relative">
-        <Input
-          id="district"
-          placeholder="Buscar o seleccionar distrito"
-          value={isOpen ? searchTerm : value}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            if (!isOpen) setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onBlur={handleInputBlur}
-          className="pr-8"
-          autoComplete="off"
-          required={required}
-        />
-        {(value || searchTerm) && (
-          <button
-            onClick={() => {
-              onChange('');
-              setSearchTerm('');
-              setIsOpen(false);
-            }}
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            type="button"
-            tabIndex="-1"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-      
-      {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 border rounded-md bg-white shadow-lg max-h-60 overflow-y-auto">
-          {filteredDistricts.length > 0 ? (
-            filteredDistricts.map((district) => (
-              <button
-                key={district}
-                onClick={() => handleSelect(district)}
-                className={`w-full text-left px-3 py-2 hover:bg-slate-100 transition-colors ${
-                  value === district ? 'bg-blue-50 font-medium' : ''
-                }`}
-                type="button"
-              >
-                {district}
-              </button>
-            ))
-          ) : (
-            <div className="px-3 py-2 text-sm text-muted-foreground">
-              No se encontraron distritos
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function InstitutionForm({ onClose, institution = null, onSave }) {
   const [formData, setFormData] = useState({
@@ -920,11 +826,25 @@ function InstitutionForm({ onClose, institution = null, onSave }) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <DistrictSelector 
-          value={formData.location.district}
-          onChange={(district) => handleLocationChange('district', district)}
-          required
-        />
+        <div>
+          <Label htmlFor="district">Distrito <span className="text-destructive">*</span></Label>
+          <Select 
+            value={formData.location.district} 
+            onValueChange={(value) => handleLocationChange('district', value)}
+            required
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar distrito" />
+            </SelectTrigger>
+            <SelectContent>
+              {LIMA_DISTRICTS.map((district) => (
+                <SelectItem key={district} value={district}>
+                  {district}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div>
           <Label htmlFor="phone">Teléfono <span className="text-destructive">*</span></Label>
           <Input 

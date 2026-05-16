@@ -59,6 +59,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
 import { toast } from 'sonner';
 import apiService from '../services/api';
+import { useQueryClient } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 
 // Esta función se actualizará dinámicamente con las categorías de la base de datos
@@ -148,6 +149,8 @@ function MonumentsManager() {
   useEffect(() => {
     loadReferenceData();
   }, []);
+
+  const queryClient = useQueryClient();
 
   // Cargar lista paginada y estadísticas al cambiar filtros o página
   useEffect(() => {
@@ -277,6 +280,8 @@ function MonumentsManager() {
       } else {
         await loadData();
       }
+      // Ensure AR experiences list is refreshed after deletion
+      queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
     } catch (error) {
       console.error('Error deleting monument:', error);
     }
@@ -321,13 +326,19 @@ function MonumentsManager() {
                 Añade un nuevo monumento o sitio histórico al catálogo
               </DialogDescription>
             </DialogHeader>
-            <MonumentForm 
-              institutions={institutions}
-              categories={categories}
-              cultures={cultures}
-              onClose={() => setIsCreateDialogOpen(false)}
-              onSave={loadData}
-            />
+                <MonumentForm 
+                  institutions={institutions}
+                  categories={categories}
+                  cultures={cultures}
+                  onClose={() => setIsCreateDialogOpen(false)}
+                  onSave={async () => {
+                    // After creating a monument, go to first page and reload so the new item is visible
+                    setCurrentPage(1);
+                    await loadData();
+                    // Ensure AR experiences list is refreshed
+                    queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
+                  }}
+                />
           </DialogContent>
         </Dialog>
 
