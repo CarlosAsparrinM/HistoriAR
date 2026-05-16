@@ -6,6 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -40,6 +41,7 @@ const TOUR_TYPES = [
 
 function ToursManager() {
   const { tourId } = useParams();
+  const queryClient = useQueryClient();
   
   const [view, setView] = useState(tourId ? 'form' : 'institutions'); // 'institutions', 'tours', 'form'
   const [institutions, setInstitutions] = useState([]);
@@ -131,15 +133,25 @@ function ToursManager() {
   };
 
   const handleBackToInstitutions = () => {
+    // IMPORTANTE: Invalidar caché de React Query cuando vuelve atrás
+    queryClient.invalidateQueries({
+      queryKey: ['tours'],
+    });
     setView('institutions');
     setSelectedInstitution(null);
     setTours([]);
     setMonuments([]);
+    loadInstitutions();
   };
 
   const handleBackToTours = () => {
+    // IMPORTANTE: Invalidar caché de React Query cuando vuelve atrás
+    queryClient.invalidateQueries({
+      queryKey: ['tours'],
+    });
     setView('tours');
     setEditingTour(null);
+    loadToursForInstitution(selectedInstitution._id);
   };
 
   const handleCreateTour = () => {

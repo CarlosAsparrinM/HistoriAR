@@ -7,6 +7,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -28,6 +29,7 @@ import PropTypes from 'prop-types';
 function HistoricalDataManager() {
   const { monumentId } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   
   // View state management - determined by URL params
   const [view, setView] = useState(monumentId ? 'editor' : 'list');
@@ -89,6 +91,12 @@ function HistoricalDataManager() {
     } else {
       setView('list');
       setSelectedMonument(null);
+      // IMPORTANTE: Refrescar lista de monumentos cuando el usuario vuelve atrás
+      // Invalidar todas las queries de fichas históricas de React Query
+      queryClient.invalidateQueries({
+        queryKey: ['historicalData'],
+      });
+      loadMonuments();
     }
   }, [monumentId]);
 

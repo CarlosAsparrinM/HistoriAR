@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import PropTypes from 'prop-types';
 import apiService from '../services/api';
+import { useCreateTour, useUpdateTour } from '../hooks/useTours';
 
 const TOUR_TYPES = [
   'Recomendado',
@@ -54,8 +55,13 @@ function TourForm({
   });
   const [availableMonuments, setAvailableMonuments] = useState([]);
   const [selectedMonumentId, setSelectedMonumentId] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // React Query mutations
+  const createMutation = useCreateTour();
+  const updateMutation = useUpdateTour();
+  
+  const loading = createMutation.isPending || updateMutation.isPending;
 
   useEffect(() => {
     if (tour) {
@@ -191,21 +197,21 @@ function TourForm({
     if (!validate()) return;
     
     try {
-      setLoading(true);
       setError('');
       
       if (tour) {
-        await apiService.updateTour(tour._id, formData);
+        await updateMutation.mutateAsync({
+          tourId: tour._id,
+          data: formData
+        });
       } else {
-        await apiService.createTour(formData);
+        await createMutation.mutateAsync(formData);
       }
       
       onSave();
     } catch (err) {
       console.error('Error saving tour:', err);
       setError(err.message || 'Error al guardar el tour');
-    } finally {
-      setLoading(false);
     }
   };
 

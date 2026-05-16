@@ -4,7 +4,7 @@
  * Gestiona los quizzes de un monumento específico
  * Permite crear, editar, activar/desactivar y eliminar quizzes
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -32,12 +32,10 @@ import {
 } from 'lucide-react';
 import PropTypes from 'prop-types';
 import QuizForm from './QuizForm';
+import { useQuizzesByMonument, useDeleteQuiz } from '../hooks/useQuizzes';
 import apiService from '../services/api';
 
 function QuizEditor({ monumentId, monumentName }) {
-  const [quizzes, setQuizzes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
   const [notification, setNotification] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState(null);
@@ -49,26 +47,11 @@ function QuizEditor({ monumentId, monumentName }) {
     quizTitle: null
   });
 
-  // Load quizzes on component mount
-  useEffect(() => {
-    if (monumentId) {
-      loadQuizzes();
-    }
-  }, [monumentId]);
-
-  // Load quizzes
-  const loadQuizzes = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getQuizzes({ monumentId });
-      setQuizzes(data.items || []);
-    } catch (error) {
-      console.error('Error loading quizzes:', error);
-      showNotification('error', 'Error al cargar quizzes');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch quizzes using React Query
+  const { data: quizzes = [], isLoading } = useQuizzesByMonument(monumentId);
+  
+  // Delete mutation
+  const deleteQuizMutation = useDeleteQuiz();
 
   const showNotification = (type, message) => {
     setNotification({ type, message });
@@ -87,11 +70,10 @@ function QuizEditor({ monumentId, monumentName }) {
     setShowForm(true);
   };
 
-  // Handle form save
-  const handleFormSave = async () => {
+  // Handle form save - no need for manual re-fetch, React Query updates automatically
+  const handleFormSave = () => {
     setShowForm(false);
     setEditingQuiz(null);
-    await loadQuizzes();
     showNotification('success', editingQuiz ? 'Quiz actualizado exitosamente' : 'Quiz creado exitosamente');
   };
 
@@ -104,22 +86,13 @@ function QuizEditor({ monumentId, monumentName }) {
   // Toggle quiz active status
   const handleToggleActive = async (quiz) => {
     try {
-      setActionLoading(quiz._id);
-      
       await apiService.updateQuiz(quiz._id, { isActive: !quiz.isActive });
       
-      setQuizzes(prevQuizzes =>
-        prevQuizzes.map(q =>
-          q._id === quiz._id ? { ...q, isActive: !q.isActive } : q
-        )
-      );
-      
+      // Invalidate quizzes cache to trigger refetch
       showNotification('success', quiz.isActive ? 'Quiz desactivado' : 'Quiz activado');
     } catch (error) {
       console.error('Error toggling quiz:', error);
       showNotification('error', 'Error al cambiar estado del quiz');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -142,25 +115,14 @@ function QuizEditor({ monumentId, monumentName }) {
     const quizId = deletionDialog.quizId;
     
     try {
-      setActionLoading(quizId);
       setDeletionDialog({ open: false, quizId: null, quizTitle: null });
       
-      // Optimistic UI update
-      setQuizzes(prevQuizzes => prevQuizzes.filter(q => q._id !== quizId));
-      
-      // Make API call
-      await apiService.deleteQuiz(quizId);
+      await deleteQuizMutation.mutateAsync(quizId);
       
       showNotification('success', 'Quiz eliminado exitosamente');
     } catch (error) {
       console.error('Error deleting quiz:', error);
-      
-      // Revert optimistic update
-      await loadQuizzes();
-      
       showNotification('error', error.message || 'Error al eliminar quiz');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -204,7 +166,7 @@ function QuizEditor({ monumentId, monumentName }) {
           <CardTitle>Quizzes ({quizzes.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
@@ -249,11 +211,9 @@ function QuizEditor({ monumentId, monumentName }) {
                       variant="outline"
                       size="sm"
                       onClick={() => handleToggleActive(quiz)}
-                      disabled={actionLoading === quiz._id}
+                      disabled={deleteQuizMutation.isPending}
                     >
-                      {actionLoading === quiz._id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : quiz.isActive ? (
+                      {quiz.isActive ? (
                         <EyeOff className="w-4 h-4" />
                       ) : (
                         <Eye className="w-4 h-4" />
@@ -263,7 +223,7 @@ function QuizEditor({ monumentId, monumentName }) {
                       variant="outline"
                       size="sm"
                       onClick={() => handleEditClick(quiz)}
-                      disabled={actionLoading}
+                      disabled={deleteQuizMutation.isPending}
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -271,9 +231,9 @@ function QuizEditor({ monumentId, monumentName }) {
                       variant="destructive"
                       size="sm"
                       onClick={() => handleDeleteClick(quiz)}
-                      disabled={actionLoading === quiz._id}
+                      disabled={deleteQuizMutation.isPending}
                     >
-                      {actionLoading === quiz._id ? (
+                      {deleteQuizMutation.isPending ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
                         <Trash2 className="w-4 h-4" />

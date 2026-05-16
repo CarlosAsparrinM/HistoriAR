@@ -20,7 +20,7 @@ import {
   Trash2
 } from 'lucide-react';
 import PropTypes from 'prop-types';
-import apiService from '../services/api';
+import { useCreateQuiz, useUpdateQuiz } from '../hooks/useQuizzes';
 
 function QuizForm({ monumentId, monumentName, quiz = null, onSave, onCancel }) {
   const [formData, setFormData] = useState({
@@ -38,9 +38,13 @@ function QuizForm({ monumentId, monumentName, quiz = null, onSave, onCancel }) {
     ]
   });
   
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
+  // React Query mutations
+  const createMutation = useCreateQuiz();
+  const updateMutation = useUpdateQuiz();
+  
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const isEditing = Boolean(quiz);
 
   // Handle input change
@@ -203,7 +207,6 @@ function QuizForm({ monumentId, monumentName, quiz = null, onSave, onCancel }) {
       return;
     }
 
-    setIsSubmitting(true);
     setError(null);
 
     try {
@@ -214,32 +217,29 @@ function QuizForm({ monumentId, monumentName, quiz = null, onSave, onCancel }) {
       };
 
       if (isEditing) {
-        await apiService.updateQuiz(quiz._id, quizData);
+        await updateMutation.mutateAsync({
+          quizId: quiz._id,
+          data: quizData
+        });
       } else {
-        await apiService.createQuiz(quizData);
+        await createMutation.mutateAsync(quizData);
       }
-      
+
       onSave();
     } catch (err) {
       console.error('Error saving quiz:', err);
       setError(err.message || 'Error al guardar el quiz');
-    } finally {
-      setIsSubmitting(false);
     }
   };
-
+  
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
-          {isEditing ? 'Editar Quiz' : 'Crear Nuevo Quiz'}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Para: <strong>{monumentName}</strong>
-        </p>
+        <CardTitle>{isEditing ? 'Editar Quiz' : 'Nuevo Quiz'}</CardTitle>
+        <p className="text-sm text-muted-foreground">Para: <strong>{monumentName}</strong></p>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit}>
           {/* Error Alert */}
           {error && (
             <Alert variant="destructive">
