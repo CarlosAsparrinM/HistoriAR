@@ -32,6 +32,7 @@ import {
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import apiService from '../services/api';
 import TourForm from './TourForm';
+import { toast } from 'sonner';
 
 const TOUR_TYPES = [
   'Cronológico',
@@ -50,7 +51,6 @@ function ToursManager() {
   const [monuments, setMonuments] = useState([]);
   const [editingTour, setEditingTour] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [notification, setNotification] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalInstitutions, setTotalInstitutions] = useState(0);
   const [tourCounts, setTourCounts] = useState({});
@@ -77,7 +77,7 @@ function ToursManager() {
       loadTourCounts(institutionsList);
     } catch (error) {
       console.error('Error loading institutions:', error);
-      showNotification('error', 'Error al cargar instituciones');
+      toast.error('Error al cargar instituciones');
     } finally {
       setLoading(false);
     }
@@ -115,15 +115,10 @@ function ToursManager() {
       setMonuments(monumentsData.items || monumentsData);
     } catch (error) {
       console.error('Error loading tours:', error);
-      showNotification('error', 'Error al cargar tours');
+      toast.error('Error al cargar tours');
     } finally {
       setLoading(false);
     }
-  };
-
-  const showNotification = (type, message) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 5000);
   };
 
   const handleSelectInstitution = async (institution) => {
@@ -165,23 +160,28 @@ function ToursManager() {
   };
 
   const handleDeleteTour = async (tourId) => {
-    if (!confirm('¿Eliminar este tour?')) return;
-    
-    try {
-      await apiService.deleteTour(tourId);
-      await loadToursForInstitution(selectedInstitution._id);
-      showNotification('success', 'Tour eliminado exitosamente');
-    } catch (error) {
-      console.error('Error deleting tour:', error);
-      showNotification('error', 'Error al eliminar tour');
-    }
+    toast.promise(
+      apiService.deleteTour(tourId),
+      {
+        loading: 'Eliminando tour...',
+        success: async () => {
+          await loadToursForInstitution(selectedInstitution._id);
+          return 'Tour eliminado exitosamente';
+        },
+        error: (error) => {
+          console.error('Error deleting tour:', error);
+          return 'Error al eliminar tour';
+        }
+      }
+    );
   };
 
   const handleFormSave = async () => {
     await loadToursForInstitution(selectedInstitution._id);
     setView('tours');
+    const message = editingTour ? 'Tour actualizado correctamente' : 'Tour creado exitosamente';
+    toast.success(message);
     setEditingTour(null);
-    showNotification('success', editingTour ? 'Tour actualizado' : 'Tour creado exitosamente');
   };
 
   if (loading && view === 'institutions') {
@@ -220,18 +220,6 @@ function ToursManager() {
             Volver a instituciones
           </Button>
         </div>
-
-        {/* Notification */}
-        {notification && (
-          <Alert variant={notification.type === 'error' ? 'destructive' : 'default'}>
-            {notification.type === 'success' ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
-            <AlertDescription>{notification.message}</AlertDescription>
-          </Alert>
-        )}
 
         {/* Información de la institución */}
         <Card>
@@ -370,18 +358,6 @@ function ToursManager() {
           Selecciona una institución para ver y gestionar sus recorridos
         </p>
       </div>
-
-      {/* Notification */}
-      {notification && (
-        <Alert variant={notification.type === 'error' ? 'destructive' : 'default'}>
-          {notification.type === 'success' ? (
-            <CheckCircle className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          <AlertDescription>{notification.message}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Lista de instituciones */}
       {institutions.length === 0 ? (

@@ -2974,7 +2974,7 @@
   --foreground: oklch(.985 0 0);
   --card: oklch(.145 0 0);
   --card-foreground: oklch(.985 0 0);
-  --popover: oklch(.145 0 0);
+  --popover: oklch(.205 0 0);
   --popover-foreground: oklch(.985 0 0);
   --primary: oklch(.985 0 0);
   --primary-foreground: oklch(.205 0 0);
@@ -2988,6 +2988,8 @@
   --destructive-foreground: oklch(.637 .237 25.331);
   --border: oklch(.269 0 0);
   --input: oklch(.269 0 0);
+  --input-background: oklch(.205 0 0);
+  --switch-background: oklch(.439 0 0);
   --ring: oklch(.439 0 0);
   --font-weight-medium: 500;
   --font-weight-normal: 400;
@@ -3352,4 +3354,20 @@ html {
     opacity: var(--tw-exit-opacity, 1);
     transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0) scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1)) rotate(var(--tw-exit-rotate, 0));
   }
+}
+
+
+/* Estilos adicionales para asegurar que los Select funcionen en modo oscuro */
+.dark [data-radix-select-content] {
+  background-color: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+}
+
+.dark [data-radix-select-item] {
+  color: var(--popover-foreground) !important;
+}
+
+.dark [data-radix-select-item][data-highlighted] {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
 }

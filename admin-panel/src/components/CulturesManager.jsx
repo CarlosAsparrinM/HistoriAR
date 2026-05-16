@@ -35,6 +35,7 @@ import { Label } from './ui/label';
 import { Plus, Search, MoreHorizontal, Edit, Trash2, Loader2, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+import { toast } from 'sonner';
 
 function CulturesManager() {
   const [cultures, setCultures] = useState([]);
@@ -88,15 +89,20 @@ function CulturesManager() {
   const totalPages = Math.max(1, Math.ceil(totalCultures / pageSize));
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta cultura?')) return;
-
-    try {
-      await apiService.deleteCulture(id);
-      setCultures(prev => prev.filter(culture => culture._id !== id));
-    } catch (error) {
-      console.error('Error deleting culture:', error);
-      alert('Error al eliminar la cultura: ' + error.message);
-    }
+    toast.promise(
+      apiService.deleteCulture(id),
+      {
+        loading: 'Eliminando cultura...',
+        success: () => {
+          setCultures(prev => prev.filter(culture => culture._id !== id));
+          return 'Cultura eliminada correctamente';
+        },
+        error: (error) => {
+          console.error('Error deleting culture:', error);
+          return 'Error al eliminar la cultura: ' + error.message;
+        }
+      }
+    );
   };
 
   const handleEdit = (culture) => {
@@ -324,7 +330,7 @@ function CultureForm({ onClose, culture = null, onSave }) {
 
   const handleSubmit = async () => {
     if (!formData.name.trim()) {
-      alert('La cultura es obligatoria');
+      toast.error('El nombre de la cultura es obligatorio');
       return;
     }
 
@@ -333,15 +339,17 @@ function CultureForm({ onClose, culture = null, onSave }) {
     try {
       if (culture) {
         await apiService.updateCulture(culture._id, formData);
+        toast.success('Cultura actualizada correctamente');
       } else {
         await apiService.createCulture(formData);
+        toast.success('Cultura creada correctamente');
       }
 
       onSave();
       onClose();
     } catch (error) {
       console.error('Error saving culture:', error);
-      alert('Error al guardar la cultura: ' + error.message);
+      toast.error('Error al guardar la cultura: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }

@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { Button } from "./ui/button";
 import {
   BarChart3,
   Building2,
@@ -43,11 +44,15 @@ import {
   Users,
   LogOut,
   Eye,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useTheme } from "../contexts/ThemeContext";
 
 function AppSidebar() {
   const { user, logout, hasPermission } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -139,14 +144,29 @@ function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
-            <MapPin className="w-5 h-5 text-white" />
+        <div className="flex items-center justify-between gap-2 px-2 py-1">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">HistoriAR</p>
+              <p className="text-xs text-muted-foreground">Admin Panel</p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-semibold">HistoriAR</p>
-            <p className="text-xs text-muted-foreground">Admin Panel</p>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-8 w-8 shrink-0"
+            title={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+          >
+            {theme === 'light' ? (
+              <Moon className="h-4 w-4" />
+            ) : (
+              <Sun className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </SidebarHeader>
 
