@@ -49,6 +49,9 @@ public/uploads/
 storage/
 files/
 
+# Herramientas de desarrollo y diagnóstico
+.tools/
+
 # PM2 o procesos
 pids
 *.pid

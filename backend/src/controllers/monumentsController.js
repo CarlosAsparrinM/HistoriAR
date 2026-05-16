@@ -569,25 +569,6 @@ export async function uploadModelVersionController(req, res) {
       s3ModelFileName: filename
     });
 
-    // Optionally process 3D Tiles (if Cesium tools are installed)
-    const tiles3DService = (await import('../services/tiles3DService.js')).default;
-    try {
-      const tilesetUrl = await tiles3DService.processAndUploadTiles(
-        req.file.buffer,
-        monument.name,
-        monumentId,
-        userId
-      );
-      
-      if (tilesetUrl) {
-        modelVersion.tilesUrl = tilesetUrl;
-        await modelVersion.save();
-      }
-    } catch (tilesError) {
-      console.warn('3D Tiles processing failed (non-critical):', tilesError.message);
-      // Continue without tiles - the GLB model is still available
-    }
-
     res.status(201).json({
       message: '3D model version uploaded successfully',
       version: {

@@ -65,12 +65,6 @@ function AppContent() {
             <Route path="/historical-data/monument/:monumentId" element={<HistoricalDataManager />} />
             
             <Route path="/users" element={<UsersManager />} />
-            <Route path="/messaging" element={
-              <div className="p-6">
-                <h1>Sistema de Mensajería</h1>
-                <p>Funcionalidad en desarrollo...</p>
-              </div>
-            } />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </SidebarInset>

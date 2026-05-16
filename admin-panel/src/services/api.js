@@ -21,6 +21,20 @@ class ApiService {
     };
   }
 
+  async handleFetchResponse(response) {
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.reload();
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      }
+      const error = await response.json().catch(() => ({ message: 'Error de red' }));
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  }
+
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const config = {
@@ -383,30 +397,14 @@ class ApiService {
       body: formData,
     });
 
-    if (!response.ok) {
-      // Handle authentication errors
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.reload();
-        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-      }
-      const error = await response.json().catch(() => ({ message: 'Error de red' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
+    // El manejo de errores 401/403 ya está centralizado en handleFetchResponse
+    return this.handleFetchResponse(response);
   }
 
   async activateModelVersion(monumentId, versionId) {
     return this.request(`/monuments/${monumentId}/model-versions/${versionId}/activate`, {
       method: 'POST',
     });
-  }
-
-  async restoreModelVersion(monumentId, versionId) {
-    // Deprecated: Use activateModelVersion instead
-    return this.activateModelVersion(monumentId, versionId);
   }
 
   async deleteModelVersion(monumentId, versionId) {
@@ -455,19 +453,8 @@ class ApiService {
       body: formData,
     });
 
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.reload();
-        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-      }
-      
-      const error = await response.json().catch(() => ({ message: 'Error de red' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
+    // El manejo de errores 401/403 ya está centralizado en handleFetchResponse
+    return this.handleFetchResponse(response);
   }
 
   async updateHistoricalData(id, data, imageFile) {
@@ -490,19 +477,8 @@ class ApiService {
       body: formData,
     });
 
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.reload();
-        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-      }
-      
-      const error = await response.json().catch(() => ({ message: 'Error de red' }));
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return response.json();
+    // El manejo de errores 401/403 ya está centralizado en handleFetchResponse
+    return this.handleFetchResponse(response);
   }
 
   async deleteHistoricalData(id) {

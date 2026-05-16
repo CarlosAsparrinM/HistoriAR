@@ -14,6 +14,18 @@ export function useTours(params = {}) {
 }
 
 /**
+ * Fetch tours by institution
+ */
+export function useToursByInstitution(institutionId, activeOnly = true) {
+  return useQuery({
+    queryKey: ['tours', 'institution', institutionId, { activeOnly }],
+    queryFn: () => apiService.getToursByInstitution(institutionId, activeOnly),
+    enabled: !!institutionId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+/**
  * Fetch a single tour
  */
 export function useTourById(tourId) {
@@ -77,6 +89,11 @@ export function useUpdateTour() {
           };
         }
       );
+      
+      // Invalidar también las queries de tours por institución
+      queryClient.invalidateQueries({
+        queryKey: ['tours', 'institution'],
+      });
     },
     onError: (error) => {
       console.error('Error updating tour:', error);

@@ -1,74 +1,63 @@
-import { buildPagination } from '../utils/pagination.js';
-import { getAllInstitutions, getInstitutionById, createInstitution, updateInstitution, deleteInstitution, getInstitutionStats } from '../services/institutionService.js';
+/**
+ * Controlador de Instituciones
+ * Refactorizado usando crudControllerFactory con soporte para hidratación de medios S3
+ */
+import { createCrudController } from '../utils/crudControllerFactory.js';
+import * as institutionService from '../services/institutionService.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia } from '../utils/s3-helpers.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
+/**
+ * Hidratar URLs de medios de una institución
+ */
 async function hydrateInstitutionMedia(institution) {
   return hydrateMedia(institution, [
     { urlField: 'imageUrl', keyField: 's3ImageKey' }
   ]);
 }
 
-export async function listInstitution(req, res) {
-  try {
-    const { skip, limit, page } = buildPagination(req.query);
-    const availableOnly = req.query.availableOnly === 'true';
-    const { items, total } = await getAllInstitutions({
-      skip,
-      limit,
-      availableOnly,
-      search: req.query.search || '',
-      type: req.query.type || 'all',
-      status: req.query.status || 'all'
-    });
-    const hydratedItems = await Promise.all(items.map(hydrateInstitutionMedia));
-    res.json({ page, total, items: hydratedItems });
-  } catch (err) { res.status(500).json({ message: err.message }); }
-}
-
-export async function getInstitutionStatsController(_req, res) {
-  try {
-    const stats = await getInstitutionStats();
-    res.json(stats);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-}
-
-export async function getInstitution(req, res) {
-  const doc = await getInstitutionById(req.params.id);
-  if (!doc) return res.status(404).json({ message: 'No encontrado' });
-  res.json(await hydrateInstitutionMedia(doc));
-}
-
-export async function createInstitutionController(req, res) {
-  try {
-    const doc = await createInstitution(req.body);
-    res.status(201).json({ id: doc._id });
-  } catch (err) { res.status(400).json({ message: err.message }); }
-}
-
-export async function updateInstitutionController(req, res) {
-  try {
-    const doc = await updateInstitution(req.params.id, req.body);
-    if (!doc) return res.status(404).json({ message: 'No encontrado' });
-    res.json(doc);
-  } catch (err) { res.status(400).json({ message: err.message }); }
-}
-
-export async function deleteInstitutionController(req, res) {
-  const currentInstitution = await getInstitutionById(req.params.id);
+/**
+ * Hook para limpiar archivos S3 antes de eliminar una institución
+ */
+async function beforeDeleteInstitution(institutionId, service) {
+  const currentInstitution = await service.getById(institutionId);
+  
   if (currentInstitution && (currentInstitution.s3ImageKey || currentInstitution.imageUrl)) {
     try {
-      await s3Service.deleteFileFromS3(currentInstitution.s3ImageKey || currentInstitution.imageUrl);
+      await s3Service.deleteFileFromS3(
+        currentInstitution.s3ImageKey || currentInstitution.imageUrl
+      );
     } catch (error) {
       console.error('Error deleting institution image from S3:', error.message);
+      // No lanzar error, continuar con la eliminación
     }
   }
-
-  const doc = await deleteInstitution(req.params.id);
-  if (!doc) return res.status(404).json({ message: 'No encontrado' });
-  res.json({ message: 'Eliminado' });
 }
+
+// Crear controlador CRUD usando el factory
+const crudController = createCrudController({
+  service: {
+    getAll: institutionService.getAllInstitutions,
+    getById: institutionService.getInstitutionById,
+    create: institutionService.createInstitution,
+    update: institutionService.updateInstitution,
+    delete: institutionService.deleteInstitution,
+    getStats: institutionService.getInstitutionStats
+  },
+  entityName: 'Institución',
+  entityNamePlural: 'Instituciones',
+  hydrateMedia: hydrateInstitutionMedia,
+  beforeDelete: beforeDeleteInstitution
+});
+
+// Exportar métodos con nombres específicos del dominio
+export const {
+  list: listInstitution,
+  getById: getInstitution,
+  create: createInstitutionController,
+  update: updateInstitutionController,
+  deleteItem: deleteInstitutionController,
+  getStats: getInstitutionStatsController
+} = crudController;

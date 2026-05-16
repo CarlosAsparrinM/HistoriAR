@@ -49,13 +49,13 @@ import ModelUpload from './ModelUpload';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import apiService from '../services/api';
 import {
-  useARExperiences,
-  useARExperienceById,
-  useUploadARModel,
-  useActivateARModel,
-  useARModelVersions,
-  useDeleteARModelVersion,
-} from '../hooks/useARExperiences';
+  useMonuments,
+  useMonumentById,
+  useUploadModelVersion,
+  useActivateModelVersion,
+  useModelVersions,
+  useDeleteModelVersion,
+} from '../hooks/useMonuments';
 
 function ARExperiencesManager() {
   const { monumentId } = useParams();
@@ -80,14 +80,14 @@ function ARExperiencesManager() {
   const queryClient = useQueryClient();
 
   // React Query: lists for monuments with/without models
-  const withoutModelsQuery = useARExperiences({
+  const withoutModelsQuery = useMonuments({
     page: withoutModelsPage,
     limit: pageSize,
     hasModel: false,
     text: debouncedSearchTerm.trim() || undefined,
   });
 
-  const withModelsQuery = useARExperiences({
+  const withModelsQuery = useMonuments({
     page: withModelsPage,
     limit: pageSize,
     hasModel: true,
@@ -163,7 +163,7 @@ function ARExperiencesManager() {
   }, [withoutModelsQuery.data, withModelsQuery.data, withoutModelsQuery.isLoading, withModelsQuery.isLoading]);
 
   // Load monument and versions when monumentId changes
-  const selectedMonumentQuery = useARExperienceById(monumentId);
+  const selectedMonumentQuery = useMonumentById(monumentId);
 
   useEffect(() => {
     if (monumentId) {
@@ -223,7 +223,7 @@ function ARExperiencesManager() {
   }, [modelViewerDialog.open, modelViewerDialog.modelUrl]);
 
   // Versions query
-  const versionsQuery = useARModelVersions(selectedMonument?._id);
+  const versionsQuery = useModelVersions(selectedMonument?._id);
 
   useEffect(() => {
     setLoading(versionsQuery.isLoading || loading);
@@ -288,7 +288,7 @@ function ARExperiencesManager() {
     setActivationDialog({ open: false, versionId: null, versionName: null });
   };
 
-  const activateMutation = useActivateARModel();
+  const activateMutation = useActivateModelVersion();
 
   // Confirm and execute activation
   const handleActivateConfirm = async () => {
@@ -307,7 +307,7 @@ function ARExperiencesManager() {
     } catch (error) {
       console.error('Error activating version:', error);
       // Revert by refetching
-      await queryClient.invalidateQueries({ queryKey: ['arModelVersions', selectedMonument._id] });
+      await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
       showNotification('error', error.message || 'Error al activar versión');
     } finally {
       setActionLoading(null);
@@ -344,7 +344,7 @@ function ARExperiencesManager() {
     setModelLoading(true); // Reset loading state when closing
   };
 
-  const deleteMutation = useDeleteARModelVersion();
+  const deleteMutation = useDeleteModelVersion();
 
   // Confirm and execute deletion
   const handleDeleteConfirm = async () => {
@@ -363,19 +363,19 @@ function ARExperiencesManager() {
     } catch (error) {
       console.error('Error deleting version:', error);
       // Revert by refetching
-      await queryClient.invalidateQueries({ queryKey: ['arModelVersions', selectedMonument._id] });
+      await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
       showNotification('error', error.message || 'Error al eliminar versión');
     } finally {
       setActionLoading(null);
     }
   };
 
-  const uploadMutation = useUploadARModel();
+  const uploadMutation = useUploadModelVersion();
 
   const handleUploadComplete = async () => {
     setShowUpload(false);
     // invalidate versions and experiences to refresh lists
-    await queryClient.invalidateQueries({ queryKey: ['arModelVersions', selectedMonument._id] });
+    await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
     await queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
     showNotification('success', 'Nuevo modelo subido exitosamente');
   };

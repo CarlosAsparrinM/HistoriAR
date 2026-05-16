@@ -48,7 +48,8 @@ function QuizEditor({ monumentId, monumentName }) {
   });
 
   // Fetch quizzes using React Query
-  const { data: quizzes = [], isLoading } = useQuizzesByMonument(monumentId);
+  const { data: quizzesData, isLoading } = useQuizzesByMonument(monumentId);
+  const quizzes = quizzesData?.items || quizzesData || [];
   
   // Delete mutation
   const deleteQuizMutation = useDeleteQuiz();

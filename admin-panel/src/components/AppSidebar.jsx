@@ -43,7 +43,6 @@ import {
   Users,
   LogOut,
   Eye,
-  Mail,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 
@@ -119,19 +118,13 @@ function AppSidebar() {
       ],
     },
     {
-      group: "Usuarios y Comunicación",
+      group: "Usuarios",
       items: [
         {
           path: "/users",
           title: "Usuarios App",
           icon: Users,
           permission: "users:read",
-        },
-        {
-          path: "/messaging",
-          title: "Mensajería",
-          icon: Mail,
-          permission: "messaging:send",
         },
       ],
     },
