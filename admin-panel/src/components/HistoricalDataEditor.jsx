@@ -3,8 +3,10 @@
  * 
  * Gestiona las entradas de información histórica de un monumento específico
  * Permite crear, editar, eliminar y reordenar entradas
+ * 
+ * Usa React Query para sincronización automática sin refreshes bruscos
  */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -33,43 +35,28 @@ import {
 import PropTypes from 'prop-types';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import HistoricalDataForm from './HistoricalDataForm';
-import apiService from '../services/api';
+import {
+  useHistoricalData,
+  useDeleteHistoricalData,
+  useReorderHistoricalData,
+} from '../hooks/useHistoricalData';
 
 function HistoricalDataEditor({ monumentId, monumentName }) {
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(null);
-  const [notification, setNotification] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
-  
-  // Deletion confirmation dialog state
+  const [notification, setNotification] = useState(null);
   const [deletionDialog, setDeletionDialog] = useState({
     open: false,
     entryId: null,
     entryTitle: null
   });
 
-  // Load entries on component mount
-  useEffect(() => {
-    if (monumentId) {
-      loadEntries();
-    }
-  }, [monumentId]);
+  // Fetch historical data using React Query
+  const { data: entries = [], isLoading, isError, error } = useHistoricalData(monumentId);
 
-  // Load historical data entries
-  const loadEntries = async () => {
-    try {
-      setLoading(true);
-      const data = await apiService.getHistoricalDataByMonument(monumentId);
-      setEntries(data);
-    } catch (error) {
-      console.error('Error loading historical data:', error);
-      showNotification('error', 'Error al cargar información histórica');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Mutations
+  const deleteHistoricalDataMutation = useDeleteHistoricalData();
+  const reorderHistoricalDataMutation = useReorderHistoricalData();
 
   const showNotification = (type, message) => {
     setNotification({ type, message });
@@ -88,11 +75,10 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
     setShowForm(true);
   };
 
-  // Handle form save
-  const handleFormSave = async () => {
+  // Handle form save - no need for manual re-fetch, React Query updates automatically
+  const handleFormSave = () => {
     setShowForm(false);
     setEditingEntry(null);
-    await loadEntries();
     showNotification('success', editingEntry ? 'Información actualizada exitosamente' : 'Información creada exitosamente');
   };
 
@@ -121,86 +107,56 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
     const entryId = deletionDialog.entryId;
     
     try {
-      setActionLoading(entryId);
       setDeletionDialog({ open: false, entryId: null, entryTitle: null });
       
-      // Optimistic UI update
-      setEntries(prevEntries => prevEntries.filter(e => e._id !== entryId));
-      
-      // Make API call
-      await apiService.deleteHistoricalData(entryId);
-      
-      // Reload to ensure consistency
-      await loadEntries();
+      await deleteHistoricalDataMutation.mutateAsync(entryId);
       
       showNotification('success', 'Información eliminada exitosamente');
     } catch (error) {
       console.error('Error deleting historical data:', error);
-      
-      // Revert optimistic update
-      await loadEntries();
-      
       showNotification('error', error.message || 'Error al eliminar información');
-    } finally {
-      setActionLoading(null);
     }
   };
 
   // Handle move up
   const handleMoveUp = async (index) => {
-    if (index === 0) return;
+    if (index === 0 || !entries[index - 1]) return;
     
     const newEntries = [...entries];
     [newEntries[index - 1], newEntries[index]] = [newEntries[index], newEntries[index - 1]];
     
-    // Update order values
     const items = newEntries.map((entry, idx) => ({
       id: entry._id,
       order: idx
     }));
     
     try {
-      setActionLoading('reorder');
-      setEntries(newEntries);
-      
-      await apiService.reorderHistoricalData(monumentId, items);
-      
+      await reorderHistoricalDataMutation.mutateAsync({ monumentId, items });
       showNotification('success', 'Orden actualizado');
     } catch (error) {
       console.error('Error reordering:', error);
-      await loadEntries();
       showNotification('error', 'Error al reordenar');
-    } finally {
-      setActionLoading(null);
     }
   };
 
   // Handle move down
   const handleMoveDown = async (index) => {
-    if (index === entries.length - 1) return;
+    if (index === entries.length - 1 || !entries[index + 1]) return;
     
     const newEntries = [...entries];
     [newEntries[index], newEntries[index + 1]] = [newEntries[index + 1], newEntries[index]];
     
-    // Update order values
     const items = newEntries.map((entry, idx) => ({
       id: entry._id,
       order: idx
     }));
     
     try {
-      setActionLoading('reorder');
-      setEntries(newEntries);
-      
-      await apiService.reorderHistoricalData(monumentId, items);
-      
+      await reorderHistoricalDataMutation.mutateAsync({ monumentId, items });
       showNotification('success', 'Orden actualizado');
     } catch (error) {
       console.error('Error reordering:', error);
-      await loadEntries();
       showNotification('error', 'Error al reordenar');
-    } finally {
-      setActionLoading(null);
     }
   };
 
@@ -244,7 +200,7 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
           <CardTitle>Información Histórica ({entries.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <div className="flex items-center justify-center p-8">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
@@ -294,7 +250,7 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
                         variant="outline"
                         size="sm"
                         onClick={() => handleEditClick(entry)}
-                        disabled={actionLoading}
+                        disabled={deleteHistoricalDataMutation.isPending || reorderHistoricalDataMutation.isPending}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -302,9 +258,9 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
                         variant="destructive"
                         size="sm"
                         onClick={() => handleDeleteClick(entry)}
-                        disabled={actionLoading === entry._id}
+                        disabled={deleteHistoricalDataMutation.isPending}
                       >
-                        {actionLoading === entry._id ? (
+                        {deleteHistoricalDataMutation.isPending ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Trash2 className="w-4 h-4" />
@@ -316,7 +272,7 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMoveUp(index)}
-                        disabled={index === 0 || actionLoading === 'reorder'}
+                        disabled={index === 0 || reorderHistoricalDataMutation.isPending}
                       >
                         <ChevronUp className="w-4 h-4" />
                       </Button>
@@ -324,7 +280,7 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMoveDown(index)}
-                        disabled={index === entries.length - 1 || actionLoading === 'reorder'}
+                        disabled={index === entries.length - 1 || reorderHistoricalDataMutation.isPending}
                       >
                         <ChevronDown className="w-4 h-4" />
                       </Button>

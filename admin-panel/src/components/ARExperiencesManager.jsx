@@ -7,6 +7,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -47,6 +48,14 @@ import PropTypes from 'prop-types';
 import ModelUpload from './ModelUpload';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import apiService from '../services/api';
+import {
+  useMonuments,
+  useMonumentById,
+  useUploadModelVersion,
+  useActivateModelVersion,
+  useModelVersions,
+  useDeleteModelVersion,
+} from '../hooks/useMonuments';
 
 function ARExperiencesManager() {
   const { monumentId } = useParams();
@@ -59,7 +68,7 @@ function ARExperiencesManager() {
   // Monument list state
   const [monumentsWithModels, setMonumentsWithModels] = useState([]);
   const [monumentsWithoutModels, setMonumentsWithoutModels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [withoutModelsPage, setWithoutModelsPage] = useState(1);
@@ -67,6 +76,23 @@ function ARExperiencesManager() {
   const [withoutModelsTotal, setWithoutModelsTotal] = useState(0);
   const [withModelsTotal, setWithModelsTotal] = useState(0);
   const pageSize = 9;
+
+  const queryClient = useQueryClient();
+
+  // React Query: lists for monuments with/without models
+  const withoutModelsQuery = useMonuments({
+    page: withoutModelsPage,
+    limit: pageSize,
+    hasModel: false,
+    text: debouncedSearchTerm.trim() || undefined,
+  });
+
+  const withModelsQuery = useMonuments({
+    page: withModelsPage,
+    limit: pageSize,
+    hasModel: true,
+    text: debouncedSearchTerm.trim() || undefined,
+  });
   
   // Model version management state
   const [versions, setVersions] = useState([]);
@@ -113,44 +139,53 @@ function ARExperiencesManager() {
 
   useEffect(() => {
     if (!monumentId) {
-      loadMonuments();
+      setLoading(withoutModelsQuery.isLoading || withModelsQuery.isLoading);
+
+      const withoutResponse = withoutModelsQuery.data;
+      const withResponse = withModelsQuery.data;
+
+      const withoutItems = (withoutResponse?.items || withoutResponse || []).filter(m => m.imageUrl);
+      const withItems = (withResponse?.items || withResponse || []).filter(m => m.imageUrl);
+
+      setMonumentsWithoutModels(withoutItems);
+      setMonumentsWithModels(withItems);
+
+      setWithoutModelsTotal(withoutResponse?.total || 0);
+      setWithModelsTotal(withResponse?.total || 0);
     }
-  }, [withoutModelsPage, withModelsPage, debouncedSearchTerm]);
+    // Ensure we have the freshest data when opening the list view
+    if (!monumentId) {
+      queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
+      // Also explicitly refetch both paginated queries to mirror other managers behavior
+      if (withoutModelsQuery?.refetch) withoutModelsQuery.refetch();
+      if (withModelsQuery?.refetch) withModelsQuery.refetch();
+    }
+  }, [withoutModelsQuery.data, withModelsQuery.data, withoutModelsQuery.isLoading, withModelsQuery.isLoading]);
 
   // Load monument and versions when monumentId changes
+  const selectedMonumentQuery = useMonumentById(monumentId);
+
   useEffect(() => {
     if (monumentId) {
-      // Load the specific monument
-      const loadMonumentData = async () => {
-        try {
-          setLoading(true);
-          const monument = await apiService.getMonument(monumentId);
-          
-          if (monument) {
-            setSelectedMonument(monument);
-            setView('manage');
-            await loadVersions(monumentId);
-          } else {
-            showNotification('error', 'Monumento no encontrado');
-            navigate('/ar-experiences');
-          }
-        } catch (error) {
-          console.error('Error loading monument:', error);
-          showNotification('error', 'Error al cargar monumento');
-          navigate('/ar-experiences');
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      loadMonumentData();
+      setLoading(selectedMonumentQuery.isLoading);
+
+      if (selectedMonumentQuery.isError) {
+        showNotification('error', 'Error al cargar monumento');
+        navigate('/ar-experiences');
+        return;
+      }
+
+      if (selectedMonumentQuery.data) {
+        setSelectedMonument(selectedMonumentQuery.data);
+        setView('manage');
+      }
     } else {
       setView('list');
       setSelectedMonument(null);
       setVersions([]);
       setShowUpload(false);
     }
-  }, [monumentId]);
+  }, [monumentId, selectedMonumentQuery.data, selectedMonumentQuery.isLoading, selectedMonumentQuery.isError]);
 
   // Add event listener for model-viewer load event
   useEffect(() => {
@@ -187,39 +222,16 @@ function ARExperiencesManager() {
     }
   }, [modelViewerDialog.open, modelViewerDialog.modelUrl]);
 
-  // Load monuments and organize by model availability
-  const loadMonuments = async () => {
-    try {
-      setLoading(true);
-      const [withoutResponse, withResponse] = await Promise.all([
-        apiService.getMonuments({
-          page: withoutModelsPage,
-          limit: pageSize,
-          hasModel: false,
-          text: debouncedSearchTerm.trim() || undefined
-        }),
-        apiService.getMonuments({
-          page: withModelsPage,
-          limit: pageSize,
-          hasModel: true,
-          text: debouncedSearchTerm.trim() || undefined
-        })
-      ]);
+  // Versions query
+  const versionsQuery = useModelVersions(selectedMonument?._id);
 
-      const withoutItems = (withoutResponse.items || withoutResponse || []).filter(m => m.imageUrl);
-      const withItems = (withResponse.items || withResponse || []).filter(m => m.imageUrl);
-
-      setMonumentsWithoutModels(withoutItems);
-      setMonumentsWithModels(withItems);
-      setWithoutModelsTotal(withoutResponse.total || 0);
-      setWithModelsTotal(withResponse.total || 0);
-    } catch (error) {
-      console.error('Error loading monuments:', error);
-      showNotification('error', 'Error al cargar monumentos');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    setLoading(versionsQuery.isLoading || loading);
+    if (versionsQuery.data) {
+      const versionsList = versionsQuery.data.versions || versionsQuery.data.items || versionsQuery.data || [];
+      setVersions(Array.isArray(versionsList) ? versionsList : []);
     }
-  };
+  }, [versionsQuery.data, versionsQuery.isLoading]);
 
   const withoutModelsTotalPages = Math.max(1, Math.ceil(withoutModelsTotal / pageSize));
   const withModelsTotalPages = Math.max(1, Math.ceil(withModelsTotal / pageSize));
@@ -231,6 +243,13 @@ function ARExperiencesManager() {
 
   // Navigate back to monument list
   const handleBackToList = () => {
+    // Ensure cached lists are invalidated and refetched when returning to list
+    queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
+    // Trigger immediate refetch of both queries to refresh paginated lists
+    if (withoutModelsQuery?.refetch) withoutModelsQuery.refetch();
+    if (withModelsQuery?.refetch) withModelsQuery.refetch();
+    setView('list');
+    setSelectedMonument(null);
     navigate('/ar-experiences');
   };
 
@@ -269,35 +288,26 @@ function ARExperiencesManager() {
     setActivationDialog({ open: false, versionId: null, versionName: null });
   };
 
+  const activateMutation = useActivateModelVersion();
+
   // Confirm and execute activation
   const handleActivateConfirm = async () => {
     const versionId = activationDialog.versionId;
-    
+
     try {
       setActionLoading(versionId);
       setActivationDialog({ open: false, versionId: null, versionName: null });
-      
-      // Optimistic UI update: immediately update the UI before API call
-      setVersions(prevVersions => 
-        prevVersions.map(v => ({
-          ...v,
-          isActive: v._id === versionId
-        }))
-      );
-      
-      // Make API call to activate version
-      await apiService.activateModelVersion(selectedMonument._id, versionId);
-      
-      // Reload versions to ensure consistency with backend
-      await loadVersions(selectedMonument._id);
-      
+
+      // Optimistic UI update
+      setVersions(prevVersions => prevVersions.map(v => ({ ...v, isActive: v._id === versionId })));
+
+      await activateMutation.mutateAsync({ monumentId: selectedMonument._id, versionId });
+
       showNotification('success', 'Versión activada exitosamente');
     } catch (error) {
       console.error('Error activating version:', error);
-      
-      // Revert optimistic update on error by reloading versions
-      await loadVersions(selectedMonument._id);
-      
+      // Revert by refetching
+      await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
       showNotification('error', error.message || 'Error al activar versión');
     } finally {
       setActionLoading(null);
@@ -334,39 +344,39 @@ function ARExperiencesManager() {
     setModelLoading(true); // Reset loading state when closing
   };
 
+  const deleteMutation = useDeleteModelVersion();
+
   // Confirm and execute deletion
   const handleDeleteConfirm = async () => {
     const versionId = deletionDialog.versionId;
-    
+
     try {
       setActionLoading(versionId);
       setDeletionDialog({ open: false, versionId: null, versionName: null });
-      
-      // Optimistic UI update: immediately remove the version from UI
+
+      // Optimistic UI update
       setVersions(prevVersions => prevVersions.filter(v => v._id !== versionId));
-      
-      // Make API call to delete version
-      await apiService.deleteModelVersion(selectedMonument._id, versionId);
-      
-      // Reload versions to ensure consistency with backend
-      await loadVersions(selectedMonument._id);
-      
+
+      await deleteMutation.mutateAsync({ monumentId: selectedMonument._id, versionId });
+
       showNotification('success', 'Versión eliminada exitosamente');
     } catch (error) {
       console.error('Error deleting version:', error);
-      
-      // Revert optimistic update on error by reloading versions
-      await loadVersions(selectedMonument._id);
-      
+      // Revert by refetching
+      await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
       showNotification('error', error.message || 'Error al eliminar versión');
     } finally {
       setActionLoading(null);
     }
   };
 
+  const uploadMutation = useUploadModelVersion();
+
   const handleUploadComplete = async () => {
     setShowUpload(false);
-    await loadVersions(selectedMonument._id);
+    // invalidate versions and experiences to refresh lists
+    await queryClient.invalidateQueries({ queryKey: ['modelVersions', selectedMonument._id] });
+    await queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
     showNotification('success', 'Nuevo modelo subido exitosamente');
   };
 

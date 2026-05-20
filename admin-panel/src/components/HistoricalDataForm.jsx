@@ -3,6 +3,7 @@
  * 
  * Formulario para crear o editar entradas de información histórica
  * Incluye upload de imagen con preview
+ * Usa React Query mutations para guardar datos
  */
 import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -19,7 +20,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import PropTypes from 'prop-types';
-import apiService from '../services/api';
+import { useCreateHistoricalData, useUpdateHistoricalData } from '../hooks/useHistoricalData';
 
 function HistoricalDataForm({ monumentId, monumentName, entry = null, onSave, onCancel }) {
   const [formData, setFormData] = useState({
@@ -29,12 +30,17 @@ function HistoricalDataForm({ monumentId, monumentName, entry = null, onSave, on
   
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(entry?.imageUrl || null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   
   const fileInputRef = useRef(null);
 
+  // React Query mutations
+  const createMutation = useCreateHistoricalData();
+  const updateMutation = useUpdateHistoricalData();
+  
+  // Check if either mutation is pending
+  const isSubmitting = createMutation.isPending || updateMutation.isPending;
   const isEditing = Boolean(entry);
 
   // Handle input change
@@ -122,22 +128,30 @@ function HistoricalDataForm({ monumentId, monumentName, entry = null, onSave, on
       return;
     }
 
-    setIsSubmitting(true);
     setError(null);
 
     try {
       if (isEditing) {
-        await apiService.updateHistoricalData(entry._id, formData, selectedImage);
+        // Update existing entry using mutation
+        await updateMutation.mutateAsync({
+          entryId: entry._id,
+          formData,
+          imageFile: selectedImage,
+        });
       } else {
-        await apiService.createHistoricalData(monumentId, formData, selectedImage);
+        // Create new entry using mutation
+        await createMutation.mutateAsync({
+          monumentId,
+          formData,
+          imageFile: selectedImage,
+        });
       }
       
+      // Call onSave callback after successful mutation
       onSave();
     } catch (err) {
       console.error('Error saving historical data:', err);
       setError(err.message || 'Error al guardar la información');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

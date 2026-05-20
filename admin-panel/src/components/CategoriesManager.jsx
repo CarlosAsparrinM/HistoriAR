@@ -96,6 +96,7 @@ import {
 } from 'lucide-react';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+import { toast } from 'sonner';
 
 // Iconos disponibles para las categorías
 const availableIcons = {
@@ -214,15 +215,20 @@ function CategoriesManager() {
 
   // Eliminar categoría
   const handleDelete = async (id) => {
-    if (!confirm('¿Estás seguro de que deseas eliminar esta categoría?')) return;
-    
-    try {
-      await apiService.deleteCategory(id);
-      setCategories(prev => prev.filter(category => category._id !== id));
-    } catch (error) {
-      console.error('Error deleting category:', error);
-      alert('Error al eliminar la categoría: ' + error.message);
-    }
+    toast.promise(
+      apiService.deleteCategory(id),
+      {
+        loading: 'Eliminando categoría...',
+        success: () => {
+          setCategories(prev => prev.filter(category => category._id !== id));
+          return 'Categoría eliminada correctamente';
+        },
+        error: (error) => {
+          console.error('Error deleting category:', error);
+          return 'Error al eliminar la categoría: ' + error.message;
+        }
+      }
+    );
   };
 
   // Abrir diálogo de edición
@@ -503,15 +509,17 @@ function CategoryForm({ onClose, category = null, onSave }) {
     try {
       if (category) {
         await apiService.updateCategory(category._id, formData);
+        toast.success('Categoría actualizada correctamente');
       } else {
         await apiService.createCategory(formData);
+        toast.success('Categoría creada correctamente');
       }
       
       onSave();
       onClose();
     } catch (error) {
       console.error('Error saving category:', error);
-      alert('Error al guardar la categoría: ' + error.message);
+      toast.error('Error al guardar la categoría: ' + error.message);
     } finally {
       setIsSubmitting(false);
     }

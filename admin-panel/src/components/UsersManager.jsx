@@ -71,6 +71,7 @@ import {
 } from 'lucide-react';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+import { toast } from 'sonner';
 
 // Etiquetas legibles para estado
 const statusLabels = {
@@ -147,9 +148,14 @@ function UsersManager() {
             : user
         )
       );
+      toast.success(
+        newStatus === 'Activo' 
+          ? 'Usuario activado correctamente' 
+          : 'Usuario suspendido correctamente'
+      );
     } catch (error) {
       console.error('Error updating user status:', error);
-      alert('Error al actualizar el estado del usuario');
+      toast.error('Error al actualizar el estado del usuario');
     }
   };
 
@@ -388,12 +394,11 @@ function UsersManager() {
   );
 }
 
-import { toast } from 'sonner';
-
 function MessageForm({ onClose, selectedUser }) {
   const [messageType, setMessageType] = useState('email');
   const [loading, setLoading] = useState(false);
   const [recipients, setRecipients] = useState(selectedUser ? 'single' : 'all');
+  const [deviceType, setDeviceType] = useState('all');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
 
@@ -454,6 +459,37 @@ function MessageForm({ onClose, selectedUser }) {
           )}
         </div>
       </div>
+
+      {!selectedUser && (
+        <div>
+          <Label htmlFor="device-type">Dispositivo</Label>
+          <Select value={deviceType} onValueChange={setDeviceType}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar dispositivo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  Todos los dispositivos
+                </div>
+              </SelectItem>
+              <SelectItem value="android">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  Android
+                </div>
+              </SelectItem>
+              <SelectItem value="ios">
+                <div className="flex items-center gap-2">
+                  <Smartphone className="w-4 h-4" />
+                  iOS
+                </div>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div>
         <Label htmlFor="subject">Asunto</Label>

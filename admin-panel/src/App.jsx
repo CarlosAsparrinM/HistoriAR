@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 import Toaster from './components/ui/sonner';
 import LoginForm from './components/LoginForm';
@@ -65,12 +66,6 @@ function AppContent() {
             <Route path="/historical-data/monument/:monumentId" element={<HistoricalDataManager />} />
             
             <Route path="/users" element={<UsersManager />} />
-            <Route path="/messaging" element={
-              <div className="p-6">
-                <h1>Sistema de Mensajería</h1>
-                <p>Funcionalidad en desarrollo...</p>
-              </div>
-            } />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </SidebarInset>
@@ -82,10 +77,12 @@ function AppContent() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <AppContent />
-        <Toaster />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppContent />
+          <Toaster />
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }
