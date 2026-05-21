@@ -115,11 +115,7 @@ class _LoginScreenState extends State<LoginScreen>
 
     setState(() => _isLoading = true);
     try {
-      await _authService.register(
-        name: name,
-        email: email,
-        password: password,
-      );
+      await _authService.register(name: name, email: email, password: password);
       _showError('Cuenta creada, ahora inicia sesión');
       _tabController.animateTo(0);
 
@@ -322,32 +318,68 @@ class _LoginScreenState extends State<LoginScreen>
                   Row(
                     children: const [
                       Expanded(
-                        child: Divider(
-                          thickness: 1,
-                          color: Color(0xFFE0E0E0),
-                        ),
+                        child: Divider(thickness: 1, color: Color(0xFFE0E0E0)),
                       ),
                       Padding(
                         padding: EdgeInsets.symmetric(horizontal: 12),
                         child: Text(
                           'O continúa con',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
                         ),
                       ),
                       Expanded(
-                        child: Divider(
-                          thickness: 1,
-                          color: Color(0xFFE0E0E0),
-                        ),
+                        child: Divider(thickness: 1, color: Color(0xFFE0E0E0)),
                       ),
                     ],
                   ),
 
                   const SizedBox(height: 16),
 
+                  // Botón de Google
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(
+                            color: Color(0xFFE8E8E8),
+                            width: 1.5,
+                          ),
+                        ),
+                        elevation: 0,
+                      ),
+                      onPressed: _isLoading ? null : _handleGoogleLogin,
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.black87,
+                                ),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.account_circle, size: 20),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Continuar con Google',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
                 ],
               ),
             ),

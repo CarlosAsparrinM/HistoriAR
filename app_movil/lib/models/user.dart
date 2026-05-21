@@ -3,6 +3,7 @@ class User {
   final String name;
   final String email;
   final String? profileImage;
+  final String? district;
   final int level;
   final int totalPoints;
   final int monumentsVisited;
@@ -19,6 +20,7 @@ class User {
     required this.name,
     required this.email,
     this.profileImage,
+    this.district,
     this.level = 1,
     this.totalPoints = 0,
     this.monumentsVisited = 0,
@@ -36,7 +38,8 @@ class User {
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      profileImage: json['profileImage'],
+      profileImage: json['profileImage'] ?? json['avatarUrl'],
+      district: json['district'],
       level: json['level'] ?? 1,
       totalPoints: json['totalPoints'] ?? 0,
       monumentsVisited: json['monumentsVisited'] ?? 0,
@@ -45,12 +48,12 @@ class User {
       joinDate: json['joinDate'],
       achievements: json['achievements'] ?? 0,
       badges: List<String>.from(json['badges'] ?? []),
-      createdAt: json['createdAt'] != null 
-        ? DateTime.parse(json['createdAt'] as String)
-        : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
       updatedAt: json['updatedAt'] != null
-        ? DateTime.parse(json['updatedAt'] as String)
-        : DateTime.now(),
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
     );
   }
 
@@ -60,6 +63,7 @@ class User {
       'name': name,
       'email': email,
       'profileImage': profileImage,
+      'district': district,
       'level': level,
       'totalPoints': totalPoints,
       'monumentsVisited': monumentsVisited,
@@ -78,6 +82,7 @@ class User {
     String? name,
     String? email,
     String? profileImage,
+    String? district,
     int? level,
     int? totalPoints,
     int? monumentsVisited,
@@ -94,6 +99,7 @@ class User {
       name: name ?? this.name,
       email: email ?? this.email,
       profileImage: profileImage ?? this.profileImage,
+      district: district ?? this.district,
       level: level ?? this.level,
       totalPoints: totalPoints ?? this.totalPoints,
       monumentsVisited: monumentsVisited ?? this.monumentsVisited,
