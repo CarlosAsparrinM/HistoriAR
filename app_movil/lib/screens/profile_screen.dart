@@ -9,6 +9,7 @@ import '../services/monuments_service.dart';
 import '../services/user_service.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_states.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -360,42 +361,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, snapshot) {
           if (_profileFuture == null ||
               snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            );
+            return const AppLoadingState(message: 'Cargando perfil...');
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Error: ${snapshot.error}'),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _loadUserProfile,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Reintentar'),
-                    ),
-                  ],
-                ),
-              ),
+            return AppErrorState(
+              title: 'No pudimos cargar tu perfil',
+              message: snapshot.error.toString(),
+              onRetry: _loadUserProfile,
             );
           }
 
           final data = snapshot.data;
-          if (data == null)
-            return const Center(
-              child: Text('No se encontraron datos del usuario'),
+          if (data == null) {
+            return const AppEmptyState(
+              title: 'Sin datos de usuario',
+              message: 'No se encontró información del perfil en este momento.',
+              icon: Icons.person_off_outlined,
             );
+          }
 
           return _buildProfileContent(context, data);
         },

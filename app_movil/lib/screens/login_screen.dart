@@ -5,6 +5,8 @@ import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
+import '../styles/app_tokens.dart';
+import '../widgets/app_motion.dart';
 import 'main_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -153,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xxl),
                   const Text(
                     'Bienvenido a HistoriAR',
                     textAlign: TextAlign.center,
@@ -173,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen>
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // Tabs Iniciar sesión / Registrarse
                   Container(
@@ -213,17 +215,19 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 26),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // Formularios sin scroll interno
                   SizedBox(
-                    height: 480,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildLoginForm(theme),
-                        _buildRegisterForm(theme),
-                      ],
+                    height: 500,
+                    child: AppFadeSwitcher(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildLoginForm(theme),
+                          _buildRegisterForm(theme),
+                        ],
+                      ),
                     ),
                   ),
                 ],

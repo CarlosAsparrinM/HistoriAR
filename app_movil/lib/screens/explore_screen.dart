@@ -16,6 +16,8 @@ import '../services/local_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/app_states.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -330,6 +332,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoadingMonuments && _monuments.isEmpty) {
+      return const AppShell(
+        title: 'Explorar',
+        subtitle: 'Monumentos de Lima',
+        child: AppLoadingState(message: 'Cargando monumentos...'),
+      );
+    }
+
+    if (_error != null && _monuments.isEmpty) {
+      return AppShell(
+        title: 'Explorar',
+        subtitle: 'Monumentos de Lima',
+        child: AppErrorState(
+          title: 'No se pudieron cargar los monumentos',
+          message: _error!,
+          onRetry: _loadMonuments,
+        ),
+      );
+    }
+
     final markers = <Marker>[];
 
     // Marcador de ubicación actual
@@ -608,26 +630,30 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           final prefs = await SharedPreferences.getInstance();
                           final userId = prefs.getString('userId');
                           if (userId == null || userId.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'No se pudo obtener el ID del usuario.',
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'No se pudo obtener el ID del usuario.',
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                             return;
                           }
 
                           // 1) Ir a la cámara AR y esperar a que el usuario salga
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => ArCameraScreen(
-                                monument: _selectedMonument!,
-                                token: token,
-                                userId: userId,
+                          if (mounted) {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ArCameraScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
+                                  userId: userId,
+                                ),
                               ),
-                            ),
-                          );
+                            );
+                          }
 
                           if (!mounted) return;
 
@@ -637,134 +663,138 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           if (!mounted) return;
 
                           if (!shouldAskForQuizzes) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => QuizScreen(
-                                  monument: _selectedMonument!,
-                                  token: token,
+                            if (mounted) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => QuizScreen(
+                                    monument: _selectedMonument!,
+                                    token: token,
+                                  ),
                                 ),
-                              ),
-                            );
+                              );
+                            }
                             return;
                           }
 
                           // 2) Al volver, mostrar el modal para invitar al quiz
-                          final shouldGoToQuiz = await showModalBottomSheet<bool>(
-                            context: context,
-                            backgroundColor: Colors.white,
-                            shape: const RoundedRectangleBorder(
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(24),
-                              ),
-                            ),
-                            builder: (context) {
-                              final monument = _selectedMonument!;
-                              return Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  24,
-                                  24,
-                                  32,
+                          if (mounted) {
+                            final shouldGoToQuiz = await showModalBottomSheet<bool>(
+                              context: context,
+                              backgroundColor: Colors.white,
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: BorderRadius.vertical(
+                                  top: Radius.circular(24),
                                 ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Center(
-                                      child: Container(
-                                        width: 40,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey.shade300,
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    const Text(
-                                      '¿Listo para poner a prueba lo que aprendiste?',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Responde un quiz sobre ${monument.name} y gana puntos.',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.grey,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: OutlinedButton(
-                                            onPressed: () => Navigator.of(
-                                              context,
-                                            ).pop(false),
-                                            style: OutlinedButton.styleFrom(
-                                              side: BorderSide(
-                                                color: Colors.grey.shade300,
-                                              ),
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 12,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                            child: const Text('Ahora no'),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: ElevatedButton(
-                                            onPressed: () =>
-                                                Navigator.of(context).pop(true),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor:
-                                                  AppColors.primary,
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    vertical: 12,
-                                                  ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                              'Realizar Quiz',
-                                              style: TextStyle(
-                                                color: Colors.white,
-                                              ),
+                              ),
+                              builder: (context) {
+                                final monument = _selectedMonument!;
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    24,
+                                    24,
+                                    32,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Center(
+                                        child: Container(
+                                          width: 40,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade300,
+                                            borderRadius: BorderRadius.circular(
+                                              999,
                                             ),
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      const Text(
+                                        '¿Listo para poner a prueba lo que aprendiste?',
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Responde un quiz sobre ${monument.name} y gana puntos.',
+                                        style: const TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 24),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(false),
+                                              style: OutlinedButton.styleFrom(
+                                                side: BorderSide(
+                                                  color: Colors.grey.shade300,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              child: const Text('Ahora no'),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(true),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    AppColors.primary,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      vertical: 12,
+                                                    ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                              child: const Text(
+                                                'Realizar Quiz',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+
+                            // 3) Si acepta, ir al Quiz
+                            if (shouldGoToQuiz == true && mounted) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => QuizScreen(
+                                    monument: _selectedMonument!,
+                                    token: token,
+                                  ),
                                 ),
                               );
-                            },
-                          );
-
-                          // 3) Si acepta, ir al Quiz
-                          if (shouldGoToQuiz == true && mounted) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => QuizScreen(
-                                  monument: _selectedMonument!,
-                                  token: token,
-                                ),
-                              ),
-                            );
+                            }
                           }
                         },
                       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_states.dart';
 import 'login_screen.dart';
 
 class ConfigurationScreen extends StatefulWidget {
@@ -103,9 +104,11 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
       setState(() {
         _nearbyNotificationsEnabled = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permiso de notificaciones denegado')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permiso de notificaciones denegado')),
+        );
+      }
     }
   }
 
@@ -308,7 +311,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoadingState(message: 'Cargando configuración...')
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

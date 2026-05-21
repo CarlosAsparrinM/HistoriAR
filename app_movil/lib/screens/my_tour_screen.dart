@@ -10,6 +10,9 @@ import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
+import '../styles/app_tokens.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/app_states.dart';
 
 class MyTourScreen extends StatefulWidget {
   const MyTourScreen({super.key});
@@ -314,53 +317,65 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final stops = _filteredStops();
     final institution = _currentInstitution;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mi Tour'),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _loadTours,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
+    return AppShell(
+      title: 'Mi Tour',
+      subtitle: 'Recorridos activos y paradas disponibles',
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar tours',
+          onPressed: _isLoading ? null : _loadTours,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: RefreshIndicator(
         onRefresh: _loadTours,
         child: _isLoading
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 children: const [
-                  SizedBox(height: 160),
-                  Center(child: CircularProgressIndicator()),
+                  SizedBox(height: 140),
+                  AppLoadingState(message: 'Cargando tours cercanos...'),
                 ],
               )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 children: [
                   if (_error != null) ...[
                     _ErrorCard(message: _error!, onRetry: _loadTours),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                   _buildHeaderCard(theme, institution),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   if (_tours.isEmpty)
-                    _EmptyTourState(onRetry: _loadTours)
+                    AppEmptyState(
+                      title: 'No hay tours activos',
+                      message:
+                          'Intenta actualizar o cambiar tu ubicación para ver más recorridos.',
+                      icon: Icons.route,
+                      action: ElevatedButton.icon(
+                        onPressed: _loadTours,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Actualizar'),
+                      ),
+                    )
                   else ...[
                     _buildTourSelector(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.md),
                     if (selectedTour != null) ...[
                       _buildTourSummary(theme, selectedTour),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.md),
                       _buildSearchBox(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.md),
                       if (stops.isEmpty)
                         _buildEmptyStopsState(theme)
                       else
                         ...stops.map(
                           (stop) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
                             child: _TourStopCard(
                               stop: stop,
                               onOpenAr: () => _openArExperience(stop.monument),
@@ -370,7 +385,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
                         ),
                     ],
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.xl),
                 ],
               ),
       ),
@@ -822,38 +837,6 @@ class _ErrorCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyTourState extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _EmptyTourState({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          Icon(Icons.route, size: 56, color: Colors.grey[400]),
-          const SizedBox(height: 12),
-          const Text(
-            'No hay tours activos disponibles en este momento.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: onRetry,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Volver a intentar'),
-          ),
-        ],
       ),
     );
   }

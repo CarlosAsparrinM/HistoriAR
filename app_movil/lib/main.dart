@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/auth_gate.dart';
 import 'services/local_notification_service.dart';
+import 'styles/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,10 +19,7 @@ class HistoriARApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'HistoriAR',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.brown),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
       home: const AuthGate(),
     );
   }
