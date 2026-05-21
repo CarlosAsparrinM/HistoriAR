@@ -23,6 +23,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final VisitsService _visitsService = VisitsService();
   final MonumentsService _monumentsService = MonumentsService();
   static const int _recentActivityLimit = 3;
+  bool _isUpdatingProfile = false;
+  bool _isDeletingAccount = false;
 
   @override
   void initState() {
@@ -55,7 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final user = await _userService.getMyProfile(token);
-    final userId = prefs.getString('userId') ?? user.id;
+    final userId = user.id;
     await prefs.setString('userId', userId);
 
     final results = await Future.wait([
@@ -98,6 +100,177 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Navigator.of(
       context,
     ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+  }
+
+  Future<void> _showEditProfileDialog(User user) async {
+    if (_isUpdatingProfile) return;
+
+    final nameController = TextEditingController(text: user.name);
+    final emailController = TextEditingController(text: user.email);
+    final imageController = TextEditingController(
+      text: user.profileImage ?? '',
+    );
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Editar perfil'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Nombre'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Correo'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: imageController,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'URL imagen de perfil (opcional)',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (saved != true) return;
+
+    final name = nameController.text.trim();
+    final email = emailController.text.trim();
+    final profileImage = imageController.text.trim();
+
+    if (name.isEmpty || email.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nombre y correo son obligatorios')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isUpdatingProfile = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+      if (token == null || token.isEmpty) {
+        throw Exception('No hay sesión activa');
+      }
+
+      await _userService.updateProfile(
+        token: token,
+        name: name,
+        email: email,
+        profileImage: profileImage.isEmpty ? null : profileImage,
+      );
+
+      await _loadUserProfile();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil actualizado correctamente')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isUpdatingProfile = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    if (_isDeletingAccount) return;
+
+    setState(() {
+      _isDeletingAccount = true;
+    });
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('authToken');
+      if (token == null || token.isEmpty) {
+        throw Exception('No hay sesión activa');
+      }
+
+      await _userService.deleteMyAccount(token: token);
+      await prefs.remove('authToken');
+      await prefs.remove('userId');
+      authState.token = '';
+
+      if (!mounted) return;
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo eliminar la cuenta: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeletingAccount = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    if (_isDeletingAccount) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar cuenta'),
+        content: const Text(
+          'Esta acción marcará tu cuenta como eliminada y cerrará tu sesión. ¿Deseas continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteAccount();
+    }
   }
 
   void _showFullActivities(
@@ -305,9 +478,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: _isUpdatingProfile
+                              ? null
+                              : () => _showEditProfileDialog(userProfile),
                           icon: const Icon(Icons.edit_outlined, size: 16),
-                          label: const Text('Editar'),
+                          label: Text(
+                            _isUpdatingProfile ? 'Guardando...' : 'Editar',
+                          ),
                         ),
                       ],
                     ),
@@ -475,6 +652,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
+                  _OptionTile(
+                    icon: Icons.delete_forever,
+                    title: 'Eliminar cuenta',
+                    subtitle: 'Desactivar y cerrar sesión',
+                    onTap: _confirmDeleteAccount,
+                    isDestructive: true,
+                  ),
+                  const Divider(height: 0),
                   _OptionTile(
                     icon: Icons.logout,
                     title: 'Cerrar Sesión',

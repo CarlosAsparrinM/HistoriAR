@@ -1,20 +1,20 @@
 import { Router } from 'express';
+import { getAllUserAttemptsController } from '../controllers/quizzesController.js';
 import {
-  listUsers,
-  getUser,
-  getMyProfile,
-  createUserController,
-  updateUserController,
-  deleteUserController
-} from '../controllers/usersController.js';
-import { 
-  getUserPreferencesController, 
-  updateUserPreferencesController 
+  getUserPreferencesController,
+  updateUserPreferencesController,
 } from '../controllers/userPreferencesController.js';
-import { 
-  getAllUserAttemptsController 
-} from '../controllers/quizzesController.js';
-import { verifyToken, requireRole } from '../middlewares/auth.js';
+import {
+  createUserController,
+  deleteMyAccount,
+  deleteUserController,
+  getMyProfile,
+  getUser,
+  listUsers,
+  updateMyProfile,
+  updateUserController,
+} from '../controllers/usersController.js';
+import { requireRole, verifyToken } from '../middlewares/auth.js';
 
 const router = Router();
 
@@ -24,6 +24,8 @@ const router = Router();
  * Endpoint: GET /api/users/me
  */
 router.get('/me', verifyToken, getMyProfile);
+router.put('/me', verifyToken, updateMyProfile);
+router.delete('/me', verifyToken, deleteMyAccount);
 
 /**
  * 👤 Rutas de preferencias de usuario
@@ -43,10 +45,10 @@ router.get('/:userId/quiz-attempts', verifyToken, getAllUserAttemptsController);
  */
 router.use(verifyToken, requireRole('admin'));
 
-router.get('/', listUsers);                 // Listar todos los usuarios (solo admin)
-router.get('/:id', getUser);                // Obtener usuario por ID (solo admin)
-router.post('/', createUserController);     // Crear usuario (solo admin)
-router.put('/:id', updateUserController);   // Actualizar usuario (solo admin)
-router.delete('/:id', deleteUserController);// Eliminar usuario (solo admin)
+router.get('/', listUsers); // Listar todos los usuarios (solo admin)
+router.get('/:id', getUser); // Obtener usuario por ID (solo admin)
+router.post('/', createUserController); // Crear usuario (solo admin)
+router.put('/:id', updateUserController); // Actualizar usuario (solo admin)
+router.delete('/:id', deleteUserController); // Eliminar usuario (solo admin)
 
 export default router;

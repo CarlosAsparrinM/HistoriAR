@@ -1,11 +1,18 @@
-import { buildPagination } from '../utils/pagination.js';
 import {
+  createUser,
   getAllUsers,
   getUserById,
-  createUser,
+  softDeleteUser,
   updateUser,
-  softDeleteUser
 } from '../services/userService.js';
+import { buildPagination } from '../utils/pagination.js';
+
+function toUserResponse(userDoc) {
+  if (!userDoc) return userDoc;
+  const user = userDoc.toObject ? userDoc.toObject() : { ...userDoc };
+  user.profileImage = user.profileImage || user.avatarUrl || null;
+  return user;
+}
 
 /**
  * 📄 Listar usuarios con paginación y filtros (solo admin)
@@ -34,17 +41,15 @@ export async function getUser(req, res) {
 
     // Si la ruta es /api/users/me, usamos el ID del token
     if (userId === 'me') {
-      if (!req.user || !req.user.id) {
-        return res
-          .status(401)
-          .json({ message: 'No autorizado: token inválido o ausente' });
+      if (!req.user?.id) {
+        return res.status(401).json({ message: 'No autorizado: token inválido o ausente' });
       }
       userId = req.user.id;
     }
 
     const doc = await getUserById(userId);
     if (!doc) return res.status(404).json({ message: 'No encontrado' });
-    res.json(doc);
+    res.json(toUserResponse(doc));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -56,14 +61,59 @@ export async function getUser(req, res) {
  */
 export async function getMyProfile(req, res) {
   try {
-    if (!req.user || !req.user.id) {
+    if (!req.user?.id) {
       return res.status(401).json({ message: 'No autorizado' });
     }
 
     const user = await getUserById(req.user.id);
     if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
 
-    res.json(user);
+    res.json(toUserResponse(user));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+/**
+ * ✏️ Actualizar perfil del usuario autenticado
+ * (endpoint /api/users/me)
+ */
+export async function updateMyProfile(req, res) {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'No autorizado' });
+    }
+
+    const payload = {};
+    if (typeof req.body?.name === 'string') payload.name = req.body.name;
+    if (typeof req.body?.email === 'string') payload.email = req.body.email;
+
+    const avatar = req.body?.profileImage ?? req.body?.avatarUrl;
+    if (typeof avatar === 'string') payload.avatarUrl = avatar;
+
+    const doc = await updateUser(req.user.id, payload);
+    if (!doc) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    res.json(toUserResponse(doc));
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+}
+
+/**
+ * 🗑️ Eliminar (soft delete) la cuenta del usuario autenticado
+ * (endpoint /api/users/me)
+ */
+export async function deleteMyAccount(req, res) {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ message: 'No autorizado' });
+    }
+
+    const doc = await softDeleteUser(req.user.id);
+    if (!doc) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    res.json({ message: 'Cuenta marcada como eliminada' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -86,9 +136,13 @@ export async function createUserController(req, res) {
  */
 export async function updateUserController(req, res) {
   try {
-    const doc = await updateUser(req.params.id, req.body);
+    const payload = { ...req.body };
+    if (payload.profileImage && !payload.avatarUrl) {
+      payload.avatarUrl = payload.profileImage;
+    }
+    const doc = await updateUser(req.params.id, payload);
     if (!doc) return res.status(404).json({ message: 'No encontrado' });
-    res.json(doc);
+    res.json(toUserResponse(doc));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

@@ -36,7 +36,7 @@ class User {
       id: json['_id'] ?? json['id'] ?? '',
       name: json['name'] ?? '',
       email: json['email'] ?? '',
-      profileImage: json['profileImage'],
+      profileImage: json['profileImage'] ?? json['avatarUrl'],
       level: json['level'] ?? 1,
       totalPoints: json['totalPoints'] ?? 0,
       monumentsVisited: json['monumentsVisited'] ?? 0,
@@ -45,12 +45,12 @@ class User {
       joinDate: json['joinDate'],
       achievements: json['achievements'] ?? 0,
       badges: List<String>.from(json['badges'] ?? []),
-      createdAt: json['createdAt'] != null 
-        ? DateTime.parse(json['createdAt'] as String)
-        : DateTime.now(),
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : DateTime.now(),
       updatedAt: json['updatedAt'] != null
-        ? DateTime.parse(json['updatedAt'] as String)
-        : DateTime.now(),
+          ? DateTime.parse(json['updatedAt'] as String)
+          : DateTime.now(),
     );
   }
 
@@ -60,6 +60,7 @@ class User {
       'name': name,
       'email': email,
       'profileImage': profileImage,
+      'avatarUrl': profileImage,
       'level': level,
       'totalPoints': totalPoints,
       'monumentsVisited': monumentsVisited,
