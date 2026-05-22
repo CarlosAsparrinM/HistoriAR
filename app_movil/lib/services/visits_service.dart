@@ -8,6 +8,9 @@ import 'package:http/http.dart' as http;
 class VisitsService {
   const VisitsService();
 
+  static const int _maxRetries = 2;
+  static const Duration _retryDelay = Duration(milliseconds: 500);
+
   Future<List<Map<String, dynamic>>> getVisitsByUser({
     required String userId,
     required String token,
@@ -59,33 +62,49 @@ class VisitsService {
       'device': device ?? _getPlatformDevice(),
       if (tourId != null) 'tourId': tourId, // Incluir si se proporciona
     };
+    // Retry + timeout
+    for (int attempt = 0; attempt < _maxRetries; attempt++) {
+      try {
+        final response = await http
+            .post(
+              uri,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 10));
 
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode(body),
-    );
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+          throw Exception(
+            _extractMessage(response.body, 'Error al registrar visita'),
+          );
+        }
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception(
-        _extractMessage(response.body, 'Error al registrar visita'),
-      );
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          throw Exception(
+            'Formato inesperado de respuesta al registrar visita',
+          );
+        }
+
+        final id = decoded['id'] as String?;
+        if (id == null) {
+          throw Exception('No se recibió ID de visita');
+        }
+
+        return id;
+      } catch (e) {
+        if (attempt < _maxRetries - 1) {
+          await Future.delayed(_retryDelay);
+          continue;
+        }
+        rethrow;
+      }
     }
 
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
-      throw Exception('Formato inesperado de respuesta al registrar visita');
-    }
-
-    final id = decoded['id'] as String?;
-    if (id == null) {
-      throw Exception('No se recibió ID de visita');
-    }
-
-    return id;
+    throw Exception('No se pudo registrar la visita');
   }
 
   Future<Visit> updateVisit({
