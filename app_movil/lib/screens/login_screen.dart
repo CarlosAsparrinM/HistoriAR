@@ -5,6 +5,8 @@ import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
+import '../styles/app_tokens.dart';
+import '../widgets/app_motion.dart';
 import 'main_scaffold.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -77,30 +79,19 @@ class _LoginScreenState extends State<LoginScreen>
     try {
       final token = await _authService.login(email: email, password: password);
       authState.token = token;
-
+      // Persistimos token y userId para otras pantallas
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('authToken', token);
 
       try {
         final me = await _userService.getMyProfile(token);
         await prefs.setString('userId', me.id);
-      } catch (e) {
-        print('⚠️ No se pudo obtener el perfil: ${e.toString()}');
+      } catch (_) {
+        // Si falla obtener el perfil, igual continuamos con token
       }
       _goToApp();
     } catch (e) {
-      final errorMessage = e.toString().replaceFirst('Exception: ', '');
-
-      // Errores específicos con mejor UX
-      if (errorMessage.contains('Credenciales inválidas')) {
-        _showError('Correo o contraseña incorrectos');
-      } else if (errorMessage.contains('No se puede conectar')) {
-        _showError('Sin conexión. Verifica tu internet.');
-      } else if (errorMessage.contains('Timeout')) {
-        _showError('El servidor tardó demasiado. Intenta de nuevo.');
-      } else {
-        _showError(errorMessage);
-      }
+      _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -118,67 +109,8 @@ class _LoginScreenState extends State<LoginScreen>
       await _authService.register(name: name, email: email, password: password);
       _showError('Cuenta creada, ahora inicia sesión');
       _tabController.animateTo(0);
-
-      // Limpiar campos de registro
-      _registerNameController.clear();
-      _registerEmailController.clear();
-      _registerPasswordController.clear();
-      _registerConfirmPasswordController.clear();
     } catch (e) {
-      final errorMessage = e.toString().replaceFirst('Exception: ', '');
-
-      // Errores específicos con mejor UX
-      if (errorMessage.contains('ya está registrado')) {
-        _showError('Este correo ya tiene una cuenta. Intenta iniciar sesión.');
-      } else if (errorMessage.contains('No se puede conectar')) {
-        _showError('Sin conexión. Verifica tu internet.');
-      } else if (errorMessage.contains('Timeout')) {
-        _showError('El servidor tardó demasiado. Intenta de nuevo.');
-      } else {
-        _showError(errorMessage);
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _handleGoogleLogin() async {
-    setState(() => _isLoading = true);
-    try {
-      final token = await _authService.loginWithGoogle();
-      authState.token = token;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('authToken', token);
-
-      try {
-        final me = await _userService.getMyProfile(token);
-        await prefs.setString('userId', me.id);
-      } catch (e) {
-        // Log del error pero continúa con el token
-        print('⚠️ No se pudo obtener el perfil: ${e.toString()}');
-      }
-
-      _goToApp();
-    } catch (e) {
-      final errorMessage = e.toString().replaceFirst('Exception: ', '');
-
-      // No mostrar error si el usuario cancela
-      if (errorMessage.contains('cancelado')) {
-        print('ℹ️ Login de Google cancelado por el usuario');
-        return;
-      }
-
-      // Errores específicos con mejor UX
-      if (errorMessage.contains('No se puede conectar')) {
-        _showError('Sin conexión. Verifica tu internet y reinicia la app.');
-      } else if (errorMessage.contains('Timeout')) {
-        _showError('El servidor tardó demasiado. Intenta de nuevo.');
-      } else if (errorMessage.contains('rechazado')) {
-        _showError('Tu cuenta de Google no es válida para esta app.');
-      } else {
-        _showError(errorMessage);
-      }
+      _showError(e.toString().replaceFirst('Exception: ', ''));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -223,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xxl),
                   const Text(
                     'Bienvenido a HistoriAR',
                     textAlign: TextAlign.center,
@@ -243,7 +175,7 @@ class _LoginScreenState extends State<LoginScreen>
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // Tabs Iniciar sesión / Registrarse
                   Container(
@@ -283,27 +215,12 @@ class _LoginScreenState extends State<LoginScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 26),
+                  const SizedBox(height: AppSpacing.lg),
 
-                  // Card con formulario (con altura máxima, para evitar overflow)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 320),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 22,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
+                  // Formularios sin scroll interno
+                  SizedBox(
+                    height: 500,
+                    child: AppFadeSwitcher(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
@@ -311,73 +228,6 @@ class _LoginScreenState extends State<LoginScreen>
                           _buildRegisterForm(theme),
                         ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Separador "O continúa con"
-                  Row(
-                    children: const [
-                      Expanded(
-                        child: Divider(thickness: 1, color: Color(0xFFE0E0E0)),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          'O continúa con',
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                      ),
-                      Expanded(
-                        child: Divider(thickness: 1, color: Color(0xFFE0E0E0)),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Botón de Google
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black87,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(
-                            color: Color(0xFFE8E8E8),
-                            width: 1.5,
-                          ),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: _isLoading ? null : _handleGoogleLogin,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.black87,
-                                ),
-                              ),
-                            )
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.account_circle, size: 20),
-                                const SizedBox(width: 12),
-                                const Text(
-                                  'Continuar con Google',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
                     ),
                   ),
                 ],

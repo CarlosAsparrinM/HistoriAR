@@ -8,8 +8,12 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
+import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
+import '../styles/app_tokens.dart';
+import '../widgets/app_shell.dart';
+import '../widgets/app_states.dart';
 
 class MyTourScreen extends StatefulWidget {
   const MyTourScreen({super.key});
@@ -20,6 +24,7 @@ class MyTourScreen extends StatefulWidget {
 
 class _MyTourScreenState extends State<MyTourScreen> {
   final ToursService _toursService = const ToursService();
+  final SessionsService _sessionsService = const SessionsService();
 
   bool _isLoading = true;
   String? _error;
@@ -29,6 +34,8 @@ class _MyTourScreenState extends State<MyTourScreen> {
   List<TourItem> _tours = [];
   TourItem? _selectedTour;
   Position? _currentPosition;
+  String? _currentSessionId;
+  bool _isSessionLoading = false;
 
   @override
   void initState() {
@@ -185,8 +192,12 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            ArCameraScreen(monument: monument, token: token, userId: userId),
+        builder: (_) => ArCameraScreen(
+          monument: monument,
+          token: token,
+          userId: userId,
+          tourId: _selectedTour?.id, // Pasar tourId del tour seleccionado
+        ),
       ),
     );
 
@@ -288,6 +299,56 @@ class _MyTourScreenState extends State<MyTourScreen> {
     }
   }
 
+  Future<void> _startTour() async {
+    final token = authState.token;
+    final tourId = _selectedTour?.id;
+    if (token.isEmpty || tourId == null) return;
+
+    setState(() => _isSessionLoading = true);
+    try {
+      final resp = await _sessionsService.startSession(
+        tourId: tourId,
+        token: token,
+      );
+      final id = resp['id'] as String? ?? resp['session']?['_id'] as String?;
+      setState(() {
+        _currentSessionId = id;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tour iniciado')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al iniciar tour: $e')));
+    } finally {
+      if (mounted) setState(() => _isSessionLoading = false);
+    }
+  }
+
+  Future<void> _stopTour() async {
+    final token = authState.token;
+    final sessionId = _currentSessionId;
+    if (token.isEmpty || sessionId == null) return;
+
+    setState(() => _isSessionLoading = true);
+    try {
+      await _sessionsService.stopSession(sessionId: sessionId, token: token);
+      setState(() {
+        _currentSessionId = null;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tour finalizado')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al finalizar tour: $e')));
+    } finally {
+      if (mounted) setState(() => _isSessionLoading = false);
+    }
+  }
+
   Future<void> _openQuiz(Monument monument) async {
     final token = authState.token;
     if (token.isEmpty) {
@@ -314,53 +375,65 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final stops = _filteredStops();
     final institution = _currentInstitution;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mi Tour'),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _loadTours,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
+    return AppShell(
+      title: 'Mi Tour',
+      subtitle: 'Recorridos activos y paradas disponibles',
+      actions: [
+        IconButton(
+          tooltip: 'Actualizar tours',
+          onPressed: _isLoading ? null : _loadTours,
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+      child: RefreshIndicator(
         onRefresh: _loadTours,
         child: _isLoading
             ? ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 children: const [
-                  SizedBox(height: 160),
-                  Center(child: CircularProgressIndicator()),
+                  SizedBox(height: 140),
+                  AppLoadingState(message: 'Cargando tours cercanos...'),
                 ],
               )
             : ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpacing.md),
                 children: [
                   if (_error != null) ...[
                     _ErrorCard(message: _error!, onRetry: _loadTours),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.md),
                   ],
                   _buildHeaderCard(theme, institution),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpacing.md),
                   if (_tours.isEmpty)
-                    _EmptyTourState(onRetry: _loadTours)
+                    AppEmptyState(
+                      title: 'No hay tours activos',
+                      message:
+                          'Intenta actualizar o cambiar tu ubicación para ver más recorridos.',
+                      icon: Icons.route,
+                      action: ElevatedButton.icon(
+                        onPressed: _loadTours,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Actualizar'),
+                      ),
+                    )
                   else ...[
                     _buildTourSelector(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.md),
                     if (selectedTour != null) ...[
                       _buildTourSummary(theme, selectedTour),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.md),
                       _buildSearchBox(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpacing.md),
                       if (stops.isEmpty)
                         _buildEmptyStopsState(theme)
                       else
                         ...stops.map(
                           (stop) => Padding(
-                            padding: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.only(
+                              bottom: AppSpacing.md,
+                            ),
                             child: _TourStopCard(
                               stop: stop,
                               onOpenAr: () => _openArExperience(stop.monument),
@@ -370,7 +443,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
                         ),
                     ],
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.xl),
                 ],
               ),
       ),
@@ -519,6 +592,33 @@ class _MyTourScreenState extends State<MyTourScreen> {
                 _InfoPill(
                   label: tour.isActive ? 'Activo' : 'Inactivo',
                   icon: tour.isActive ? Icons.check_circle : Icons.pause_circle,
+                ),
+                const SizedBox(width: 8),
+                // Botón iniciar/finalizar tour
+                Builder(
+                  builder: (ctx) {
+                    final isActive = _currentSessionId != null;
+                    return ElevatedButton(
+                      onPressed: _isSessionLoading
+                          ? null
+                          : () async {
+                              if (isActive) {
+                                await _stopTour();
+                              } else {
+                                await _startTour();
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isActive
+                            ? Colors.redAccent
+                            : AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(isActive ? 'Finalizar Tour' : 'Iniciar Tour'),
+                    );
+                  },
                 ),
               ],
             ),
@@ -822,38 +922,6 @@ class _ErrorCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyTourState extends StatelessWidget {
-  final VoidCallback onRetry;
-
-  const _EmptyTourState({required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          Icon(Icons.route, size: 56, color: Colors.grey[400]),
-          const SizedBox(height: 12),
-          const Text(
-            'No hay tours activos disponibles en este momento.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: onRetry,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Volver a intentar'),
-          ),
-        ],
       ),
     );
   }

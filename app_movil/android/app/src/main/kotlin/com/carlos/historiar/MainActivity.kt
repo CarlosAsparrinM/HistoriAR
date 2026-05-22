@@ -1,4 +1,4 @@
-package com.carlos.historiar
+package com.historiar.app
 
 import io.flutter.embedding.android.FlutterActivity
 

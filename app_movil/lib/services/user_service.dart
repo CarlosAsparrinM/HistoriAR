@@ -67,18 +67,20 @@ class UserService {
   /// Actualiza el perfil del usuario
   Future<User> updateProfile({
     required String token,
+    String? userId,
     String? name,
     String? email,
     String? profileImage,
-    String? district,
   }) async {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
 
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
     if (email != null) body['email'] = email;
-    if (profileImage != null) body['profileImage'] = profileImage;
-    if (district != null) body['district'] = district;
+    if (profileImage != null) {
+      body['profileImage'] = profileImage;
+      body['avatarUrl'] = profileImage;
+    }
 
     final response = await http.put(
       uri,
@@ -105,8 +107,8 @@ class UserService {
     }
   }
 
-  /// Elimina totalmente la cuenta del usuario autenticado
-  Future<void> deleteMyAccount(String token) async {
+  /// Elimina (soft delete) la cuenta autenticada
+  Future<void> deleteMyAccount({required String token}) async {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
 
     final response = await http.delete(

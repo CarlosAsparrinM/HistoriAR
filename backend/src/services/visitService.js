@@ -1,9 +1,10 @@
+import TourSession from '../models/TourSession.js';
 import Visit from '../models/Visit.js';
 
 export async function getAllVisits(filter = {}, { skip = 0, limit = 10 } = {}) {
   const [items, total] = await Promise.all([
     Visit.find(filter).skip(skip).limit(limit),
-    Visit.countDocuments(filter)
+    Visit.countDocuments(filter),
   ]);
   return { items, total };
 }
@@ -13,7 +14,39 @@ export async function getVisitById(id) {
 }
 
 export async function createVisit(data) {
-  return await Visit.create(data);
+  const visit = await Visit.create(data);
+
+  // Si la visita pertenece a un tour, intentar registrar la parada en la TourSession activa
+  try {
+    if (data.tourId && data.userId) {
+      const session = await TourSession.findOne({
+        userId: data.userId,
+        tourId: data.tourId,
+        completedAt: null,
+      });
+
+      if (session) {
+        const stop = {
+          monumentId: data.monumentId,
+          visitedAt: data.date ? new Date(data.date) : new Date(),
+          duration: data.duration,
+        };
+
+        session.stopsVisited.push(stop);
+        // Actualizar duración total acumulada si duration está presente
+        if (typeof data.duration === 'number') {
+          session.totalDuration = (session.totalDuration || 0) + data.duration;
+        }
+
+        await session.save();
+      }
+    }
+  } catch (err) {
+    // No bloquear el flujo de creación de visitas si hay error en TourSession
+    console.error('Error registering stop in TourSession:', err.message);
+  }
+
+  return visit;
 }
 
 export async function updateVisit(id, data) {
@@ -27,7 +60,7 @@ export async function deleteVisit(id) {
 export async function getAverageDuration(monumentId) {
   const result = await Visit.aggregate([
     { $match: { monumentId } },
-    { $group: { _id: null, avgDuration: { $avg: '$duration' } } }
+    { $group: { _id: null, avgDuration: { $avg: '$duration' } } },
   ]);
   return result[0]?.avgDuration || 0;
 }

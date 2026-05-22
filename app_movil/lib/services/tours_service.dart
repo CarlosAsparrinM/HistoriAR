@@ -59,6 +59,16 @@ class ToursService {
         .toList();
   }
 
+  /// Obtener un tour específico por ID (con detalles completos)
+  Future<TourItem> getTourById(String tourId) async {
+    final uri = Uri.parse('${Environment.apiBaseUrl}/api/tours/$tourId');
+
+    final response = await http.get(uri);
+    final data = _decodeMapResponse(response, 'Error al obtener tour');
+
+    return TourItem.fromJson(data);
+  }
+
   Map<String, dynamic> _decodeMapResponse(
     http.Response response,
     String fallbackMessage,

@@ -1,20 +1,33 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // Color primario de la app (mantengo el naranja original)
+  // Brand
   static const Color primary = Color(0xFFFF6600);
-  // Variante más suave para fondos y acentos
   static const Color primaryVariant = Color(0xFFFF8A3D);
-  // Fondo general de pantallas
+  static const Color secondary = Color(0xFF4E6AFF);
+
+  // Superficies
   static const Color background = Color(0xFFFFFFFF);
-  // Superficies de tarjetas / containers
   static const Color surface = Color(0xFFF7F7F7);
-  // Color para destacar secciones suaves
+  static const Color surfaceSoft = Color(0xFFF3F5F8);
+
+  // Accentos
   static const Color highlight = Color(0xFFFFF4E6);
-  // Acento claro (bordes / sombras leves)
   static const Color accent = Color(0xFFFFD9A6);
-  // Color para textos/elementos atenuados
+
+  // Bordes
+  static const Color border = Color(0xFFE6EAF0);
+
+  // Texto
+  static const Color textPrimary = Color(0xFF121826);
+  static const Color textSecondary = Color(0xFF344054);
+  static const Color textMuted = Color(0xFF667085);
+
+  // Compat
   static const Color muted = Colors.grey;
-  // Color para acciones peligrosas
+
+  // Estados
+  static const Color success = Color(0xFF16A34A);
+  static const Color warning = Color(0xFFF59E0B);
   static const Color danger = Color(0xFFFF3B30);
 }

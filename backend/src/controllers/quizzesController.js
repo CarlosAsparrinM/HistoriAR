@@ -1,53 +1,67 @@
-/**
- * Controlador de Quizzes
- * Refactorizado parcialmente usando crudControllerFactory
- * Mantiene métodos específicos de evaluación y attempts
- */
-import { createCrudController } from '../utils/crudControllerFactory.js';
-import * as quizService from '../services/quizService.js';
+import {
+  createQuiz,
+  deleteQuiz,
+  evaluateQuiz,
+  getAllQuizzes,
+  getAllUserAttempts,
+  getQuizAttempts,
+  getQuizById,
+  getUserAttempts,
+  submitQuizAttempt,
+  updateQuiz,
+} from '../services/quizService.js';
+import { buildPagination } from '../utils/pagination.js';
 
-// Crear controlador CRUD básico usando el factory
-const crudController = createCrudController({
-  service: {
-    getAll: (options) => quizService.getAllQuizzes(
-      options.monumentId ? { monumentId: options.monumentId } : {},
-      { skip: options.skip, limit: options.limit }
-    ),
-    getById: quizService.getQuizById,
-    create: quizService.createQuiz,
-    update: quizService.updateQuiz,
-    delete: quizService.deleteQuiz
-  },
-  entityName: 'Quiz',
-  entityNamePlural: 'Quizzes',
-  listOptions: {
-    customFilters: {
-      monumentId: true
-    }
+export async function listQuiz(req, res) {
+  try {
+    const { skip, limit, page } = buildPagination(req.query);
+    const filter = {};
+    if (req.query.monumentId) filter.monumentId = req.query.monumentId;
+    const { items, total } = await getAllQuizzes(filter, { skip, limit });
+    res.json({ page, total, items });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
-});
+}
 
-// Exportar métodos CRUD estándar
-export const {
-  list: listQuiz,
-  getById: getQuiz,
-  create: createQuizController,
-  update: updateQuizController,
-  deleteItem: deleteQuizController
-} = crudController;
+export async function getQuiz(req, res) {
+  const doc = await getQuizById(req.params.id);
+  if (!doc) return res.status(404).json({ message: 'No encontrado' });
+  res.json(doc);
+}
 
-// Métodos específicos de Quiz (evaluación y attempts)
+export async function createQuizController(req, res) {
+  try {
+    const doc = await createQuiz(req.body);
+    res.status(201).json({ id: doc._id });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+}
 
-/**
- * Evaluar respuestas de un quiz
- */
+export async function updateQuizController(req, res) {
+  try {
+    const doc = await updateQuiz(req.params.id, req.body);
+    if (!doc) return res.status(404).json({ message: 'No encontrado' });
+    res.json(doc);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+}
+
+export async function deleteQuizController(req, res) {
+  const doc = await deleteQuiz(req.params.id);
+  if (!doc) return res.status(404).json({ message: 'No encontrado' });
+  res.json({ message: 'Eliminado' });
+}
+
 export async function evaluateQuizController(req, res) {
   try {
     const { answers } = req.body; // array de índices
-    const result = await quizService.evaluateQuiz(req.params.id, answers || []);
+    const result = await evaluateQuiz(req.params.id, answers || []);
     res.json(result);
-  } catch (err) { 
-    res.status(400).json({ message: err.message }); 
+  } catch (err) {
+    res.status(400).json({ message: err.message });
   }
 }
 
@@ -56,14 +70,15 @@ export async function evaluateQuizController(req, res) {
  */
 export async function submitQuizAttemptController(req, res) {
   try {
+    // El middleware verifyToken normaliza el usuario como req.user.id
     const userId = req.user?.id;
     const { answers, timeSpent } = req.body;
-    
+
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({ message: 'Answers array is required' });
     }
-    
-    const attempt = await quizService.submitQuizAttempt(userId, req.params.id, answers, timeSpent);
+
+    const attempt = await submitQuizAttempt(userId, req.params.id, answers, timeSpent);
     res.status(201).json(attempt);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -75,7 +90,7 @@ export async function submitQuizAttemptController(req, res) {
  */
 export async function getQuizAttemptsController(req, res) {
   try {
-    const attempts = await quizService.getQuizAttempts(req.params.id);
+    const attempts = await getQuizAttempts(req.params.id);
     res.json({ total: attempts.length, items: attempts });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -87,7 +102,7 @@ export async function getQuizAttemptsController(req, res) {
  */
 export async function getUserQuizAttemptsController(req, res) {
   try {
-    const attempts = await quizService.getUserAttempts(req.params.userId, req.params.quizId);
+    const attempts = await getUserAttempts(req.params.userId, req.params.quizId);
     res.json({ total: attempts.length, items: attempts });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -99,7 +114,11 @@ export async function getUserQuizAttemptsController(req, res) {
  */
 export async function getAllUserAttemptsController(req, res) {
   try {
-    const attempts = await quizService.getAllUserAttempts(req.params.userId);
+    if (req.user?.id !== req.params.userId && req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const attempts = await getAllUserAttempts(req.params.userId);
     res.json({ total: attempts.length, items: attempts });
   } catch (err) {
     res.status(500).json({ message: err.message });

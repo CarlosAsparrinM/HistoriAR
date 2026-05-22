@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:app_movil/config/environment.dart';
 import 'package:ar_flutter_plugin_plus/ar_flutter_plugin_plus.dart';
@@ -14,23 +15,29 @@ import 'package:ar_flutter_plugin_plus/models/ar_anchor.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/ar_control_hints.dart';
+import '../widgets/ar_info_panel.dart';
+import '../widgets/ar_quality_indicator.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
   final String token;
   final String userId;
+  final String? tourId; // Nuevo: ID del tour al que pertenece (opcional)
 
   const ArCameraScreen({
     super.key,
     required this.monument,
     required this.token,
     required this.userId,
+    this.tourId,
   });
 
   @override
@@ -41,7 +48,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   ARSessionManager? arSessionManager;
   ARObjectManager? arObjectManager;
   ARAnchorManager? arAnchorManager;
+  ARAnchor? _currentAnchor;
   ARNode? webObjectNode;
+  final GlobalKey _repaintKey = GlobalKey();
 
   double _scaleFactor = 0.2;
   double _rotationY = 0.0; // en radianes
@@ -61,17 +70,110 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   DateTime? _visitStartTime;
   final VisitsService _visitsService = const VisitsService();
 
+  // Nuevas variables para mejoras de UX
+  bool _showInfoPanel = true;
+  bool _isTrackingActive = false;
+  bool _isPlanDetected = false;
+  double _ambientLightIntensity = 0.5;
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
+  int _frameCounter = 0;
+  late Stopwatch _frameStopwatch;
+  bool _isAddingNode = false;
+
   @override
   void initState() {
     super.initState();
     _visitStartTime = DateTime.now();
+    _frameStopwatch = Stopwatch()..start();
+    _startPeriodicTracking();
+  }
+
+  void _startPeriodicTracking() {
+    // Monitor de estado cada segundo
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        _updateARMetrics();
+        _startPeriodicTracking();
+      }
+    });
+  }
+
+  void _updateARMetrics() {
+    // Simular actualizaciones de tracking quality
+    // En producción, esto vendría del ARCore/ARKit
+    setState(() {
+      _isTrackingActive = arSessionManager != null;
+      _isPlanDetected = webObjectNode != null;
+      // Variar luz ambiente de forma realista
+      _ambientLightIntensity = (0.3 + 0.7 * ((_frameCounter % 100) / 100))
+          .clamp(0.0, 1.0);
+      _frameCounter++;
+    });
   }
 
   @override
   void dispose() {
+    _frameStopwatch.stop();
     arSessionManager?.dispose();
     _registerVisit();
     super.dispose();
+  }
+
+  /// Reset la posición del modelo al estado inicial
+  Future<void> _resetModelPosition() async {
+    setState(() {
+      _scaleFactor = 0.2;
+      _rotationX = 0.0;
+      _rotationY = 0.0;
+      _offset = vmath.Vector2(0.0, -0.3);
+    });
+    _updateNodeTransform();
+
+    _showSnackbar('Posición reiniciada');
+  }
+
+  /// Captura pantalla de la experiencia AR
+  Future<void> _captureScreenshot() async {
+    try {
+      final boundary =
+          _repaintKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) {
+        _showSnackbar('No se pudo capturar (render boundary no disponible)');
+        return;
+      }
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        _showSnackbar('Error al procesar la imagen');
+        return;
+      }
+
+      final bytes = byteData.buffer.asUint8List();
+      final tempDir = Directory.systemTemp;
+      final file = await File(
+        '${tempDir.path}/historiar_screenshot_${DateTime.now().millisecondsSinceEpoch}.png',
+      ).writeAsBytes(bytes);
+
+      _showSnackbar('Screenshot guardado: ${file.path}');
+    } catch (e) {
+      _showSnackbar('Error al capturar screenshot: $e');
+    }
+  }
+
+  void _showSnackbar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Colors.black.withValues(alpha: 0.8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
   }
 
   void onARViewCreated(
@@ -85,8 +187,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     this.arAnchorManager = arAnchorManager;
 
     this.arSessionManager!.onInitialize(
-      showFeaturePoints: true,
-      showPlanes: true,
+      showFeaturePoints: false,
+      showPlanes: false,
       customPlaneTexturePath: "Images/triangle.png",
       showWorldOrigin: false,
       handleTaps: true,
@@ -105,17 +207,26 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       setState(() {
         _loadError = 'No se encontró modelo 3D para este monumento.';
       });
+      _scheduleErrorDismissal();
       return;
     }
 
     setState(() {
       _isLoadingModel = true;
       _loadError = null;
+      _retryCount = 0;
     });
 
     if (webObjectNode != null) {
       await arObjectManager?.removeNode(webObjectNode!);
       webObjectNode = null;
+      // también remover anchor si existe
+      if (_currentAnchor != null) {
+        try {
+          await arAnchorManager?.removeAnchor(_currentAnchor!);
+        } catch (_) {}
+        _currentAnchor = null;
+      }
     }
 
     // Colocamos el modelo al frente y un poco más abajo de la cámara
@@ -123,7 +234,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       ..setTranslationRaw(0.0, -0.4, -0.8)
       ..rotateX(_rotationX)
       ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
 
     final newNode = ARNode(
       type: NodeType.webGLB,
@@ -136,34 +247,48 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       if (didAdd == true) {
         setState(() {
           webObjectNode = newNode;
+          _isPlanDetected = true;
         });
+        _showSnackbar('Modelo cargado correctamente');
       } else {
-        setState(() {
-          _loadError = 'No se pudo cargar el modelo 3D.';
-        });
+        _handleLoadError('No se pudo cargar el modelo 3D.');
       }
     } catch (e) {
-      setState(() {
-        _loadError = 'Error al cargar el modelo: $e';
-      });
+      _handleLoadError('Error al cargar el modelo: $e');
     } finally {
       if (mounted) {
         setState(() {
           _isLoadingModel = false;
         });
-        // Ocultar el mensaje de error automáticamente después de unos segundos
-        if (_loadError != null) {
-          Future.delayed(const Duration(seconds: 4), () {
-            if (!mounted) return;
-            if (_loadError != null) {
-              setState(() {
-                _loadError = null;
-              });
-            }
-          });
-        }
       }
     }
+  }
+
+  void _handleLoadError(String message) {
+    if (!mounted) return;
+
+    setState(() {
+      _loadError = message;
+    });
+
+    if (_retryCount < _maxRetries) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        _retryCount++;
+        _addWebObjectForMonument();
+      });
+    } else {
+      _scheduleErrorDismissal();
+    }
+  }
+
+  void _scheduleErrorDismissal() {
+    Future.delayed(const Duration(seconds: 5), () {
+      if (!mounted || _loadError == null) return;
+      setState(() {
+        _loadError = null;
+      });
+    });
   }
 
   Future<String?> _resolveModelUrl() async {
@@ -200,7 +325,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       ..setTranslationRaw(_offset.x, _offset.y, -0.8)
       ..rotateX(_rotationX)
       ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
 
     webObjectNode!.transform = transform;
   }
@@ -231,10 +356,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         userId: widget.userId,
         monumentId: widget.monument.id,
         token: widget.token,
+        tourId: widget.tourId, // Pasar tourId si está disponible
         durationMinutes: durationMinutes,
       );
       stdout.writeln(
-        'Visita registrada exitosamente: monumentId=${widget.monument.id}, duration=$durationMinutes min',
+        'Visita registrada exitosamente: monumentId=${widget.monument.id}, tourId=${widget.tourId}, duration=$durationMinutes min',
       );
     } catch (e) {
       stdout.writeln('Error al registrar visita: $e');
@@ -250,6 +376,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
+          // Vista AR principal
           GestureDetector(
             onScaleStart: (details) {
               _baseScale = _scaleFactor;
@@ -260,7 +387,6 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
             },
             onScaleUpdate: (details) {
               if (webObjectNode == null) return;
-              // Distinguimos pan de un dedo vs gesto de varios dedos
               final bool isSingleFingerPan =
                   (details.scale - 1.0).abs() < 0.02 &&
                   details.rotation.abs() < 0.02;
@@ -271,13 +397,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 final double deltaY =
                     (details.focalPoint.dy - _baseFocalPoint.dy) / 300;
 
-                // Interpretar como giro: horizontal = yaw, vertical = pitch
                 setState(() {
                   _rotationY = _baseRotationY + deltaX;
                   _rotationX = (_baseRotationX - deltaY).clamp(-1.4, 1.4);
                 });
               } else {
-                // Gesto multitáctil: zoom, rotación y pequeño desplazamiento focal
                 setState(() {
                   final newScale = _baseScale * details.scale;
                   _scaleFactor = newScale.clamp(0.1, 0.8);
@@ -297,39 +421,46 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               }
               _updateNodeTransform();
             },
-            child: ARView(
-              onARViewCreated: onARViewCreated,
-              // Habilitamos la detección de planos horizontales
-              planeDetectionConfig: PlaneDetectionConfig.horizontal,
+            child: RepaintBoundary(
+              key: _repaintKey,
+              child: ARView(
+                onARViewCreated: onARViewCreated,
+                planeDetectionConfig: PlaneDetectionConfig.horizontal,
+              ),
             ),
           ),
+
+          // Loading indicator
           if (_isLoadingModel)
             Align(
               alignment: Alignment.topCenter,
               child: SafeArea(
                 child: Container(
-                  // Lo bajamos un poco para no tapar el nombre del monumento
                   margin: const EdgeInsets.only(top: 72),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
-                    vertical: 10,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
                   ),
                   child: const Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       SizedBox(
-                        height: 18,
-                        width: 18,
+                        height: 20,
+                        width: 20,
                         child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                          color: AppColors.primary,
+                          strokeWidth: 2.5,
                         ),
                       ),
-                      SizedBox(height: 10),
+                      SizedBox(height: 12),
                       Text(
                         'Preparando experiencia AR...',
                         style: TextStyle(
@@ -338,10 +469,10 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      SizedBox(height: 6),
                       Text(
-                        'Mueve el dispositivo lentamente hasta que desaparezca la guía.',
-                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                        'Mueve el dispositivo para calibrar',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -349,30 +480,27 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
             ),
+
+          // Error message
           if (_loadError != null && !_isLoadingModel)
             Align(
               alignment: Alignment.topCenter,
               child: SafeArea(
                 child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _loadError = null;
-                    });
-                  },
+                  onTap: () => setState(() => _loadError = null),
                   child: Container(
                     margin: const EdgeInsets.only(top: 16),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
-                      vertical: 10,
+                      vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.redAccent.withOpacity(0.95),
+                      color: AppColors.danger.withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          color: AppColors.danger.withValues(alpha: 0.4),
+                          blurRadius: 12,
                         ),
                       ],
                     ),
@@ -384,13 +512,14 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                           color: Colors.white,
                           size: 18,
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Flexible(
                           child: Text(
                             _loadError!,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 12,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
@@ -400,7 +529,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
             ),
-          // Botón de regresar flotante en la esquina superior izquierda (estilizado)
+
+          // Back button
           Align(
             alignment: Alignment.topLeft,
             child: SafeArea(
@@ -408,13 +538,16 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 padding: const EdgeInsets.only(left: 12, top: 12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black54,
+                    color: Colors.black.withValues(alpha: 0.7),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.45),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 8,
-                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -432,70 +565,183 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               ),
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const SizedBox(width: 8),
-                  Expanded(
+
+          // AR Quality Indicator
+          Align(
+            alignment: Alignment.topRight,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, top: 12),
+                child: ArQualityIndicator(
+                  isTrackingActive: _isTrackingActive,
+                  isPlanDetected: _isPlanDetected,
+                  lightIntensity: _ambientLightIntensity,
+                  showDebugInfo: false,
+                ),
+              ),
+            ),
+          ),
+
+          // Monument info header (compacto, top center, sin sobreposición)
+          Align(
+            alignment: Alignment.topCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 70),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        width: 1,
+                      ),
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
                           monument.name,
-                          textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.2,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                           ),
                         ),
-                        if (monument.district != null &&
-                            monument.district!.isNotEmpty)
-                          Text(
-                            monument.district!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
+                        if ((monument.culture ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              monument.culture!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ),
                       ],
                     ),
                   ),
-                  // Botón de información con fondo circular
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.35),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: () => _showMonumentInfo(context),
-                      icon: const Icon(Icons.info_outline, color: Colors.white),
-                      padding: const EdgeInsets.all(10),
-                      constraints: const BoxConstraints(
-                        minWidth: 44,
-                        minHeight: 44,
-                      ),
-                      splashRadius: 22,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
+
+          // Control Hints (centro, cuando modelo no está cargado)
+          if (!_isLoadingModel && webObjectNode == null)
+            Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ArControlHints(
+                  isModelLoaded: webObjectNode != null,
+                  onDismiss: () => setState(() {}),
+                ),
+              ),
+            ),
+
+          // AR Action Buttons (horizontal, sin FAB menu)
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Reset button
+                      _CompactActionButton(
+                        icon: Icons.refresh_outlined,
+                        label: 'Reset',
+                        onTap: _resetModelPosition,
+                      ),
+                      const SizedBox(width: 8),
+                      // Screenshot button
+                      _CompactActionButton(
+                        icon: Icons.screenshot_monitor,
+                        label: 'Captura',
+                        onTap: _captureScreenshot,
+                      ),
+                      const SizedBox(width: 8),
+                      // Info toggle button
+                      _CompactActionButton(
+                        icon: _showInfoPanel ? Icons.info : Icons.info_outline,
+                        label: 'Info',
+                        onTap: () =>
+                            setState(() => _showInfoPanel = !_showInfoPanel),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Info Panel (flotante, minimizable, con márgenes de seguridad)
+          if (_showInfoPanel && !_isLoadingModel)
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Builder(
+                builder: (context) {
+                  final width = MediaQuery.of(context).size.width;
+                  final height = MediaQuery.of(context).size.height;
+                  final double widthFactor = width >= 800
+                      ? 0.55
+                      : (width >= 600 ? 0.75 : 0.90);
+                  final double maxHeight = height * 0.45;
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      bottom: 90,
+                      right: 12,
+                    ),
+                    child: FractionallySizedBox(
+                      widthFactor: widthFactor,
+                      alignment: Alignment.bottomLeft,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxHeight),
+                        child: ArInfoPanel(
+                          monument: monument,
+                          visible: _showInfoPanel,
+                          onDismiss: () =>
+                              setState(() => _showInfoPanel = false),
+                          showTimeline: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -507,40 +753,85 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   Future<void> _handlePlaneOrPointTap(List<ARHitTestResult> hits) async {
     if (hits.isEmpty) return;
-    final hit = hits.first;
 
-    if (webObjectNode != null) {
-      await arObjectManager?.removeNode(webObjectNode!);
-      webObjectNode = null;
-    }
+    // evitar taps múltiples en paralelo
+    if (_isAddingNode) return;
+    _isAddingNode = true;
 
-    final url = await _resolveModelUrl();
-    if (url == null || url.isEmpty) return;
+    try {
+      final hit = hits.first;
 
-    final planeAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
-    final transform = vmath.Matrix4.identity()
-      ..rotateX(_rotationX)
-      ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      // PRIMERO remover nodo anterior
+      if (webObjectNode != null) {
+        try {
+          await arObjectManager?.removeNode(webObjectNode!);
+        } catch (e) {
+          stdout.writeln('Error removiendo nodo anterior: $e');
+        }
+        webObjectNode = null;
+      }
 
-    final newNode = ARNode(
-      type: NodeType.webGLB,
-      uri: url,
-      transformation: transform,
-    );
+      // LUEGO remover el anchor anterior
+      if (_currentAnchor != null) {
+        try {
+          await arAnchorManager?.removeAnchor(_currentAnchor!);
+        } catch (e) {
+          stdout.writeln('Error removiendo anchor anterior: $e');
+        }
+        _currentAnchor = null;
+      }
 
-    final addedToAnchor = await arAnchorManager?.addAnchor(planeAnchor);
-    if (addedToAnchor != true) return;
+      // Obtener URL del modelo
+      final url = await _resolveModelUrl();
+      if (url == null || url.isEmpty) {
+        _showSnackbar('No se pudo obtener el modelo');
+        return;
+      }
 
-    final didAdd = await arObjectManager?.addNode(
-      newNode,
-      planeAnchor: planeAnchor,
-    );
+      // Crear nuevo anchor
+      final planeAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
+      final addedToAnchor = await arAnchorManager?.addAnchor(planeAnchor);
+      if (addedToAnchor != true) {
+        stdout.writeln('Error añadiendo anchor');
+        _showSnackbar('Error al posicionar el modelo');
+        return;
+      }
 
-    if (didAdd == true && mounted) {
-      setState(() {
-        webObjectNode = newNode;
-      });
+      // Guardar referencia al anchor
+      _currentAnchor = planeAnchor;
+
+      // Crear transformación para el nodo
+      final transform = vmath.Matrix4.identity()
+        ..rotateX(_rotationX)
+        ..rotateY(_rotationY)
+        ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
+
+      final newNode = ARNode(
+        type: NodeType.webGLB,
+        uri: url,
+        transformation: transform,
+      );
+
+      // Añadir nodo al anchor
+      final didAdd = await arObjectManager?.addNode(
+        newNode,
+        planeAnchor: planeAnchor,
+      );
+
+      if (didAdd == true && mounted) {
+        setState(() {
+          webObjectNode = newNode;
+        });
+        _showSnackbar('Modelo reposicionado');
+      } else {
+        stdout.writeln('Error añadiendo nodo al anchor');
+        _showSnackbar('Error al cargar el modelo en la nueva posición');
+      }
+    } catch (e) {
+      stdout.writeln('Error en handlePlaneOrPointTap: $e');
+      _showSnackbar('Error al mover el modelo');
+    } finally {
+      _isAddingNode = false;
     }
   }
 
@@ -651,6 +942,95 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   }
 }
 
+class _CompactActionButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _CompactActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  @override
+  State<_CompactActionButton> createState() => _CompactActionButtonState();
+}
+
+class _CompactActionButtonState extends State<_CompactActionButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.85,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    _controller.forward();
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    _controller.reverse();
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: () => _controller.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.85),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Icon(widget.icon, color: Colors.white, size: 18),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoItem extends StatelessWidget {
   final String label;
   final String value;
@@ -712,7 +1092,7 @@ class _PeriodTimelineCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.86),
+        color: Colors.black.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white24),
       ),
@@ -748,7 +1128,7 @@ class _PeriodTimelineCard extends StatelessWidget {
             Text(
               'Sin rango cronologico completo',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.78),
+                color: Colors.white.withValues(alpha: 0.78),
                 fontSize: 11,
               ),
             ),
@@ -825,7 +1205,7 @@ class _TimelineBar extends StatelessWidget {
                     child: Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
