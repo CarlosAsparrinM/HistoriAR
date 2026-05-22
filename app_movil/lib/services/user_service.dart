@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:app_movil/config/environment.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:app_movil/config/environment.dart';
 import '../models/user.dart';
 
 class UserService {
@@ -66,18 +66,19 @@ class UserService {
 
   /// Actualiza el perfil del usuario
   Future<User> updateProfile({
-    required String userId,
     required String token,
     String? name,
     String? email,
     String? profileImage,
+    String? district,
   }) async {
-    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/$userId');
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
 
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
     if (email != null) body['email'] = email;
     if (profileImage != null) body['profileImage'] = profileImage;
+    if (district != null) body['district'] = district;
 
     final response = await http.put(
       uri,
@@ -102,6 +103,32 @@ class UserService {
       } catch (_) {}
       throw Exception(message);
     }
+  }
+
+  /// Elimina totalmente la cuenta del usuario autenticado
+  Future<void> deleteMyAccount(String token) async {
+    final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
+
+    final response = await http.delete(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+    );
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return;
+    }
+
+    String message = 'Error al eliminar la cuenta';
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['message'] is String) {
+        message = data['message'] as String;
+      }
+    } catch (_) {}
+    throw Exception(message);
   }
 
   /// Lista todos los usuarios (solo admin)

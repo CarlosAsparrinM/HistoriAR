@@ -45,4 +45,9 @@ class Environment {
 
   /// Verificar si está en modo producción
   static bool isProduction() => environment == 'production';
+
+  /// Google OAuth Client ID (web client) para obtener idToken en Android
+  static String get googleClientId {
+    return dotenv.env['GOOGLE_CLIENT_ID'] ?? '';
+  }
 }
