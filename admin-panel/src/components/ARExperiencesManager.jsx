@@ -47,11 +47,9 @@ import {
 import PropTypes from 'prop-types';
 import ModelUpload from './ModelUpload';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import apiService from '../services/api';
 import {
   useMonuments,
   useMonumentById,
-  useUploadModelVersion,
   useActivateModelVersion,
   useModelVersions,
   useDeleteModelVersion,
@@ -226,7 +224,7 @@ function ARExperiencesManager() {
   const versionsQuery = useModelVersions(selectedMonument?._id);
 
   useEffect(() => {
-    setLoading(versionsQuery.isLoading || loading);
+    setLoading(versionsQuery.isLoading);
     if (versionsQuery.data) {
       const versionsList = versionsQuery.data.versions || versionsQuery.data.items || versionsQuery.data || [];
       setVersions(Array.isArray(versionsList) ? versionsList : []);
@@ -251,22 +249,6 @@ function ARExperiencesManager() {
     setView('list');
     setSelectedMonument(null);
     navigate('/ar-experiences');
-  };
-
-  // Load model versions for selected monument
-  const loadVersions = async (monumentId) => {
-    try {
-      setLoading(true);
-      const response = await apiService.getModelVersions(monumentId);
-      const versionsList = response.versions || response.items || response || [];
-      setVersions(Array.isArray(versionsList) ? versionsList : []);
-    } catch (error) {
-      console.error('Error loading versions:', error);
-      showNotification('error', 'Error al cargar versiones');
-      setVersions([]);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const showNotification = (type, message) => {
@@ -369,8 +351,6 @@ function ARExperiencesManager() {
       setActionLoading(null);
     }
   };
-
-  const uploadMutation = useUploadModelVersion();
 
   const handleUploadComplete = async () => {
     setShowUpload(false);
