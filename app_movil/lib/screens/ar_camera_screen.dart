@@ -49,6 +49,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   ARSessionManager? arSessionManager;
   ARObjectManager? arObjectManager;
   ARAnchorManager? arAnchorManager;
+  ARAnchor? _currentAnchor;
   ARNode? webObjectNode;
   final GlobalKey _repaintKey = GlobalKey();
 
@@ -79,6 +80,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   static const int _maxRetries = 3;
   int _frameCounter = 0;
   late Stopwatch _frameStopwatch;
+  bool _isAddingNode = false;
 
   @override
   void initState() {
@@ -186,8 +188,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     this.arAnchorManager = arAnchorManager;
 
     this.arSessionManager!.onInitialize(
-      showFeaturePoints: true,
-      showPlanes: true,
+      showFeaturePoints: false,
+      showPlanes: false,
       customPlaneTexturePath: "Images/triangle.png",
       showWorldOrigin: false,
       handleTaps: true,
@@ -219,6 +221,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     if (webObjectNode != null) {
       await arObjectManager?.removeNode(webObjectNode!);
       webObjectNode = null;
+      // también remover anchor si existe
+      if (_currentAnchor != null) {
+        try {
+          await arAnchorManager?.removeAnchor(_currentAnchor!);
+        } catch (_) {}
+        _currentAnchor = null;
+      }
     }
 
     // Colocamos el modelo al frente y un poco más abajo de la cámara
@@ -574,61 +583,76 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
             ),
           ),
 
-          // Monument info header
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
+          // Monument info header (compacto, top center)
+          Align(
+            alignment: Alignment.topCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              monument.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: -0.2,
-                              ),
-                            ),
-                            if ((monument.culture ?? '').isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  monument.culture!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                          ],
+                      Text(
+                        monument.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
                         ),
                       ),
+                      if ((monument.culture ?? '').isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            monument.culture!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
 
-          // Control Hints
+          // Control Hints (centro, cuando modelo no está cargado)
           if (!_isLoadingModel && webObjectNode == null)
-            Center(
-              child: ArControlHints(
-                isModelLoaded: webObjectNode != null,
-                onDismiss: () => setState(() {}),
+            Align(
+              alignment: Alignment.center,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ArControlHints(
+                  isModelLoaded: webObjectNode != null,
+                  onDismiss: () => setState(() {}),
+                ),
               ),
             ),
 
@@ -640,15 +664,40 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
             onClose: _onBackPressed,
           ),
 
-          // Info Panel (flotante, minimizable)
+          // Info Panel (flotante, minimizable, con márgenes)
           if (_showInfoPanel && !_isLoadingModel)
             Align(
               alignment: Alignment.bottomLeft,
-              child: ArInfoPanel(
-                monument: monument,
-                visible: _showInfoPanel,
-                onDismiss: () => setState(() => _showInfoPanel = false),
-                showTimeline: true,
+              child: Builder(
+                builder: (context) {
+                  final width = MediaQuery.of(context).size.width;
+                  final height = MediaQuery.of(context).size.height;
+                  final double widthFactor = width >= 800
+                      ? 0.55
+                      : (width >= 600 ? 0.75 : 0.95);
+                  final double maxHeight = height * 0.5;
+                  return Padding(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      bottom: 100,
+                      right: 12,
+                    ),
+                    child: FractionallySizedBox(
+                      widthFactor: widthFactor,
+                      alignment: Alignment.bottomLeft,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxHeight),
+                        child: ArInfoPanel(
+                          monument: monument,
+                          visible: _showInfoPanel,
+                          onDismiss: () =>
+                              setState(() => _showInfoPanel = false),
+                          showTimeline: true,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
         ],
@@ -662,40 +711,85 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   Future<void> _handlePlaneOrPointTap(List<ARHitTestResult> hits) async {
     if (hits.isEmpty) return;
-    final hit = hits.first;
 
-    if (webObjectNode != null) {
-      await arObjectManager?.removeNode(webObjectNode!);
-      webObjectNode = null;
-    }
+    // evitar taps múltiples en paralelo
+    if (_isAddingNode) return;
+    _isAddingNode = true;
 
-    final url = await _resolveModelUrl();
-    if (url == null || url.isEmpty) return;
+    try {
+      final hit = hits.first;
 
-    final planeAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
-    final transform = vmath.Matrix4.identity()
-      ..rotateX(_rotationX)
-      ..rotateY(_rotationY)
-      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
+      // PRIMERO remover nodo anterior
+      if (webObjectNode != null) {
+        try {
+          await arObjectManager?.removeNode(webObjectNode!);
+        } catch (e) {
+          stdout.writeln('Error removiendo nodo anterior: $e');
+        }
+        webObjectNode = null;
+      }
 
-    final newNode = ARNode(
-      type: NodeType.webGLB,
-      uri: url,
-      transformation: transform,
-    );
+      // LUEGO remover el anchor anterior
+      if (_currentAnchor != null) {
+        try {
+          await arAnchorManager?.removeAnchor(_currentAnchor!);
+        } catch (e) {
+          stdout.writeln('Error removiendo anchor anterior: $e');
+        }
+        _currentAnchor = null;
+      }
 
-    final addedToAnchor = await arAnchorManager?.addAnchor(planeAnchor);
-    if (addedToAnchor != true) return;
+      // Obtener URL del modelo
+      final url = await _resolveModelUrl();
+      if (url == null || url.isEmpty) {
+        _showSnackbar('No se pudo obtener el modelo');
+        return;
+      }
 
-    final didAdd = await arObjectManager?.addNode(
-      newNode,
-      planeAnchor: planeAnchor,
-    );
+      // Crear nuevo anchor
+      final planeAnchor = ARPlaneAnchor(transformation: hit.worldTransform);
+      final addedToAnchor = await arAnchorManager?.addAnchor(planeAnchor);
+      if (addedToAnchor != true) {
+        stdout.writeln('Error añadiendo anchor');
+        _showSnackbar('Error al posicionar el modelo');
+        return;
+      }
 
-    if (didAdd == true && mounted) {
-      setState(() {
-        webObjectNode = newNode;
-      });
+      // Guardar referencia al anchor
+      _currentAnchor = planeAnchor;
+
+      // Crear transformación para el nodo
+      final transform = vmath.Matrix4.identity()
+        ..rotateX(_rotationX)
+        ..rotateY(_rotationY)
+        ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
+
+      final newNode = ARNode(
+        type: NodeType.webGLB,
+        uri: url,
+        transformation: transform,
+      );
+
+      // Añadir nodo al anchor
+      final didAdd = await arObjectManager?.addNode(
+        newNode,
+        planeAnchor: planeAnchor,
+      );
+
+      if (didAdd == true && mounted) {
+        setState(() {
+          webObjectNode = newNode;
+        });
+        _showSnackbar('Modelo reposicionado');
+      } else {
+        stdout.writeln('Error añadiendo nodo al anchor');
+        _showSnackbar('Error al cargar el modelo en la nueva posición');
+      }
+    } catch (e) {
+      stdout.writeln('Error en handlePlaneOrPointTap: $e');
+      _showSnackbar('Error al mover el modelo');
+    } finally {
+      _isAddingNode = false;
     }
   }
 
