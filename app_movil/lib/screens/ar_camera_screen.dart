@@ -25,12 +25,14 @@ class ArCameraScreen extends StatefulWidget {
   final Monument monument;
   final String token;
   final String userId;
+  final String? tourId; // Nuevo: ID del tour al que pertenece (opcional)
 
   const ArCameraScreen({
     super.key,
     required this.monument,
     required this.token,
     required this.userId,
+    this.tourId,
   });
 
   @override
@@ -231,10 +233,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         userId: widget.userId,
         monumentId: widget.monument.id,
         token: widget.token,
+        tourId: widget.tourId, // Pasar tourId si está disponible
         durationMinutes: durationMinutes,
       );
       stdout.writeln(
-        'Visita registrada exitosamente: monumentId=${widget.monument.id}, duration=$durationMinutes min',
+        'Visita registrada exitosamente: monumentId=${widget.monument.id}, tourId=${widget.tourId}, duration=$durationMinutes min',
       );
     } catch (e) {
       stdout.writeln('Error al registrar visita: $e');

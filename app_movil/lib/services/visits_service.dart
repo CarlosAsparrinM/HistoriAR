@@ -46,6 +46,7 @@ class VisitsService {
     required String userId,
     required String monumentId,
     required String token,
+    String? tourId, // Nuevo: tour al que pertenece esta visita (opcional)
     int? durationMinutes,
     String? device,
   }) async {
@@ -56,6 +57,7 @@ class VisitsService {
       'monumentId': monumentId,
       'duration': durationMinutes,
       'device': device ?? _getPlatformDevice(),
+      if (tourId != null) 'tourId': tourId, // Incluir si se proporciona
     };
 
     final response = await http.post(

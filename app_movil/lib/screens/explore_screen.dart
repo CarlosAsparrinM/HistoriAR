@@ -697,7 +697,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   ),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Center(
                                         child: Container(
@@ -754,8 +755,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           const SizedBox(width: 12),
                                           Expanded(
                                             child: ElevatedButton(
-                                              onPressed: () =>
-                                                  Navigator.of(context).pop(true),
+                                              onPressed: () => Navigator.of(
+                                                context,
+                                              ).pop(true),
                                               style: ElevatedButton.styleFrom(
                                                 backgroundColor:
                                                     AppColors.primary,

@@ -188,8 +188,12 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            ArCameraScreen(monument: monument, token: token, userId: userId),
+        builder: (_) => ArCameraScreen(
+          monument: monument,
+          token: token,
+          userId: userId,
+          tourId: _selectedTour?.id, // Pasar tourId del tour seleccionado
+        ),
       ),
     );
 

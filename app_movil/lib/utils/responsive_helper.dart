@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 /// Proporciona métodos para detectar tamaños de pantalla y aplicar layouts adaptativos
 class ResponsiveHelper {
   /// Tamaños de breakpoints (en dp)
-  static const double smallBreakpoint = 600;    // Phones
-  static const double mediumBreakpoint = 900;   // Tablets
-  static const double largeBreakpoint = 1200;   // Desktop
+  static const double smallBreakpoint = 600; // Phones
+  static const double mediumBreakpoint = 900; // Tablets
+  static const double largeBreakpoint = 1200; // Desktop
 
   /// Detecta el tamaño de pantalla basado en ancho
   static ScreenSize getScreenSize(BuildContext context) {
@@ -112,7 +112,10 @@ class AccessibilityInfo {
 
   /// Retorna true si el usuario tiene configuración de accesibilidad activa
   bool hasAccessibilityNeeds() {
-    return boldText || highContrast || disableAnimations || textScaleFactor > 1.0;
+    return boldText ||
+        highContrast ||
+        disableAnimations ||
+        textScaleFactor > 1.0;
   }
 }
 
@@ -123,11 +126,11 @@ class ResponsiveContainer extends StatelessWidget {
   final Color? backgroundColor;
 
   const ResponsiveContainer({
-    Key? key,
+    super.key,
     required this.child,
     this.padding,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -155,10 +158,10 @@ class AccessibleText extends StatelessWidget {
 
   const AccessibleText(
     this.text, {
-    Key? key,
+    super.key,
     this.style,
     this.backgroundColor,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -166,14 +169,9 @@ class AccessibleText extends StatelessWidget {
 
     // Si usuario tiene boldText habilitado, aplicar fontWeight extra
     final finalStyle = (style ?? const TextStyle()).copyWith(
-      fontWeight: accessibility.boldText
-          ? FontWeight.bold
-          : style?.fontWeight,
+      fontWeight: accessibility.boldText ? FontWeight.bold : style?.fontWeight,
     );
 
-    return Text(
-      text,
-      style: finalStyle,
-    );
+    return Text(text, style: finalStyle);
   }
 }
