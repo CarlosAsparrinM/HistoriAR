@@ -1,4 +1,4 @@
-package com.example.app_movil
+package com.historiar.app
 
 import io.flutter.embedding.android.FlutterActivity
 

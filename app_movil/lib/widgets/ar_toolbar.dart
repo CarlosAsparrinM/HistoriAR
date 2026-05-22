@@ -56,7 +56,7 @@ class _ArToolbarState extends State<ArToolbar>
     return Align(
       alignment: Alignment.bottomRight,
       child: Padding(
-        padding: const EdgeInsets.only(right: 16, bottom: 24),
+        padding: const EdgeInsets.only(right: 20, bottom: 32),
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -166,10 +166,12 @@ class _ArToolbarState extends State<ArToolbar>
                   onPressed: _toggleExpanded,
                   backgroundColor: AppColors.primary,
                   elevation: _isExpanded ? 2 : 6,
+                  shape: const CircleBorder(),
                   child: AnimatedIcon(
                     icon: AnimatedIcons.menu_close,
                     progress: _animationController,
                     color: Colors.white,
+                    size: 26,
                   ),
                 ),
               ),

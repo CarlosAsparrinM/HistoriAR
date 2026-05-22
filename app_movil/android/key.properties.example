@@ -1,0 +1,21 @@
+# Android release signing template (Google Play)
+#
+# 1) Copy this file to android/key.properties
+# 2) Fill with real values
+# 3) Keep android/key.properties and keystore out of git
+#
+# Expected keystore location for this project:
+# app_movil/android/upload-keystore.jks
+#
+# Build command:
+# flutter build appbundle --release
+#
+# Signature validation command:
+# "C:\Program Files\Java\jdk-21\bin\jarsigner.exe" -verify -verbose -certs build\app\outputs\bundle\release\app-release.aab
+#
+# Current recommended alias:
+# upload
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=upload
+storeFile=../upload-keystore.jks

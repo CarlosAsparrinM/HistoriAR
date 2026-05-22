@@ -25,7 +25,6 @@ import '../styles/app_colors.dart';
 import '../widgets/ar_control_hints.dart';
 import '../widgets/ar_info_panel.dart';
 import '../widgets/ar_quality_indicator.dart';
-import '../widgets/ar_toolbar.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
@@ -583,60 +582,60 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
             ),
           ),
 
-          // Monument info header (compacto, top center)
+          // Monument info header (compacto, top center, sin sobreposición)
           Align(
             alignment: Alignment.topCenter,
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.2),
-                      width: 1,
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 70),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        monument.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -0.2,
-                        ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.25),
+                        width: 1,
                       ),
-                      if ((monument.culture ?? '').isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            monument.culture!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
-                            ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          monument.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.2,
                           ),
                         ),
-                    ],
+                        if ((monument.culture ?? '').isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              monument.culture!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -656,15 +655,58 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               ),
             ),
 
-          // AR Toolbar (FAB menu)
-          ArToolbar(
-            onReset: _resetModelPosition,
-            onScreenshot: _captureScreenshot,
-            onInfo: () => setState(() => _showInfoPanel = !_showInfoPanel),
-            onClose: _onBackPressed,
+          // AR Action Buttons (horizontal, sin FAB menu)
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Reset button
+                      _CompactActionButton(
+                        icon: Icons.refresh_outlined,
+                        label: 'Reset',
+                        onTap: _resetModelPosition,
+                      ),
+                      const SizedBox(width: 8),
+                      // Screenshot button
+                      _CompactActionButton(
+                        icon: Icons.screenshot_monitor,
+                        label: 'Captura',
+                        onTap: _captureScreenshot,
+                      ),
+                      const SizedBox(width: 8),
+                      // Info toggle button
+                      _CompactActionButton(
+                        icon: _showInfoPanel ? Icons.info : Icons.info_outline,
+                        label: 'Info',
+                        onTap: () =>
+                            setState(() => _showInfoPanel = !_showInfoPanel),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
 
-          // Info Panel (flotante, minimizable, con márgenes)
+          // Info Panel (flotante, minimizable, con márgenes de seguridad)
           if (_showInfoPanel && !_isLoadingModel)
             Align(
               alignment: Alignment.bottomLeft,
@@ -674,12 +716,12 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                   final height = MediaQuery.of(context).size.height;
                   final double widthFactor = width >= 800
                       ? 0.55
-                      : (width >= 600 ? 0.75 : 0.95);
-                  final double maxHeight = height * 0.5;
+                      : (width >= 600 ? 0.75 : 0.90);
+                  final double maxHeight = height * 0.45;
                   return Padding(
                     padding: const EdgeInsets.only(
                       left: 12,
-                      bottom: 100,
+                      bottom: 90,
                       right: 12,
                     ),
                     child: FractionallySizedBox(
@@ -897,6 +939,95 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     final month = date.month.toString().padLeft(2, '0');
     final year = date.year.toString();
     return '$day/$month/$year';
+  }
+}
+
+class _CompactActionButton extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _CompactActionButton({
+    required this.icon,
+    required this.label,
+    this.onTap,
+  });
+
+  @override
+  State<_CompactActionButton> createState() => _CompactActionButtonState();
+}
+
+class _CompactActionButtonState extends State<_CompactActionButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 100),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.85,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    _controller.forward();
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    _controller.reverse();
+    widget.onTap?.call();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: () => _controller.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.85),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+              child: Icon(widget.icon, color: Colors.white, size: 18),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
