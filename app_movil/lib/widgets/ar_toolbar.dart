@@ -25,7 +25,6 @@ class ArToolbar extends StatefulWidget {
 class _ArToolbarState extends State<ArToolbar>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
-  late Animation<double> _scaleAnimation;
   bool _isExpanded = false;
 
   @override
@@ -34,9 +33,6 @@ class _ArToolbarState extends State<ArToolbar>
     _animationController = AnimationController(
       duration: const Duration(milliseconds: 320),
       vsync: this,
-    );
-    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
     );
   }
 
@@ -240,15 +236,15 @@ class _ActionButtonState extends State<_ActionButton>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.8),
+            color: Colors.black.withValues(alpha: 0.8),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.primary.withOpacity(0.5),
+              color: AppColors.primary.withValues(alpha: 0.5),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withOpacity(0.2),
+                color: AppColors.primary.withValues(alpha: 0.2),
                 blurRadius: 8,
               ),
             ],

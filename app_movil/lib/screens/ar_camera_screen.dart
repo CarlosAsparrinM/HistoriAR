@@ -15,12 +15,17 @@ import 'package:ar_flutter_plugin_plus/models/ar_anchor.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:http/http.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/ar_control_hints.dart';
+import '../widgets/ar_info_panel.dart';
+import '../widgets/ar_quality_indicator.dart';
+import '../widgets/ar_toolbar.dart';
 
 class ArCameraScreen extends StatefulWidget {
   final Monument monument;
@@ -164,7 +169,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         content: Text(message),
         duration: const Duration(seconds: 2),
         behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.black.withOpacity(0.8),
+        backgroundColor: Colors.black.withValues(alpha: 0.8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
@@ -221,7 +226,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       ..setTranslationRaw(0.0, -0.4, -0.8)
       ..rotateX(_rotationX)
       ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
 
     final newNode = ARNode(
       type: NodeType.webGLB,
@@ -312,7 +317,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       ..setTranslationRaw(_offset.x, _offset.y, -0.8)
       ..rotateX(_rotationX)
       ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
 
     webObjectNode!.transform = transform;
   }
@@ -429,10 +434,10 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                     vertical: 12,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
+                    color: Colors.black.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       width: 1,
                     ),
                   ),
@@ -482,11 +487,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.danger.withOpacity(0.95),
+                      color: AppColors.danger.withValues(alpha: 0.95),
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.danger.withOpacity(0.4),
+                          color: AppColors.danger.withValues(alpha: 0.4),
                           blurRadius: 12,
                         ),
                       ],
@@ -525,15 +530,15 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 padding: const EdgeInsets.only(left: 12, top: 12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.7),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.primary.withOpacity(0.3),
+                      color: AppColors.primary.withValues(alpha: 0.3),
                       width: 1,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         blurRadius: 8,
                       ),
                     ],
@@ -671,7 +676,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     final transform = vmath.Matrix4.identity()
       ..rotateX(_rotationX)
       ..rotateY(_rotationY)
-      ..scale(_scaleFactor);
+      ..scaleByDouble(_scaleFactor, _scaleFactor, _scaleFactor, 1.0);
 
     final newNode = ARNode(
       type: NodeType.webGLB,
@@ -862,7 +867,7 @@ class _PeriodTimelineCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.86),
+        color: Colors.black.withValues(alpha: 0.86),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white24),
       ),
@@ -898,7 +903,7 @@ class _PeriodTimelineCard extends StatelessWidget {
             Text(
               'Sin rango cronologico completo',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.78),
+                color: Colors.white.withValues(alpha: 0.78),
                 fontSize: 11,
               ),
             ),
@@ -975,7 +980,7 @@ class _TimelineBar extends StatelessWidget {
                     child: Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.18),
+                        color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),

@@ -53,12 +53,6 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
     return 'Tracking activo';
   }
 
-  IconData _getTrackingIcon() {
-    if (!widget.isTrackingActive) return Icons.error_outline;
-    if (!widget.isPlanDetected) return Icons.hourglass_bottom;
-    return Icons.check_circle;
-  }
-
   @override
   Widget build(BuildContext context) {
     final trackingColor = _getTrackingColor();
@@ -70,10 +64,10 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.7),
+            color: Colors.black.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: trackingColor.withOpacity(0.6),
+              color: trackingColor.withValues(alpha: 0.6),
               width: 1.5,
             ),
           ),
@@ -92,8 +86,8 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
                       boxShadow: [
                         if (widget.isTrackingActive && widget.isPlanDetected)
                           BoxShadow(
-                            color: trackingColor.withOpacity(
-                              0.5 + 0.5 * (1 - _pulseController.value),
+                            color: trackingColor.withValues(
+                              alpha: 0.5 + 0.5 * (1 - _pulseController.value),
                             ),
                             blurRadius: 8 * _pulseController.value,
                             spreadRadius: 2 * _pulseController.value,
@@ -120,10 +114,10 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.6),
+              color: Colors.black.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withValues(alpha: 0.2),
                 width: 1,
               ),
             ),
@@ -142,8 +136,9 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
                 _DebugRow(
                   label: 'Plano detectado',
                   value: widget.isPlanDetected ? 'Sí' : 'No',
-                  color:
-                      widget.isPlanDetected ? AppColors.success : AppColors.warning,
+                  color: widget.isPlanDetected
+                      ? AppColors.success
+                      : AppColors.warning,
                 ),
               ],
             ),
@@ -173,7 +168,7 @@ class _DebugRow extends StatelessWidget {
         Text(
           '$label: ',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),

@@ -8,6 +8,7 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
+import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
@@ -23,6 +24,7 @@ class MyTourScreen extends StatefulWidget {
 
 class _MyTourScreenState extends State<MyTourScreen> {
   final ToursService _toursService = const ToursService();
+  final SessionsService _sessionsService = const SessionsService();
 
   bool _isLoading = true;
   String? _error;
@@ -32,6 +34,8 @@ class _MyTourScreenState extends State<MyTourScreen> {
   List<TourItem> _tours = [];
   TourItem? _selectedTour;
   Position? _currentPosition;
+  String? _currentSessionId;
+  bool _isSessionLoading = false;
 
   @override
   void initState() {
@@ -295,6 +299,56 @@ class _MyTourScreenState extends State<MyTourScreen> {
     }
   }
 
+  Future<void> _startTour() async {
+    final token = authState.token;
+    final tourId = _selectedTour?.id;
+    if (token.isEmpty || tourId == null) return;
+
+    setState(() => _isSessionLoading = true);
+    try {
+      final resp = await _sessionsService.startSession(
+        tourId: tourId,
+        token: token,
+      );
+      final id = resp['id'] as String? ?? resp['session']?['_id'] as String?;
+      setState(() {
+        _currentSessionId = id;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tour iniciado')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al iniciar tour: $e')));
+    } finally {
+      if (mounted) setState(() => _isSessionLoading = false);
+    }
+  }
+
+  Future<void> _stopTour() async {
+    final token = authState.token;
+    final sessionId = _currentSessionId;
+    if (token.isEmpty || sessionId == null) return;
+
+    setState(() => _isSessionLoading = true);
+    try {
+      await _sessionsService.stopSession(sessionId: sessionId, token: token);
+      setState(() {
+        _currentSessionId = null;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Tour finalizado')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error al finalizar tour: $e')));
+    } finally {
+      if (mounted) setState(() => _isSessionLoading = false);
+    }
+  }
+
   Future<void> _openQuiz(Monument monument) async {
     final token = authState.token;
     if (token.isEmpty) {
@@ -538,6 +592,33 @@ class _MyTourScreenState extends State<MyTourScreen> {
                 _InfoPill(
                   label: tour.isActive ? 'Activo' : 'Inactivo',
                   icon: tour.isActive ? Icons.check_circle : Icons.pause_circle,
+                ),
+                const SizedBox(width: 8),
+                // Botón iniciar/finalizar tour
+                Builder(
+                  builder: (ctx) {
+                    final isActive = _currentSessionId != null;
+                    return ElevatedButton(
+                      onPressed: _isSessionLoading
+                          ? null
+                          : () async {
+                              if (isActive) {
+                                await _stopTour();
+                              } else {
+                                await _startTour();
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isActive
+                            ? Colors.redAccent
+                            : AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(isActive ? 'Finalizar Tour' : 'Iniciar Tour'),
+                    );
+                  },
                 ),
               ],
             ),

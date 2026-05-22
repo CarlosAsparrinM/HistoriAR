@@ -78,23 +78,24 @@ class _ArInfoPanelState extends State<ArInfoPanel>
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeInOutCubic,
           child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.primary.withOpacity(0.3),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.5),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.9),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                width: 1,
               ),
-            ],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: _isExpanded ? _buildExpanded() : _buildCollapsed(),
           ),
-          child: _isExpanded ? _buildExpanded() : _buildCollapsed(),
         ),
       ),
     );
@@ -144,7 +145,10 @@ class _ArInfoPanelState extends State<ArInfoPanel>
                     ],
                   ),
                 ),
-                Icon(Icons.expand_less, color: Colors.white.withOpacity(0.7)),
+                Icon(
+                  Icons.expand_less,
+                  color: Colors.white.withValues(alpha: 0.7),
+                ),
               ],
             ),
           ],
@@ -184,7 +188,7 @@ class _ArInfoPanelState extends State<ArInfoPanel>
                           child: Text(
                             '📍 ${monument.district}',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.7),
+                              color: Colors.white.withValues(alpha: 0.7),
                               fontSize: 12,
                             ),
                           ),
@@ -196,7 +200,7 @@ class _ArInfoPanelState extends State<ArInfoPanel>
                   onTap: () => setState(() => _isExpanded = false),
                   child: Icon(
                     Icons.expand_more,
-                    color: Colors.white.withOpacity(0.7),
+                    color: Colors.white.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -215,7 +219,7 @@ class _ArInfoPanelState extends State<ArInfoPanel>
             Text(
               monument.description,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 fontSize: 13,
                 height: 1.5,
               ),
@@ -282,9 +286,12 @@ class _ArInfoPanelState extends State<ArInfoPanel>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
+        color: Colors.black.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+          width: 1,
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -297,7 +304,7 @@ class _ArInfoPanelState extends State<ArInfoPanel>
               Text(
                 'Línea de tiempo',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -310,9 +317,9 @@ class _ArInfoPanelState extends State<ArInfoPanel>
             child: LinearProgressIndicator(
               value: _calculateTimelineProgress(monument),
               minHeight: 6,
-              backgroundColor: Colors.white.withOpacity(0.1),
+              backgroundColor: Colors.white.withValues(alpha: 0.1),
               valueColor: AlwaysStoppedAnimation<Color>(
-                AppColors.primary.withOpacity(0.8),
+                AppColors.primary.withValues(alpha: 0.8),
               ),
             ),
           ),
@@ -324,14 +331,14 @@ class _ArInfoPanelState extends State<ArInfoPanel>
                 Text(
                   '${monument.periodStartYear}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 10,
                   ),
                 ),
                 Text(
                   '${monument.periodEndYear}',
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 10,
                   ),
                 ),
@@ -352,7 +359,6 @@ class _ArInfoPanelState extends State<ArInfoPanel>
 
     if (totalSpan <= 0) return 0.5;
 
-    final safeStart = start <= end ? start : end;
     final safeEnd = start <= end ? end : start;
 
     final progress = ((safeEnd - timelineStart) / totalSpan).clamp(0.0, 1.0);
@@ -371,9 +377,12 @@ class _InfoBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.15),
+        color: AppColors.primary.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.primary.withOpacity(0.3), width: 1),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,7 +391,7 @@ class _InfoBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
+              color: Colors.white.withValues(alpha: 0.7),
               fontSize: 10,
               fontWeight: FontWeight.w600,
             ),
