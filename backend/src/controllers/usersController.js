@@ -87,6 +87,7 @@ export async function updateMyProfile(req, res) {
     const payload = {};
     if (typeof req.body?.name === 'string') payload.name = req.body.name;
     if (typeof req.body?.email === 'string') payload.email = req.body.email;
+    if (typeof req.body?.district === 'string') payload.district = req.body.district;
 
     const avatar = req.body?.profileImage ?? req.body?.avatarUrl;
     if (typeof avatar === 'string') payload.avatarUrl = avatar;

@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:app_movil/config/environment.dart';
 import 'package:app_movil/models/visit.dart';
-import 'package:http/http.dart' as http;
+import '../utils/http_interceptor.dart' as http;
 
 class VisitsService {
   const VisitsService();

@@ -32,6 +32,15 @@ export async function registerUser(data) {
 export async function loginUser(email, password) {
   const user = await User.findOne({ email });
   if (!user || !user.password) throw new Error('Credenciales inválidas');
+  
+  // Validar estado
+  if (user.status === 'Eliminado') {
+    throw new Error('Esta cuenta ha sido eliminada.');
+  }
+  if (user.status === 'Suspendido') {
+    throw new Error('Esta cuenta está suspendida.');
+  }
+
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) throw new Error('Credenciales inválidas');
 
@@ -100,10 +109,17 @@ export async function loginWithGoogle(idToken) {
       // Si falla la creación, probablemente sea un error de base de datos
       throw new Error(`No se pudo crear el usuario: ${err.message}`);
     }
-  } else if (!user.password) {
-    // Usuario existe pero se registró con Google previamente
-    // Actualizar avatar si es necesario
-    if (picture && !user.avatarUrl) {
+  } else {
+    // Validar estado
+    if (user.status === 'Eliminado') {
+      throw new Error('Esta cuenta ha sido eliminada.');
+    }
+    if (user.status === 'Suspendido') {
+      throw new Error('Esta cuenta está suspendida.');
+    }
+    
+    // Usuario existe y está activo
+    if (!user.password && picture && !user.avatarUrl) {
       user.avatarUrl = picture;
       await user.save();
     }

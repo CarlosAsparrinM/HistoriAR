@@ -5,6 +5,8 @@ import 'screens/auth_gate.dart';
 import 'services/local_notification_service.dart';
 import 'styles/app_theme.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
@@ -20,6 +22,7 @@ class HistoriARApp extends StatelessWidget {
     return MaterialApp(
       title: 'HistoriAR',
       theme: AppTheme.light,
+      navigatorKey: navigatorKey,
       home: const AuthGate(),
     );
   }

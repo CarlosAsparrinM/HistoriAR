@@ -21,6 +21,7 @@ export async function listToursController(req, res) {
     const filters = {
       institutionId: req.query.institutionId,
       type: req.query.type,
+      district: req.query.district,
       isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined
     };
     

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:http/http.dart' as http;
+import '../utils/http_interceptor.dart' as http;
 
 class AuthService {
   static const String _basePath = '/api/auth';

@@ -16,6 +16,8 @@ import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
+import '../services/sessions_service.dart';
+import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
@@ -33,6 +35,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
   final MonumentsService _monumentsService = MonumentsService();
   final LocationService _locationService = const LocationService();
   final AppSettingsService _settingsService = AppSettingsService();
+  final SessionsService _sessionsService = const SessionsService();
+  final ToursService _toursService = const ToursService();
+
+  String? _activeSessionId;
+  Set<String> _visitedMonumentIds = {};
+  TourItem? _activeTour;
 
   static const LatLng _initialCenter = LatLng(-12.046374, -77.042793);
   double _zoom = 14;
@@ -66,6 +74,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _initializeScreen() async {
     _settings = await _settingsService.load();
     await _loadMonuments();
+    await _restoreActiveTourSession();
 
     // Cargar contexto de ubicación/tours guardado localmente si existe
     try {
@@ -227,10 +236,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
   ) async {
     if (!_settings.nearbyNotificationsEnabled || nearby.isEmpty) return;
 
+    final activeTourMonumentIds = _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
+    final monumentosNotificables = _activeSessionId != null 
+        ? nearby.where((m) => activeTourMonumentIds.contains(m.id)).toList()
+        : nearby;
+
+    if (monumentosNotificables.isEmpty) return;
+
     final nearbyLimit = _settings.nearbyNotificationDistancePreset.meters;
     Monument? candidate;
 
-    for (final monument in nearby) {
+    for (final monument in monumentosNotificables) {
       final distance = _distanceInMeters(currentPosition, monument.position);
       if (distance <= nearbyLimit) {
         candidate = monument;
@@ -329,6 +345,81 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _animateMapTo(target: center, targetZoom: targetZoom);
   }
 
+  Future<void> _restoreActiveTourSession() async {
+    final token = authState.token;
+    if (token.isEmpty) return;
+
+    try {
+      final sessions = await _sessionsService.getMySessions(
+        token: token,
+        limit: 50,
+      );
+      final activeSession = sessions.cast<Map<String, dynamic>?>().firstWhere((
+        session,
+      ) {
+        if (session == null) return false;
+        final completedAt = session['completedAt'];
+        return completedAt == null || completedAt.toString().isEmpty;
+      }, orElse: () => null);
+
+      if (activeSession == null) {
+        if (mounted) {
+          setState(() {
+            _activeSessionId = null;
+            _visitedMonumentIds.clear();
+            _activeTour = null;
+          });
+        }
+        return;
+      }
+
+      final activeSessionId = activeSession['_id']?.toString();
+      final activeTourId = _extractTourIdFromSession(activeSession);
+      
+      final stopsVisited = activeSession['stopsVisited'] as List<dynamic>?;
+      final visitedIds = <String>{};
+      if (stopsVisited != null) {
+        for (final stop in stopsVisited) {
+          final mId = stop['monumentId'];
+          if (mId is String) {
+            visitedIds.add(mId);
+          } else if (mId is Map && mId['_id'] != null) {
+            visitedIds.add(mId['_id'].toString());
+          }
+        }
+      }
+
+      TourItem? tourInfo;
+      if (activeTourId != null) {
+        try {
+          final tours = await _toursService.getAllTours(activeOnly: true);
+          tourInfo = tours.cast<TourItem?>().firstWhere((t) => t?.id == activeTourId, orElse: () => null);
+        } catch (_) {}
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _activeSessionId = activeSessionId;
+        _visitedMonumentIds = visitedIds;
+        _activeTour = tourInfo;
+      });
+    } catch (_) {}
+  }
+
+  String? _extractTourIdFromSession(Map<String, dynamic> session) {
+    final rawTourId = session['tourId'];
+    if (rawTourId is String && rawTourId.isNotEmpty) {
+      return rawTourId;
+    }
+    if (rawTourId is Map<String, dynamic>) {
+      final nestedId = rawTourId['_id']?.toString();
+      if (nestedId != null && nestedId.isNotEmpty) {
+        return nestedId;
+      }
+    }
+    return null;
+  }
+
   @override
   void dispose() {
     _positionSub?.cancel();
@@ -342,7 +433,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   // Clasificación del estado visual según status + distancia
-  _MarkerVisualState _computeVisualState(Monument m) {
+  _MarkerVisualState _computeVisualState(Monument m, {bool isActiveTourStop = false, bool isCompleted = false}) {
     // Umbral de "muy lejos" (ejemplo: > 1000m)
     const farThreshold = 1000.0;
 
@@ -353,6 +444,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
     final isFar = distance != null && distance > farThreshold;
 
+    if (isCompleted) {
+      return _MarkerVisualState.visitado(distance);
+    }
+
+    if (_activeSessionId != null && !isActiveTourStop) {
+      return _MarkerVisualState.oculto(distance);
+    }
+
     // Estados desde API: "Disponible", "Visitado", "Oculto", etc.
     if (m.status.toLowerCase() == 'oculto') {
       return _MarkerVisualState.oculto(distance);
@@ -360,7 +459,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (m.status.toLowerCase() == 'visitado') {
       return _MarkerVisualState.visitado(distance);
     }
-    if (isFar) {
+    if (isFar && !isActiveTourStop) {
       return _MarkerVisualState.muyLejos(distance);
     }
     // default: disponible
@@ -404,9 +503,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
     }
 
+    // Filtramos los monumentos a mostrar en el mapa
+    final activeTourMonumentIds = _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
+    
+    final monumentosAMostrar = _activeSessionId != null 
+        ? _monuments.where((m) => activeTourMonumentIds.contains(m.id)).toList()
+        : _monuments;
+
     // Marcadores de monumentos
-    for (final m in _monuments) {
-      final visual = _computeVisualState(m);
+    for (final m in monumentosAMostrar) {
+      final isCompleted = _visitedMonumentIds.contains(m.id);
+      final isActiveTourStop = _activeSessionId != null && activeTourMonumentIds.contains(m.id) && !isCompleted;
+
+      final visual = _computeVisualState(m, isActiveTourStop: isActiveTourStop, isCompleted: isCompleted);
 
       markers.add(
         Marker(
@@ -664,7 +773,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           }
 
                           final prefs = await SharedPreferences.getInstance();
-                          final userId = prefs.getString('userId');
+                          final userId = prefs.getString(AuthState.userIdKey);
                           if (userId == null || userId.isEmpty) {
                             if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(

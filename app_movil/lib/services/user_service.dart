@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
-import 'package:http/http.dart' as http;
+import '../utils/http_interceptor.dart' as http;
 
 import '../models/user.dart';
 
@@ -71,12 +71,14 @@ class UserService {
     String? name,
     String? email,
     String? profileImage,
+    String? district,
   }) async {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/me');
 
     final body = <String, dynamic>{};
     if (name != null) body['name'] = name;
     if (email != null) body['email'] = email;
+    if (district != null) body['district'] = district;
     if (profileImage != null) {
       body['profileImage'] = profileImage;
       body['avatarUrl'] = profileImage;

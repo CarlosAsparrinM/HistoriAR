@@ -1,6 +1,8 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../contexts/auth_state.dart';
+
 enum QuizPostVisitMode { alwaysAsk, autoOpen, neverShow }
 
 extension QuizPostVisitModeX on QuizPostVisitMode {
@@ -294,8 +296,8 @@ class AppSettingsService {
 
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('authToken');
-    await prefs.remove('userId');
+    await prefs.remove(AuthState.tokenKey);
+    await prefs.remove(AuthState.userIdKey);
   }
 
   Future<void> clearAllLocalData() async {

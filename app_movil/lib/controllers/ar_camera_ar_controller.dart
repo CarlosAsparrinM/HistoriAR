@@ -14,7 +14,7 @@ import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:http/http.dart' as http;
+import '../utils/http_interceptor.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';

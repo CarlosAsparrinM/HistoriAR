@@ -24,5 +24,17 @@ export async function updateUser(id, data) {
 }
 
 export async function softDeleteUser(id) {
-  return await User.findByIdAndUpdate(id, { status: 'Eliminado' }, { new: true });
+  const anonymizedEmail = `eliminado_${id}_${Date.now()}@anonymized.com`;
+  return await User.findByIdAndUpdate(
+    id,
+    {
+      name: 'Usuario Eliminado',
+      email: anonymizedEmail,
+      status: 'Eliminado',
+      password: null,
+      avatarUrl: null,
+      district: null
+    },
+    { new: true }
+  );
 }

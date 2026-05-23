@@ -120,96 +120,40 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     await _settingsService.saveNearbyNotificationDistancePreset(preset);
   }
 
-  Future<void> _showCleanupSheet() async {
+  Future<void> _resetSettings() async {
     if (!mounted) return;
 
-    final action = await showModalBottomSheet<_CleanupAction>(
+    final confirm = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                'Limpiar almacenamiento local',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Elige qué quieres borrar en este dispositivo.',
-                style: TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              _BottomActionTile(
-                icon: Icons.tune,
-                title: 'Solo preferencias',
-                subtitle: 'Borra ajustes locales y conserva la sesión',
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(_CleanupAction.preferences),
-              ),
-              _BottomActionTile(
-                icon: Icons.logout,
-                title: 'Solo sesión',
-                subtitle: 'Cierra sesión y conserva las preferencias',
-                onTap: () =>
-                    Navigator.of(sheetContext).pop(_CleanupAction.session),
-              ),
-              _BottomActionTile(
-                icon: Icons.delete_forever,
-                title: 'Todo local',
-                subtitle: 'Borra sesión y preferencias locales',
-                isDestructive: true,
-                onTap: () => Navigator.of(sheetContext).pop(_CleanupAction.all),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Restablecer ajustes'),
+        content: const Text(
+          '¿Estás seguro de que deseas restablecer todas las preferencias a sus valores predeterminados? Tu sesión no se cerrará.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
           ),
-        );
-      },
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Restablecer'),
+          ),
+        ],
+      ),
     );
 
-    if (action == null) return;
+    if (confirm != true) return;
 
-    if (action == _CleanupAction.preferences) {
-      await _settingsService.clearPreferences();
-      await _loadConfiguration();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preferencias locales limpiadas')),
-      );
-      return;
-    }
-
-    if (action == _CleanupAction.session) {
-      await _settingsService.clearSession();
-      if (!mounted) return;
-      Navigator.of(
-        context,
-      ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-      return;
-    }
-
-    await _settingsService.clearAllLocalData();
+    await _settingsService.clearPreferences();
+    await _loadConfiguration();
     if (!mounted) return;
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Preferencias locales restablecidas'),
+      ),
+    );
   }
 
   Future<T?> _showChoiceSheet<T>({
@@ -516,21 +460,6 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    _SectionTitle(
-                      icon: Icons.storage_outlined,
-                      title: 'Datos y almacenamiento',
-                    ),
-                    _SettingsCard(
-                      children: [
-                        _OptionTile(
-                          icon: Icons.delete_sweep_outlined,
-                          title: 'Limpiar almacenamiento local',
-                          subtitle: 'Borra preferencias, sesión o todo local',
-                          onTap: _showCleanupSheet,
-                        ),
-                      ],
-                    ),
                     const SizedBox(height: 24),
                     _SectionTitle(
                       icon: Icons.info_outline,
@@ -566,20 +495,31 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: _OptionTile(
-                        icon: Icons.logout,
-                        title: 'Cerrar Sesión',
-                        subtitle: 'Salir de tu cuenta',
-                        onTap: () async {
-                          await _settingsService.clearSession();
-                          if (!context.mounted) return;
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          );
-                        },
-                        isDestructive: true,
+                      child: Column(
+                        children: [
+                          _OptionTile(
+                            icon: Icons.restore,
+                            title: 'Restablecer ajustes',
+                            subtitle: 'Restaura las preferencias a valores por defecto',
+                            onTap: _resetSettings,
+                          ),
+                          const Divider(height: 0),
+                          _OptionTile(
+                            icon: Icons.logout,
+                            title: 'Cerrar Sesión',
+                            subtitle: 'Salir de tu cuenta',
+                            onTap: () async {
+                              await _settingsService.clearSession();
+                              if (!context.mounted) return;
+                              Navigator.of(context).pushReplacement(
+                                MaterialPageRoute(
+                                  builder: (_) => const LoginScreen(),
+                                ),
+                              );
+                            },
+                            isDestructive: true,
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -590,47 +530,12 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   }
 }
 
-enum _CleanupAction { preferences, session, all }
-
 class _ChoiceItem<T> {
   final T value;
   final String title;
   final String? subtitle;
 
   const _ChoiceItem({required this.value, required this.title, this.subtitle});
-}
-
-class _BottomActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-  final bool isDestructive;
-
-  const _BottomActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-    this.isDestructive = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isDestructive ? Colors.red : Colors.black;
-    final subtitleColor = isDestructive ? Colors.red.shade300 : Colors.grey;
-
-    return ListTile(
-      onTap: onTap,
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: subtitleColor),
-      title: Text(
-        title,
-        style: TextStyle(fontWeight: FontWeight.w500, color: color),
-      ),
-      subtitle: Text(subtitle, style: TextStyle(color: subtitleColor)),
-    );
-  }
 }
 
 class _SectionTitle extends StatelessWidget {

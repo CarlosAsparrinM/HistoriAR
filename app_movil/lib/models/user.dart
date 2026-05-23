@@ -39,6 +39,7 @@ class User {
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       profileImage: json['profileImage'],
+      district: json['district'],
       level: json['level'] ?? 1,
       totalPoints: json['totalPoints'] ?? 0,
       monumentsVisited: json['monumentsVisited'] ?? 0,
@@ -56,58 +57,5 @@ class User {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'name': name,
-      'email': email,
-      'profileImage': profileImage,
-      'level': level,
-      'totalPoints': totalPoints,
-      'monumentsVisited': monumentsVisited,
-      'arScans': arScans,
-      'timeSpent': timeSpent,
-      'joinDate': joinDate,
-      'achievements': achievements,
-      'badges': badges,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
-  }
 
-  User copyWith({
-    String? id,
-    String? name,
-    String? email,
-    String? profileImage,
-    String? district,
-    int? level,
-    int? totalPoints,
-    int? monumentsVisited,
-    int? arScans,
-    String? timeSpent,
-    String? joinDate,
-    int? achievements,
-    List<String>? badges,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return User(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      email: email ?? this.email,
-      profileImage: profileImage ?? this.profileImage,
-      district: district ?? this.district,
-      level: level ?? this.level,
-      totalPoints: totalPoints ?? this.totalPoints,
-      monumentsVisited: monumentsVisited ?? this.monumentsVisited,
-      arScans: arScans ?? this.arScans,
-      timeSpent: timeSpent ?? this.timeSpent,
-      joinDate: joinDate ?? this.joinDate,
-      achievements: achievements ?? this.achievements,
-      badges: badges ?? this.badges,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
 }

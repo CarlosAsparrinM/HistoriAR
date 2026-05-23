@@ -93,6 +93,17 @@ class TourService {
         query.isActive = filters.isActive;
       }
       
+      if (filters.district) {
+        // Buscar IDs de monumentos que pertenezcan a este distrito (insensible a mayúsculas/minúsculas)
+        const monumentsInDistrict = await Monument.find({
+          'location.district': { $regex: new RegExp(`^${filters.district}$`, 'i') }
+        }, '_id');
+        const monumentIds = monumentsInDistrict.map(m => m._id);
+        
+        // El query buscará tours donde al menos un monumento de la lista pertenezca al distrito
+        query['monuments.monumentId'] = { $in: monumentIds };
+      }
+      
       return await Tour.find(query)
         .populate('monuments.monumentId')
         .populate('institutionId')

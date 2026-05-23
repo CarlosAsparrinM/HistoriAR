@@ -41,41 +41,5 @@ class Visit {
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      '_id': id,
-      'userId': userId,
-      'monumentId': monumentId,
-      'date': date.toIso8601String(),
-      'duration': duration,
-      'rating': rating,
-      'device': device,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-    };
-  }
 
-  Visit copyWith({
-    String? id,
-    String? userId,
-    String? monumentId,
-    DateTime? date,
-    int? duration,
-    int? rating,
-    String? device,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Visit(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      monumentId: monumentId ?? this.monumentId,
-      date: date ?? this.date,
-      duration: duration ?? this.duration,
-      rating: rating ?? this.rating,
-      device: device ?? this.device,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
 }

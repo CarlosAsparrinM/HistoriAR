@@ -81,11 +81,11 @@ class _LoginScreenState extends State<LoginScreen>
       authState.token = token;
       // Persistimos token y userId para otras pantallas
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('authToken', token);
+      await prefs.setString(AuthState.tokenKey, token);
 
       try {
         final me = await _userService.getMyProfile(token);
-        await prefs.setString('userId', me.id);
+        await prefs.setString(AuthState.userIdKey, me.id);
       } catch (_) {
         // Si falla obtener el perfil, igual continuamos con token
       }
@@ -111,6 +111,30 @@ class _LoginScreenState extends State<LoginScreen>
       _tabController.animateTo(0);
     } catch (e) {
       _showError(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final token = await _authService.loginWithGoogle();
+      authState.token = token;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(AuthState.tokenKey, token);
+
+      try {
+        final me = await _userService.getMyProfile(token);
+        await prefs.setString(AuthState.userIdKey, me.id);
+      } catch (_) {
+        // Continuar si falla obtener el perfil secundario
+      }
+      _goToApp();
+    } catch (e) {
+      if (!e.toString().contains('cancelado')) {
+        _showError(e.toString().replaceFirst('Exception: ', ''));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -219,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // Formularios sin scroll interno
                   SizedBox(
-                    height: 500,
+                    height: 520,
                     child: AppFadeSwitcher(
                       child: TabBarView(
                         controller: _tabController,
@@ -337,6 +361,51 @@ class _LoginScreenState extends State<LoginScreen>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'o continuar con',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: const BorderSide(color: Color(0xFFE8E8E8), width: 1.5),
+              ),
+              onPressed: _isLoading ? null : _handleGoogleLogin,
+              icon: Image.network(
+                'https://developers.google.com/static/identity/images/g-logo.png',
+                height: 20,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.g_mobiledata,
+                  size: 24,
+                  color: Colors.red,
+                ),
+              ),
+              label: const Text(
+                'Iniciar sesión con Google',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],

@@ -29,7 +29,7 @@ class _AuthGateState extends State<AuthGate> {
 
   Future<Widget> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
+    final token = prefs.getString(AuthState.tokenKey);
 
     if (token == null || token.isEmpty) {
       authState.token = '';
@@ -41,13 +41,13 @@ class _AuthGateState extends State<AuthGate> {
       final me = await _userService.getMyProfile(token);
 
       authState.token = token;
-      await prefs.setString('userId', me.id);
+      await prefs.setString(AuthState.userIdKey, me.id);
 
       return MainScaffold(token: token);
     } catch (_) {
       authState.token = '';
-      await prefs.remove('authToken');
-      await prefs.remove('userId');
+      await prefs.remove(AuthState.tokenKey);
+      await prefs.remove(AuthState.userIdKey);
       return const LoginScreen();
     }
   }

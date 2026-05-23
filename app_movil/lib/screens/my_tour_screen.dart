@@ -10,7 +10,6 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
-import '../services/monuments_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
@@ -31,7 +30,6 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
   final ToursService _toursService = const ToursService();
   final SessionsService _sessionsService = const SessionsService();
-  final MonumentsService _monumentsService = MonumentsService();
 
   bool _isLoading = true;
   String? _error;
@@ -39,12 +37,26 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
   TourInstitution? _currentInstitution;
   List<TourItem> _tours = [];
-  List<Monument> _allMonuments = [];
   TourItem? _selectedTour;
   Position? _currentPosition;
   String? _currentSessionId;
   String? _activeSessionTourId;
   bool _isSessionLoading = false;
+  Set<String> _visitedMonumentIds = {};
+
+  final List<String> _distritosLima = [
+    'Todos', 'Lima', 'Ate', 'Barranco', 'Breña', 'Carabayllo', 'Chaclacayo',
+    'Chorrillos', 'Cieneguilla', 'Comas', 'El Agustino', 'Independencia',
+    'Jesús María', 'La Molina', 'La Victoria', 'Lince', 'Los Olivos',
+    'Lurigancho', 'Lurín', 'Magdalena del Mar', 'Miraflores', 'Pachacamac',
+    'Pucusana', 'Pueblo Libre', 'Puente Piedra', 'Punta Hermosa',
+    'Punta Negra', 'Rímac', 'San Bartolo', 'San Borja', 'San Isidro',
+    'San Juan de Lurigancho', 'San Juan de Miraflores', 'San Luis',
+    'San Martín de Porres', 'San Miguel', 'Santa Anita', 'Santa María del Mar',
+    'Santa Rosa', 'Santiago de Surco', 'Surquillo', 'Villa El Salvador',
+    'Villa María del Triunfo'
+  ];
+  String _selectedDistrictFilter = 'Todos';
 
   @override
   void initState() {
@@ -84,80 +96,38 @@ class _MyTourScreenState extends State<MyTourScreen> {
     });
 
     try {
-      final monumentsFuture = _monumentsService.fetchMonuments();
-      final position = await _resolveCurrentPosition();
-      final context = await _toursService.getContextForLocation(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
-
-      // Guardar contexto recibido
+      Position? position;
       try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(
-          'last_tour_context',
-          jsonEncode(context.toJson()),
-        );
-      } catch (_) {}
-
-      var tours = context.tours;
-      var institution = context.institution;
-
-      if (tours.isEmpty) {
-        tours = await _toursService.getAllTours(activeOnly: true);
-        institution ??= tours.isNotEmpty ? tours.first.institution : null;
+        position = await _resolveCurrentPosition();
+      } catch (_) {
+        // Ignorar si no hay permisos de ubicación
       }
 
-      final monuments = await monumentsFuture;
+      // Siempre obtenemos todos los tours activos
+      final tours = await _toursService.getAllTours(activeOnly: true);
 
       if (!mounted) return;
 
       setState(() {
         _currentPosition = position;
-        _currentInstitution = institution;
         _tours = tours;
-        _allMonuments = monuments;
-        _selectedTour = _resolveSelectedTour(tours, _selectedTour);
+        _selectedTour = _resolveSelectedTour(_getFilteredTours(), _selectedTour);
         _alignSelectedTourWithActiveSession(tours);
+        _currentInstitution = tours.isNotEmpty ? tours.first.institution : null;
         _isLoading = false;
         _searchQuery = '';
       });
     } catch (error) {
-      try {
-        final results = await Future.wait([
-          _toursService.getAllTours(activeOnly: true),
-          _monumentsService.fetchMonuments(),
-        ]);
-        final tours = results[0] as List<TourItem>;
-        final monuments = results[1] as List<Monument>;
-        if (!mounted) return;
-
-        setState(() {
-          _tours = tours;
-          _allMonuments = monuments;
-          _selectedTour = _resolveSelectedTour(tours, _selectedTour);
-          _alignSelectedTourWithActiveSession(tours);
-          _currentInstitution = tours.isNotEmpty
-              ? tours.first.institution
-              : null;
-          _currentPosition = null;
-          _isLoading = false;
-          _error = tours.isEmpty ? error.toString() : null;
-          _searchQuery = '';
-        });
-      } catch (fallbackError) {
-        if (!mounted) return;
-        setState(() {
-          _tours = [];
-          _allMonuments = [];
-          _selectedTour = null;
-          _currentInstitution = null;
-          _currentPosition = null;
-          _isLoading = false;
-          _error = fallbackError.toString();
-          _searchQuery = '';
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _tours = [];
+        _selectedTour = null;
+        _currentInstitution = null;
+        _currentPosition = null;
+        _isLoading = false;
+        _error = error.toString();
+        _searchQuery = '';
+      });
     }
   }
 
@@ -213,13 +183,41 @@ class _MyTourScreenState extends State<MyTourScreen> {
     return tours.first;
   }
 
+  List<TourItem> _getFilteredTours() {
+    if (_selectedDistrictFilter == 'Todos') return _tours;
+    final query = _selectedDistrictFilter.toLowerCase();
+    return _tours.where((t) {
+      return t.orderedStops.any((s) => s.monument.district?.toLowerCase() == query);
+    }).toList();
+  }
+
+  TourStopStatus _getStopStatus(TourStop stop, int index, List<TourStop> allStops) {
+    if (_currentSessionId == null) return TourStopStatus.locked;
+    
+    final monumentId = stop.monument.id;
+    if (_visitedMonumentIds.contains(monumentId)) {
+      return TourStopStatus.completed;
+    }
+
+    // Un stop está activo si es el primero no visitado
+    for (int i = 0; i < allStops.length; i++) {
+      if (!_visitedMonumentIds.contains(allStops[i].monument.id)) {
+        return (i == index) ? TourStopStatus.active : TourStopStatus.locked;
+      }
+    }
+    
+    return TourStopStatus.locked;
+  }
+
   List<TourStop> _filteredStops() {
     final tour = _selectedTour;
-    if (tour == null) return const [];
+    final List<TourStop> stops = tour != null 
+        ? tour.orderedStops 
+        : _getFilteredTours().expand((t) => t.orderedStops).toList();
+
+    if (stops.isEmpty) return const [];
 
     final query = _searchQuery.trim().toLowerCase();
-    final stops = tour.orderedStops;
-
     if (query.isEmpty) return stops;
 
     return stops.where((stop) {
@@ -245,7 +243,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
     // Obtener userId y preferencias de SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('userId');
+    final userId = prefs.getString(AuthState.userIdKey);
     if (userId == null || userId.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -449,7 +447,6 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final theme = Theme.of(context);
     final selectedTour = _selectedTour;
     final stops = _filteredStops();
-    final otherMonuments = _filteredOutsideTourMonuments();
     final institution = _currentInstitution;
 
     return AppShell(
@@ -478,7 +475,11 @@ class _MyTourScreenState extends State<MyTourScreen> {
                 padding: const EdgeInsets.all(AppSpacing.md),
                 children: [
                   if (_error != null) ...[
-                    _ErrorCard(message: _error!, onRetry: _loadTours),
+                    AppErrorState(
+                      message: _error!,
+                      title: 'No pudimos cargar los tours',
+                      onRetry: _loadTours,
+                    ),
                     const SizedBox(height: AppSpacing.md),
                   ],
                   _buildHeaderCard(theme, institution),
@@ -501,46 +502,35 @@ class _MyTourScreenState extends State<MyTourScreen> {
                     if (selectedTour != null) ...[
                       _buildTourSummary(theme, selectedTour),
                       const SizedBox(height: AppSpacing.md),
-                      _buildSearchBox(),
-                      const SizedBox(height: AppSpacing.md),
-                      if (stops.isEmpty)
-                        _buildEmptyStopsState(theme)
-                      else
-                        ...stops.map(
-                          (stop) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md,
-                            ),
-                            child: _TourStopCard(
-                              stop: stop,
-                              onOpenAr: () => _openArExperience(
-                                stop.monument,
+                    ],
+                    _buildSearchBox(),
+                    const SizedBox(height: AppSpacing.md),
+                    if (stops.isEmpty)
+                      _buildEmptyStopsState(theme)
+                    else
+                      ...stops.asMap().entries.map(
+                        (entry) => Padding(
+                          padding: const EdgeInsets.only(
+                            bottom: AppSpacing.md,
+                          ),
+                          child: _TourStopCard(
+                            stop: entry.value,
+                            status: _getStopStatus(entry.value, entry.key, stops),
+                            onOpenAr: () async {
+                              await _openArExperience(
+                                entry.value.monument,
                                 tourId: _currentSessionId != null
                                     ? _activeSessionTourId
                                     : null,
-                              ),
-                              onOpenQuiz: () => _openQuiz(stop.monument),
-                            ),
+                              );
+                              if (mounted) {
+                                _loadTours();
+                              }
+                            },
+                            onOpenQuiz: () => _openQuiz(entry.value.monument),
                           ),
                         ),
-                      if (otherMonuments.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        _buildOtherMonumentsHeader(theme),
-                        const SizedBox(height: AppSpacing.sm),
-                        ...otherMonuments.map(
-                          (monument) => Padding(
-                            padding: const EdgeInsets.only(
-                              bottom: AppSpacing.md,
-                            ),
-                            child: _StandaloneMonumentCard(
-                              monument: monument,
-                              onOpenAr: () => _openArExperience(monument),
-                              onOpenQuiz: () => _openQuiz(monument),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                      ),
                   ],
                   const SizedBox(height: AppSpacing.xl),
                 ],
@@ -604,15 +594,15 @@ class _MyTourScreenState extends State<MyTourScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _InfoPill(label: '${_tours.length} tours', icon: Icons.route),
-                const SizedBox(width: 8),
                 _InfoPill(
-                  label: '${_allMonuments.length} monumentos',
+                  label: '${_tours.fold<int>(0, (sum, t) => sum + t.orderedStops.length)} monumentos',
                   icon: Icons.account_balance,
                 ),
-                const SizedBox(width: 8),
                 _InfoPill(
                   label: _currentPosition != null
                       ? 'Ubicacion activa'
@@ -632,35 +622,70 @@ class _MyTourScreenState extends State<MyTourScreen> {
   Widget _buildTourSelector() {
     final selectedTour = _selectedTour;
     final hasActiveSession = _currentSessionId != null;
+    final filteredTours = _getFilteredTours();
 
-    return DropdownButtonFormField<String>(
-      initialValue: selectedTour?.id,
-      items: _tours
-          .map(
-            (tour) => DropdownMenuItem<String>(
-              value: tour.id,
-              child: Text(tour.name, overflow: TextOverflow.ellipsis),
+    return Column(
+      children: [
+        DropdownButtonFormField<String>(
+          initialValue: _selectedDistrictFilter,
+          items: _distritosLima.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+          onChanged: hasActiveSession
+              ? null
+              : (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedDistrictFilter = value;
+                    final newTours = _getFilteredTours();
+                    _selectedTour = newTours.isNotEmpty ? newTours.first : null;
+                  });
+                },
+          decoration: InputDecoration(
+            labelText: 'Filtrar por distrito',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          initialValue: selectedTour == null ? 'todos' : (filteredTours.any((t) => t.id == selectedTour.id) ? selectedTour.id : 'todos'),
+          items: [
+            const DropdownMenuItem<String>(
+              value: 'todos',
+              child: Text('Todos los tours'),
             ),
-          )
-          .toList(),
-      onChanged: hasActiveSession
-          ? null
-          : (value) {
-              if (value == null) return;
-              final tour = _tours.firstWhere(
-                (candidate) => candidate.id == value,
-              );
-              setState(() {
-                _selectedTour = tour;
-                _searchQuery = '';
-              });
-            },
-      decoration: InputDecoration(
-        labelText: hasActiveSession
-            ? 'Tour bloqueado durante sesión activa'
-            : 'Elegir tour',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-      ),
+            ...filteredTours.map(
+              (tour) => DropdownMenuItem<String>(
+                value: tour.id,
+                child: Text(tour.name, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          ],
+          onChanged: hasActiveSession || filteredTours.isEmpty
+              ? null
+              : (value) {
+                  if (value == null) return;
+                  if (value == 'todos') {
+                    setState(() {
+                      _selectedTour = null;
+                      _searchQuery = '';
+                    });
+                    return;
+                  }
+                  final tour = filteredTours.firstWhere(
+                    (candidate) => candidate.id == value,
+                  );
+                  setState(() {
+                    _selectedTour = tour;
+                    _searchQuery = '';
+                  });
+                },
+          decoration: InputDecoration(
+            labelText: hasActiveSession
+                ? 'Tour bloqueado durante sesión activa'
+                : (filteredTours.isEmpty ? 'No hay tours en este distrito' : 'Elegir tour'),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      ],
     );
   }
 
@@ -777,51 +802,6 @@ class _MyTourScreenState extends State<MyTourScreen> {
     );
   }
 
-  Widget _buildOtherMonumentsHeader(ThemeData theme) {
-    return Row(
-      children: [
-        Icon(Icons.explore_outlined, color: Colors.grey[700]),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Otros monumentos fuera del tour',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  List<Monument> _filteredOutsideTourMonuments() {
-    final selectedTour = _selectedTour;
-    if (selectedTour == null || _allMonuments.isEmpty) {
-      return const [];
-    }
-
-    final query = _searchQuery.trim().toLowerCase();
-    final tourMonumentIds = selectedTour.stops
-        .map((stop) => stop.monument.id)
-        .toSet();
-
-    return _allMonuments.where((monument) {
-      if (tourMonumentIds.contains(monument.id)) {
-        return false;
-      }
-
-      if (query.isEmpty) {
-        return true;
-      }
-
-      return monument.name.toLowerCase().contains(query) ||
-          monument.description.toLowerCase().contains(query) ||
-          monument.status.toLowerCase().contains(query) ||
-          (monument.culture ?? '').toLowerCase().contains(query) ||
-          (monument.district ?? '').toLowerCase().contains(query);
-    }).toList();
-  }
-
   void _alignSelectedTourWithActiveSession(List<TourItem> tours) {
     final activeTourId = _activeSessionTourId;
     if (activeTourId == null || tours.isEmpty) return;
@@ -877,11 +857,25 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
       final activeSessionId = activeSession['_id']?.toString();
       final activeTourId = _extractTourIdFromSession(activeSession);
+      
+      final stopsVisited = activeSession['stopsVisited'] as List<dynamic>?;
+      final visitedIds = <String>{};
+      if (stopsVisited != null) {
+        for (final stop in stopsVisited) {
+          final mId = stop['monumentId'];
+          if (mId is String) {
+            visitedIds.add(mId);
+          } else if (mId is Map && mId['_id'] != null) {
+            visitedIds.add(mId['_id'].toString());
+          }
+        }
+      }
 
       if (!mounted) return;
       setState(() {
         _currentSessionId = activeSessionId;
         _activeSessionTourId = activeTourId;
+        _visitedMonumentIds = visitedIds;
       });
       await _persistActiveTourSession();
     } catch (_) {
@@ -932,11 +926,13 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
 class _TourStopCard extends StatelessWidget {
   final TourStop stop;
+  final TourStopStatus status;
   final VoidCallback onOpenAr;
   final VoidCallback onOpenQuiz;
 
   const _TourStopCard({
     required this.stop,
+    required this.status,
     required this.onOpenAr,
     required this.onOpenQuiz,
   });
@@ -975,22 +971,46 @@ class _TourStopCard extends StatelessWidget {
                 Positioned(
                   top: 12,
                   left: 12,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.62),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'Paso ${stop.order}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.62),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Paso ${stop.order}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (status == TourStopStatus.completed)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.green,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.check, color: Colors.white, size: 16),
+                        ),
+                      if (status == TourStopStatus.locked)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.62),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.lock, color: Colors.white, size: 16),
+                        ),
+                    ],
                   ),
                 ),
                 Positioned(
@@ -1046,7 +1066,7 @@ class _TourStopCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: onOpenAr,
+                        onPressed: status == TourStopStatus.locked ? null : onOpenAr,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -1086,99 +1106,6 @@ class _TourStopCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _StandaloneMonumentCard extends StatelessWidget {
-  final Monument monument;
-  final VoidCallback onOpenAr;
-  final VoidCallback onOpenQuiz;
-
-  const _StandaloneMonumentCard({
-    required this.monument,
-    required this.onOpenAr,
-    required this.onOpenQuiz,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    monument.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-                _Tag(text: 'Fuera del tour'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              monument.description,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _Tag(text: monument.status),
-                if ((monument.culture ?? '').isNotEmpty)
-                  _Tag(text: monument.culture!),
-                if ((monument.district ?? '').isNotEmpty)
-                  _Tag(text: monument.district!),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onOpenAr,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.view_in_ar),
-                    label: const Text('Ver en RA'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onOpenQuiz,
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.quiz_outlined),
-                    label: const Text('Quiz'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1243,42 +1170,8 @@ class _Tag extends StatelessWidget {
   }
 }
 
-class _ErrorCard extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-
-  const _ErrorCard({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Colors.red.shade50,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'No pudimos cargar los tours',
-              style: TextStyle(
-                color: Colors.red.shade800,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(message),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: onRetry,
-                child: const Text('Reintentar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+enum TourStopStatus {
+  completed,
+  active,
+  locked,
 }

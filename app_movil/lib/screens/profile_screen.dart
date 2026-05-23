@@ -10,6 +10,7 @@ import '../services/user_service.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_states.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -41,7 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<_ProfileData> _buildProfileData() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('authToken');
+    final token = prefs.getString(AuthState.tokenKey);
 
     if (token == null || token.isEmpty) {
       if (mounted) {
@@ -59,7 +60,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final user = await _userService.getMyProfile(token);
     final userId = user.id;
-    await prefs.setString('userId', userId);
+    await prefs.setString(AuthState.userIdKey, userId);
 
     final results = await Future.wait([
       _visitsService.getVisitsByUser(userId: userId, token: token),
@@ -92,9 +93,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('authToken');
-    await prefs.remove('userId');
+    await prefs.remove(AuthState.tokenKey);
+    await prefs.remove(AuthState.userIdKey);
     authState.token = '';
     if (!mounted) return;
 
@@ -108,50 +113,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final nameController = TextEditingController(text: user.name);
     final emailController = TextEditingController(text: user.email);
-    final imageController = TextEditingController(
-      text: user.profileImage ?? '',
-    );
+    
+    final List<String> distritosLima = [
+      'Lima', 'Ancón', 'Ate', 'Barranco', 'Breña', 'Carabayllo', 'Chaclacayo',
+      'Chorrillos', 'Cieneguilla', 'Comas', 'El Agustino', 'Independencia',
+      'Jesús María', 'La Molina', 'La Victoria', 'Lince', 'Los Olivos',
+      'Lurigancho', 'Lurín', 'Magdalena del Mar', 'Miraflores', 'Pachacámac',
+      'Pucusana', 'Pueblo Libre', 'Puente Piedra', 'Punta Hermosa',
+      'Punta Negra', 'Rímac', 'San Bartolo', 'San Borja', 'San Isidro',
+      'San Juan de Lurigancho', 'San Juan de Miraflores', 'San Luis',
+      'San Martín de Porres', 'San Miguel', 'Santa Anita', 'Santa María del Mar',
+      'Santa Rosa', 'Santiago de Surco', 'Surquillo', 'Villa El Salvador',
+      'Villa María del Triunfo'
+    ];
+
+    String? selectedDistrict = user.district?.trim();
+    if (selectedDistrict != null && selectedDistrict.isEmpty) {
+      selectedDistrict = null;
+    }
+    if (selectedDistrict != null && !distritosLima.contains(selectedDistrict)) {
+      distritosLima.add(selectedDistrict);
+    }
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Editar perfil'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Nombre'),
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Editar perfil'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: const InputDecoration(labelText: 'Nombre'),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: emailController,
+                      enabled: false,
+                      style: const TextStyle(color: Colors.grey),
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Correo'),
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedDistrict,
+                      decoration: const InputDecoration(
+                        labelText: 'Distrito (opcional)',
+                      ),
+                      items: distritosLima.map((String distrito) {
+                        return DropdownMenuItem<String>(
+                          value: distrito,
+                          child: Text(distrito),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setStateDialog(() {
+                          selectedDistrict = newValue;
+                        });
+                      },
+                      isExpanded: true,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Correo'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('Cancelar'),
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: imageController,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(
-                    labelText: 'URL imagen de perfil (opcional)',
-                  ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Guardar'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Guardar'),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -160,7 +200,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final name = nameController.text.trim();
     final email = emailController.text.trim();
-    final profileImage = imageController.text.trim();
+    final profileImage = user.profileImage ?? '';
+    final district = selectedDistrict?.trim() ?? '';
 
     if (name.isEmpty || email.isEmpty) {
       if (!mounted) return;
@@ -176,7 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('authToken');
+      final token = prefs.getString(AuthState.tokenKey);
       if (token == null || token.isEmpty) {
         throw Exception('No hay sesión activa');
       }
@@ -186,6 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         name: name,
         email: email,
         profileImage: profileImage.isEmpty ? null : profileImage,
+        district: district.isEmpty ? null : district,
       );
 
       await _loadUserProfile();
@@ -217,14 +259,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('authToken');
+      final token = prefs.getString(AuthState.tokenKey);
       if (token == null || token.isEmpty) {
         throw Exception('No hay sesión activa');
       }
 
       await _userService.deleteMyAccount(token: token);
-      await prefs.remove('authToken');
-      await prefs.remove('userId');
+      
+      try {
+        await GoogleSignIn().signOut();
+      } catch (_) {}
+
+      await prefs.remove(AuthState.tokenKey);
+      await prefs.remove(AuthState.userIdKey);
       authState.token = '';
 
       if (!mounted) return;
