@@ -125,7 +125,7 @@ class AppTheme {
           color: AppColors.textSecondary,
           fontWeight: FontWeight.w600,
         ),
-        selectedColor: AppColors.primary.withOpacity(0.12),
+        selectedColor: AppColors.primary.withValues(alpha: 0.12),
       ),
     );
   }

@@ -104,11 +104,10 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
       setState(() {
         _nearbyNotificationsEnabled = false;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permiso de notificaciones denegado')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permiso de notificaciones denegado')),
+      );
     }
   }
 
@@ -190,11 +189,10 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
     if (action == _CleanupAction.preferences) {
       await _settingsService.clearPreferences();
       await _loadConfiguration();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preferencias locales limpiadas')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preferencias locales limpiadas')),
+      );
       return;
     }
 
@@ -574,7 +572,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                         subtitle: 'Salir de tu cuenta',
                         onTap: () async {
                           await _settingsService.clearSession();
-                          if (!mounted) return;
+                          if (!context.mounted) return;
                           Navigator.of(context).pushReplacement(
                             MaterialPageRoute(
                               builder: (_) => const LoginScreen(),

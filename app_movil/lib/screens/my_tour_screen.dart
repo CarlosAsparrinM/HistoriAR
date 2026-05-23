@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,6 +46,24 @@ class _MyTourScreenState extends State<MyTourScreen> {
   }
 
   Future<void> _loadTours() async {
+    // Intentar cargar contexto guardado localmente para mostrar algo rápido
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('last_tour_context');
+      if (saved != null && saved.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(saved);
+        final cached = TourContextResponse.fromJson(decoded);
+        if (!mounted) return;
+        setState(() {
+          _currentInstitution = cached.institution;
+          _tours = cached.tours;
+          _selectedTour = _resolveSelectedTour(_tours, _selectedTour);
+          _isLoading = false;
+          _error = null;
+        });
+      }
+    } catch (_) {}
+
     if (!mounted) return;
 
     setState(() {
@@ -57,6 +77,15 @@ class _MyTourScreenState extends State<MyTourScreen> {
         latitude: position.latitude,
         longitude: position.longitude,
       );
+
+      // Guardar contexto recibido
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'last_tour_context',
+          jsonEncode(context.toJson()),
+        );
+      } catch (_) {}
 
       var tours = context.tours;
       var institution = context.institution;
@@ -113,8 +142,17 @@ class _MyTourScreenState extends State<MyTourScreen> {
       throw Exception('Activa la ubicacion para ver tours cercanos.');
     }
 
+    final prefs = await SharedPreferences.getInstance();
+    final bool skipRequest =
+        prefs.getBool('location_permission_granted') ?? false;
+
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
+      if (skipRequest) {
+        throw Exception(
+          'Permiso de ubicación denegado (no se solicitará de nuevo).',
+        );
+      }
       permission = await Geolocator.requestPermission();
     }
 
@@ -126,8 +164,15 @@ class _MyTourScreenState extends State<MyTourScreen> {
       throw Exception('Permiso de ubicacion bloqueado en el dispositivo.');
     }
 
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      await prefs.setBool('location_permission_granted', true);
+    }
+
     return Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+      ),
     );
   }
 
@@ -314,10 +359,12 @@ class _MyTourScreenState extends State<MyTourScreen> {
       setState(() {
         _currentSessionId = id;
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Tour iniciado')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error al iniciar tour: $e')));
@@ -337,10 +384,12 @@ class _MyTourScreenState extends State<MyTourScreen> {
       setState(() {
         _currentSessionId = null;
       });
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Tour finalizado')));
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Error al finalizar tour: $e')));
@@ -473,7 +522,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.12),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Icon(
@@ -718,7 +767,7 @@ class _TourStopCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.62),
+                      color: Colors.black.withValues(alpha: 0.62),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
@@ -737,7 +786,7 @@ class _TourStopCard extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.52),
+                      color: Colors.black.withValues(alpha: 0.52),
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Text(

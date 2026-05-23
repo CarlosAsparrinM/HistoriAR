@@ -74,12 +74,11 @@ class ResponsiveHelper {
 
   /// Obtiene información de accesibilidad
   static AccessibilityInfo getAccessibilityInfo(BuildContext context) {
-    final mediaQuery = MediaQuery.of(context);
     return AccessibilityInfo(
-      textScaleFactor: mediaQuery.textScaleFactor,
-      boldText: mediaQuery.boldText,
-      highContrast: mediaQuery.highContrast,
-      disableAnimations: mediaQuery.disableAnimations,
+      textScaleFactor: MediaQuery.textScalerOf(context).scale(1.0),
+      boldText: MediaQuery.boldTextOf(context),
+      highContrast: MediaQuery.highContrastOf(context),
+      disableAnimations: MediaQuery.disableAnimationsOf(context),
     );
   }
 

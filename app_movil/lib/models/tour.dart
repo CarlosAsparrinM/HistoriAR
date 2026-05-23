@@ -28,6 +28,16 @@ class TourInstitution {
       radiusMeters: (location?['radius'] as num?)?.toInt(),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'description': description,
+      'distance': distanceMeters,
+      'location': {'radius': radiusMeters},
+    };
+  }
 }
 
 class TourStop {
@@ -52,6 +62,14 @@ class TourStop {
       description: json['description'] as String?,
       monument: Monument.fromJson(monumentJson),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'order': order,
+      'description': description,
+      'monumentId': monument.toJson(),
+    };
   }
 }
 
@@ -106,6 +124,19 @@ class TourItem {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'description': description,
+      'type': type,
+      'estimatedDuration': estimatedDuration,
+      'isActive': isActive,
+      'institutionId': institution?.toJson(),
+      'monuments': stops.map((s) => s.toJson()).toList(),
+    };
+  }
+
   List<TourStop> get orderedStops {
     final ordered = List<TourStop>.from(stops);
     ordered.sort((a, b) => a.order.compareTo(b.order));
@@ -132,5 +163,12 @@ class TourContextResponse {
           .map((item) => TourItem.fromJson(item))
           .toList(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'institution': institution?.toJson(),
+      'tours': tours.map((t) => t.toJson()).toList(),
+    };
   }
 }

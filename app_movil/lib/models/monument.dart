@@ -83,4 +83,35 @@ class Monument {
       district: (location['district'] as String?) ?? '',
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'name': name,
+      'description': description,
+      'status': status,
+      'location': {
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'district': district ?? '',
+      },
+      'imageUrl': imageUrl,
+      's3ImageKey': s3ImageKey,
+      'model3DUrl': model3DUrl,
+      's3ModelKey': s3ModelKey,
+      'culture': culture,
+      'period': {
+        'name': periodName,
+        'isIdentified': periodIsIdentified,
+        'startYear': periodStartYear,
+        'endYear': periodEndYear,
+      },
+      'discovery': {
+        'isDateKnown': discoveryIsDateKnown,
+        'discoveredAt': discoveryDiscoveredAt?.toIso8601String(),
+        'isDiscovererKnown': discoveryIsDiscovererKnown,
+        'discovererName': discoveryDiscovererName,
+      },
+    };
+  }
 }

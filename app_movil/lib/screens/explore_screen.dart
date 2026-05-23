@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -66,6 +67,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
     _settings = await _settingsService.load();
     await _loadMonuments();
 
+    // Cargar contexto de ubicación/tours guardado localmente si existe
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('last_tour_context');
+      if (saved != null && saved.isNotEmpty) {
+        final Map<String, dynamic> decoded = jsonDecode(saved);
+        _locationContext = TourContextResponse.fromJson(decoded);
+      }
+    } catch (_) {}
+
     if (!mounted) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -99,13 +110,30 @@ class _ExploreScreenState extends State<ExploreScreen> {
     final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final bool skipRequest =
+        prefs.getBool('location_permission_granted') ?? false;
+
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
+      if (skipRequest) {
+        return; // no pedir permiso de nuevo si ya se guardó la sesión
+      }
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+      if (permission == LocationPermission.denied) {
+        return;
+      }
     }
 
-    if (permission == LocationPermission.deniedForever) return;
+    if (permission == LocationPermission.deniedForever) {
+      return;
+    }
+
+    // Si se tiene permiso, aseguramos que la sesión de ubicación quede guardada
+    if (permission == LocationPermission.always ||
+        permission == LocationPermission.whileInUse) {
+      await prefs.setBool('location_permission_granted', true);
+    }
 
     await _positionSub?.cancel();
 
@@ -173,6 +201,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _nearbyMonuments = nearby;
         _isLoadingLocationContext = false;
       });
+
+      // Guardar el contexto de tours/location para uso posterior (no pedir de nuevo)
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          'last_tour_context',
+          jsonEncode(context.toJson()),
+        );
+      } catch (_) {}
 
       await _notifyNearbyMonuments(position, nearby);
     } catch (e) {
@@ -445,7 +482,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
+                      color: Colors.black.withValues(alpha: 0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 4),
                     ),
@@ -613,9 +650,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         onViewAr: () async {
                           if (_selectedMonument == null) return;
 
-                          // Verificamos que haya un token válido antes de ir a RA
                           final token = authState.token;
                           if (token.isEmpty) {
+                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text(
@@ -626,177 +663,166 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             return;
                           }
 
-                          // Obtener userId y preferencias de SharedPreferences
                           final prefs = await SharedPreferences.getInstance();
                           final userId = prefs.getString('userId');
                           if (userId == null || userId.isEmpty) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'No se pudo obtener el ID del usuario.',
-                                  ),
-                                ),
-                              );
-                            }
-                            return;
-                          }
-
-                          // 1) Ir a la cámara AR y esperar a que el usuario salga
-                          if (mounted) {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ArCameraScreen(
-                                  monument: _selectedMonument!,
-                                  token: token,
-                                  userId: userId,
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'No se pudo obtener el ID del usuario.',
                                 ),
                               ),
                             );
+                            return;
                           }
 
-                          if (!mounted) return;
+                          if (!context.mounted) return;
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ArCameraScreen(
+                                monument: _selectedMonument!,
+                                token: token,
+                                userId: userId,
+                              ),
+                            ),
+                          );
 
+                          if (!context.mounted) return;
                           final shouldAskForQuizzes =
                               prefs.getBool('pref_askForQuizzes') ?? true;
 
-                          if (!mounted) return;
-
                           if (!shouldAskForQuizzes) {
-                            if (mounted) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => QuizScreen(
-                                    monument: _selectedMonument!,
-                                    token: token,
-                                  ),
+                            if (!context.mounted) return;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
                                 ),
-                              );
-                            }
+                              ),
+                            );
                             return;
                           }
 
-                          // 2) Al volver, mostrar el modal para invitar al quiz
-                          if (mounted) {
-                            final shouldGoToQuiz = await showModalBottomSheet<bool>(
-                              context: context,
-                              backgroundColor: Colors.white,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(24),
-                                ),
+                          if (!context.mounted) return;
+                          final shouldGoToQuiz = await showModalBottomSheet<bool>(
+                            context: context,
+                            backgroundColor: Colors.white,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(24),
                               ),
-                              builder: (context) {
-                                final monument = _selectedMonument!;
-                                return Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    24,
-                                    24,
-                                    24,
-                                    32,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Center(
-                                        child: Container(
-                                          width: 40,
-                                          height: 4,
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.shade300,
-                                            borderRadius: BorderRadius.circular(
-                                              999,
-                                            ),
+                            ),
+                            builder: (sheetContext) {
+                              final monument = _selectedMonument!;
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  24,
+                                  24,
+                                  32,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Center(
+                                      child: Container(
+                                        width: 40,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade300,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
                                           ),
                                         ),
                                       ),
-                                      const SizedBox(height: 16),
-                                      const Text(
-                                        '¿Listo para poner a prueba lo que aprendiste?',
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      '¿Listo para poner a prueba lo que aprendiste?',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Responde un quiz sobre ${monument.name} y gana puntos.',
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.grey,
-                                        ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Responde un quiz sobre ${monument.name} y gana puntos.',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey,
                                       ),
-                                      const SizedBox(height: 24),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: OutlinedButton(
-                                              onPressed: () => Navigator.of(
-                                                context,
-                                              ).pop(false),
-                                              style: OutlinedButton.styleFrom(
-                                                side: BorderSide(
-                                                  color: Colors.grey.shade300,
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 12,
-                                                    ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton(
+                                            onPressed: () => Navigator.of(
+                                              sheetContext,
+                                            ).pop(false),
+                                            style: OutlinedButton.styleFrom(
+                                              side: BorderSide(
+                                                color: Colors.grey.shade300,
                                               ),
-                                              child: const Text('Ahora no'),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Expanded(
-                                            child: ElevatedButton(
-                                              onPressed: () => Navigator.of(
-                                                context,
-                                              ).pop(true),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor:
-                                                    AppColors.primary,
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 12,
-                                                    ),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                              ),
-                                              child: const Text(
-                                                'Realizar Quiz',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                ),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
                                             ),
+                                            child: const Text('Ahora no'),
                                           ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            );
-
-                            // 3) Si acepta, ir al Quiz
-                            if (shouldGoToQuiz == true && mounted) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => QuizScreen(
-                                    monument: _selectedMonument!,
-                                    token: token,
-                                  ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: ElevatedButton(
+                                            onPressed: () => Navigator.of(
+                                              sheetContext,
+                                            ).pop(true),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor:
+                                                  AppColors.primary,
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 12,
+                                                  ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Realizar Quiz',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               );
-                            }
+                            },
+                          );
+
+                          if (shouldGoToQuiz == true) {
+                            if (!context.mounted) return;
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => QuizScreen(
+                                  monument: _selectedMonument!,
+                                  token: token,
+                                ),
+                              ),
+                            );
                           }
                         },
                       ),
@@ -989,7 +1015,7 @@ class _MonumentMarker extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -1016,7 +1042,7 @@ class _MonumentMarker extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 6,
                   offset: const Offset(0, 3),
                 ),
@@ -1097,7 +1123,7 @@ class _UserLocationMarkerState extends State<_UserLocationMarker>
                 height: 40,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.blue.withOpacity(0.18),
+                  color: Colors.blue.withValues(alpha: 0.18),
                 ),
               ),
             ),
@@ -1113,7 +1139,7 @@ class _UserLocationMarkerState extends State<_UserLocationMarker>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withOpacity(0.45),
+                    color: Colors.blue.withValues(alpha: 0.45),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),

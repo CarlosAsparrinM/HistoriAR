@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import '../config/environment.dart';
 import 'package:http/http.dart' as http;
 
 class AuthService {
@@ -12,7 +11,9 @@ class AuthService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     scopes: ['email', 'profile'],
     // serverClientId is required on Android to obtain an idToken for backend verification
-    serverClientId: Environment.googleClientId.isNotEmpty ? Environment.googleClientId : null,
+    serverClientId: Environment.googleClientId.isNotEmpty
+        ? Environment.googleClientId
+        : null,
   );
 
   /// Extrae mensaje de error del response de forma segura
