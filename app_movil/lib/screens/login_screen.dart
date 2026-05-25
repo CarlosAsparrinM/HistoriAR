@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,6 +9,7 @@ import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
 import '../widgets/app_motion.dart';
 import 'main_scaffold.dart';
+import 'terms_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -29,6 +31,8 @@ class _LoginScreenState extends State<LoginScreen>
   final _loginPasswordController = TextEditingController();
 
   bool _loginObscure = true;
+  bool _termsRead = false;
+  bool _termsAccepted = false;
 
   final _registerFormKey = GlobalKey<FormState>();
   final _registerNameController = TextEditingController();
@@ -70,6 +74,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _handleLogin() async {
+    if (!_termsAccepted) {
+      _showError('Para proseguir con el login, acepta los Términos y Condiciones.');
+      return;
+    }
     if (!_loginFormKey.currentState!.validate()) return;
 
     final email = _loginEmailController.text.trim();
@@ -117,6 +125,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _handleGoogleLogin() async {
+    if (!_termsAccepted) {
+      _showError('Para proseguir con el login, acepta los Términos y Condiciones.');
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       final token = await _authService.loginWithGoogle();
@@ -329,6 +341,74 @@ class _LoginScreenState extends State<LoginScreen>
               }
               return null;
             },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Checkbox(
+                value: _termsAccepted,
+                onChanged: _termsRead
+                    ? (value) {
+                        setState(() => _termsAccepted = value ?? false);
+                      }
+                    : (value) {
+                        _showError('Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.');
+                      },
+                activeColor: AppColors.primary,
+              ),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    text: 'He leído y acepto los ',
+                    style: const TextStyle(color: Colors.black87, fontSize: 13),
+                    children: [
+                      TextSpan(
+                        text: 'Términos y condiciones',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TermsScreen(initialTabIndex: 0),
+                              ),
+                            );
+                            setState(() {
+                              _termsRead = true;
+                            });
+                          },
+                      ),
+                      const TextSpan(text: ' y la '),
+                      TextSpan(
+                        text: 'Política de Privacidad',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const TermsScreen(initialTabIndex: 1),
+                              ),
+                            );
+                            setState(() {
+                              _termsRead = true;
+                            });
+                          },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           SizedBox(
