@@ -52,7 +52,7 @@ export async function loginUser(email, password) {
   return { token, user };
 }
 
-export async function loginWithGoogle(idToken) {
+export async function loginWithGoogle(idToken, isRegister = false) {
   // Validar que el cliente esté inicializado
   if (!client) {
     throw new Error('Google Auth no está inicializado. Verifica GOOGLE_CLIENT_ID en .env');
@@ -94,6 +94,10 @@ export async function loginWithGoogle(idToken) {
   const { email, name, picture } = payload;
 
   let user = await User.findOne({ email });
+
+  if (isRegister && user) {
+    throw new Error('El correo ya está registrado');
+  }
 
   if (!user) {
     // Si no existe, lo creamos con datos de Google
