@@ -18,16 +18,19 @@ import '../utils/http_interceptor.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
+import '../utils/model_cache_manager.dart';
 
 class ArCameraArController {
   ArCameraArController({
     required VoidCallback onChanged,
     required void Function(String message) onShowMessage,
+    this.onArUnsupported,
   }) : _onChanged = onChanged,
        _onShowMessage = onShowMessage;
 
   final VoidCallback _onChanged;
   final void Function(String message) _onShowMessage;
+  final VoidCallback? onArUnsupported;
 
   final GlobalKey repaintKey = GlobalKey();
 
@@ -84,11 +87,19 @@ class ArCameraArController {
       customPlaneTexturePath: 'Images/triangle.png',
       showWorldOrigin: false,
       handleTaps: true,
-    );
-    this.arObjectManager!.onInitialize();
+    ).catchError((e) {
+      onArUnsupported?.call();
+    });
+
+    this.arObjectManager!.onInitialize().catchError((e) {
+      onArUnsupported?.call();
+    });
+
     this.arSessionManager!.onPlaneOrPointTap = _handlePlaneOrPointTap;
 
-    unawaited(_addWebObjectForMonument());
+    unawaited(_addWebObjectForMonument().catchError((e) {
+      onArUnsupported?.call();
+    }));
   }
 
   void updateARMetrics() {
@@ -182,9 +193,17 @@ class ArCameraArController {
       return;
     }
 
-    final url = await _resolveModelUrl(monument, token);
-    if (url == null || url.isEmpty) {
+    final remoteUrl = await resolveModelUrl(monument, token);
+    if (remoteUrl == null || remoteUrl.isEmpty) {
       loadError = 'No se encontró modelo 3D para este monumento.';
+      _onChanged();
+      _scheduleErrorDismissal();
+      return;
+    }
+
+    final cacheInfo = await ModelCacheManager.getCachedModel(remoteUrl, monument.id);
+    if (cacheInfo == null) {
+      loadError = 'Error al descargar el modelo 3D.';
       _onChanged();
       _scheduleErrorDismissal();
       return;
@@ -213,8 +232,8 @@ class ArCameraArController {
       ..scaleByDouble(scaleFactor, scaleFactor, scaleFactor, 1.0);
 
     final newNode = ARNode(
-      type: NodeType.webGLB,
-      uri: url,
+      type: NodeType.fileSystemAppFolderGLB,
+      uri: cacheInfo.absolutePath,
       transformation: transform,
     );
 
@@ -228,7 +247,11 @@ class ArCameraArController {
         _handleLoadError('No se pudo cargar el modelo 3D.');
       }
     } catch (e) {
-      _handleLoadError('Error al cargar el modelo: $e');
+      if (e.toString().contains('PlatformException') || e.toString().toLowerCase().contains('arcore')) {
+        onArUnsupported?.call();
+      } else {
+        _handleLoadError('Error al cargar el modelo: $e');
+      }
     } finally {
       isLoadingModel = false;
       _onChanged();
@@ -257,7 +280,7 @@ class ArCameraArController {
     });
   }
 
-  Future<String?> _resolveModelUrl(Monument monument, String token) async {
+  static Future<String?> resolveModelUrl(Monument monument, String token) async {
     final directUrl = monument.model3DUrl;
     if (directUrl != null && directUrl.isNotEmpty) {
       return directUrl;
@@ -326,9 +349,15 @@ class ArCameraArController {
         return;
       }
 
-      final url = await _resolveModelUrl(monument, token);
-      if (url == null || url.isEmpty) {
+      final remoteUrl = await resolveModelUrl(monument, token);
+      if (remoteUrl == null || remoteUrl.isEmpty) {
         _onShowMessage('No se pudo obtener el modelo');
+        return;
+      }
+
+      final cacheInfo = await ModelCacheManager.getCachedModel(remoteUrl, monument.id);
+      if (cacheInfo == null) {
+        _onShowMessage('Error al descargar el modelo local');
         return;
       }
 
@@ -347,8 +376,8 @@ class ArCameraArController {
         ..scaleByDouble(scaleFactor, scaleFactor, scaleFactor, 1.0);
 
       final newNode = ARNode(
-        type: NodeType.webGLB,
-        uri: url,
+        type: NodeType.fileSystemAppFolderGLB,
+        uri: cacheInfo.absolutePath,
         transformation: transform,
       );
 
