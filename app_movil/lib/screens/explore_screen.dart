@@ -117,35 +117,107 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
   }
 
   Future<void> _startLocationUpdates() async {
-    final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    final prefs = await SharedPreferences.getInstance();
-    final bool skipRequest =
-        prefs.getBool('location_permission_granted') ?? false;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      if (skipRequest) {
-        return; // no pedir permiso de nuevo si ya se guardó la sesión
-      }
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return;
+    void setFallbackLocation() {
+      if (!mounted) return;
+      if (_currentLatLng == null) {
+        setState(() {
+          _currentLatLng = _initialCenter;
+          if (_followUser) {
+            _zoom = _zoom < 16 ? 16 : _zoom;
+            _mapCenter = _initialCenter;
+            try {
+              _mapController.move(_initialCenter, _zoom);
+            } catch (_) {}
+          }
+        });
+        _refreshLocationContext(_initialCenter);
       }
     }
 
-    if (permission == LocationPermission.deniedForever) {
+    try {
+      final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setFallbackLocation();
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setFallbackLocation();
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setFallbackLocation();
+        return;
+      }
+    } catch (e) {
+      print('Error comprobando permisos o GPS: $e');
+      setFallbackLocation();
       return;
     }
 
-    // Si se tiene permiso, aseguramos que la sesión de ubicación quede guardada
-    if (permission == LocationPermission.always ||
-        permission == LocationPermission.whileInUse) {
-      await prefs.setBool('location_permission_granted', true);
-    }
-
     await _positionSub?.cancel();
+
+    // 1. Intentar obtener la última ubicación conocida para que sea rápido
+    try {
+      final lastPos = await Geolocator.getLastKnownPosition();
+      if (lastPos != null && mounted) {
+        final latLng = LatLng(lastPos.latitude, lastPos.longitude);
+        setState(() {
+          _currentLatLng = latLng;
+          if (_followUser) {
+            _zoom = _zoom < 16 ? 16 : _zoom;
+            _mapCenter = latLng;
+            // Solo animar o mover si el controlador está listo
+            try {
+              _mapController.move(latLng, _zoom);
+            } catch (_) {}
+          }
+        });
+        _refreshLocationContext(latLng);
+      }
+    } catch (_) {}
+
+    // 2. Intentar forzar una lectura actual antes del stream
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        timeLimit: const Duration(seconds: 5),
+      );
+      if (mounted) {
+        final latLng = LatLng(pos.latitude, pos.longitude);
+        setState(() {
+          _currentLatLng = latLng;
+          if (_followUser) {
+            _zoom = _zoom < 16 ? 16 : _zoom;
+            _mapCenter = latLng;
+            try {
+              _mapController.move(latLng, _zoom);
+            } catch (_) {}
+          }
+        });
+        _refreshLocationContext(latLng);
+      }
+    } catch (e) {
+      print('Aviso: No se pudo obtener la ubicación actual rápida: $e');
+      // Si estamos en un emulador sin ubicación, podríamos forzar una ubicación de prueba
+      // para que el mapa no se quede sin mostrar la distancia.
+      if (_currentLatLng == null && mounted) {
+        setState(() {
+          _currentLatLng = _initialCenter; // Ubicación en Lima por defecto
+          if (_followUser) {
+            _mapCenter = _initialCenter;
+            try {
+              _mapController.move(_initialCenter, _zoom);
+            } catch (_) {}
+          }
+        });
+        _refreshLocationContext(_initialCenter);
+      }
+    }
 
     _positionSub =
         Geolocator.getPositionStream(
@@ -153,16 +225,19 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
         ).listen((Position pos) {
           final LatLng latLng = LatLng(pos.latitude, pos.longitude);
 
-          setState(() {
-            _currentLatLng = latLng;
-            if (_followUser) {
-              _zoom = _zoom < 16 ? 16 : _zoom;
-              _mapCenter = latLng;
-              _mapController.move(latLng, _zoom);
-            }
-          });
-
-          _refreshLocationContext(latLng);
+          if (mounted) {
+            setState(() {
+              _currentLatLng = latLng;
+              if (_followUser) {
+                _zoom = _zoom < 16 ? 16 : _zoom;
+                _mapCenter = latLng;
+                try {
+                  _mapController.move(latLng, _zoom);
+                } catch (_) {}
+              }
+            });
+            _refreshLocationContext(latLng);
+          }
         });
   }
 
