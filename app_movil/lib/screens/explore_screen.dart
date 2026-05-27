@@ -29,7 +29,7 @@ class ExploreScreen extends StatefulWidget {
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
 
   final MonumentsService _monumentsService = MonumentsService();
@@ -68,6 +68,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeScreen();
   }
 
@@ -421,7 +422,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _startLocationUpdates();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _positionSub?.cancel();
     _mapAnimationTimer?.cancel();
     super.dispose();
