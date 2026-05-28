@@ -69,7 +69,10 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
       if (url != null) {
         // Descargar y cachear el modelo localmente
-        final cacheInfo = await ModelCacheManager.getCachedModel(url, widget.monument.id);
+        final cacheInfo = await ModelCacheManager.getCachedModel(
+          url,
+          widget.monument.id,
+        );
 
         if (mounted && cacheInfo != null) {
           setState(() {
@@ -123,7 +126,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           builder: (ctx) => AlertDialog(
             title: const Text('AR no compatible'),
             content: const Text(
-                'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.'),
+              'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -219,7 +223,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               ),
             ),
             if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),
-            if (_arController.loadError != null && !_arController.isLoadingModel)
+            if (_arController.loadError != null &&
+                !_arController.isLoadingModel)
               ArCameraErrorBanner(
                 message: _arController.loadError!,
                 onDismiss: () => setState(() => _arController.loadError = null),
@@ -228,7 +233,10 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               alignment: Alignment.topRight,
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 70), // Ajustado para no solapar el toggle
+                  padding: const EdgeInsets.only(
+                    right: 12,
+                    top: 70,
+                  ), // Ajustado para no solapar el toggle
                   child: ArQualityIndicator(
                     isTrackingActive: _arController.isTrackingActive,
                     isPlanDetected: _arController.isPlanDetected,
@@ -238,7 +246,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
             ),
-            if (!_arController.isLoadingModel && _arController.webObjectNode == null)
+            if (!_arController.isLoadingModel &&
+                _arController.webObjectNode == null)
               Align(
                 alignment: Alignment.center,
                 child: Padding(
@@ -251,7 +260,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               ),
           ] else ...[
             if (_isLoadingUrl)
-              const Center(child: CircularProgressIndicator(color: AppColors.primary))
+              const Center(
+                child: CircularProgressIndicator(color: AppColors.primary),
+              )
             else if (_fallbackModelUrl != null)
               Fallback3dViewer(modelUrl: _fallbackModelUrl!)
             else
@@ -316,13 +327,21 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                     children: [
                       const Padding(
                         padding: EdgeInsets.only(left: 12, right: 4),
-                        child: Text('AR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          'AR',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                       Switch(
                         value: _isArMode,
                         onChanged: (val) => _toggleArMode(),
-                        activeColor: AppColors.primary,
-                        activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+                        activeThumbColor: AppColors.primary,
+                        activeTrackColor: AppColors.primary.withValues(
+                          alpha: 0.4,
+                        ),
                         inactiveThumbColor: Colors.grey,
                         inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
                       ),
