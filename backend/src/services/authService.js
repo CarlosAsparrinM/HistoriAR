@@ -1,23 +1,37 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 
 // Será inicializado después de que dotenv cargue las variables
 let client;
 
+function validatePasswordStrength(password) {
+  if (typeof password != 'string' || password.length == 0) {
+    throw new Error('La contraseña es obligatoria');
+  }
+
+  if (password.length < 9) {
+    throw new Error('La contraseña debe tener al menos 9 caracteres');
+  }
+
+  if (!/^[A-Za-z0-9]+$/.test(password)) {
+    throw new Error('La contraseña solo puede contener letras y números');
+  }
+}
+
 export function initializeGoogleAuth() {
   const googleClientId = process.env.GOOGLE_CLIENT_ID;
   const jwtSecret = process.env.JWT_SECRET;
-  
+
   if (!jwtSecret) {
     throw new Error('❌ JWT_SECRET no configurado en .env');
   }
-  
+
   if (!googleClientId) {
     console.warn('⚠️ GOOGLE_CLIENT_ID no configurado en .env - Google login no funcionará');
   }
-  
+
   client = new OAuth2Client(googleClientId);
 }
 
@@ -25,14 +39,17 @@ export async function registerUser(data) {
   const { name, email, password, role, district, status } = data;
   const exists = await User.findOne({ email });
   if (exists) throw new Error('El correo ya está registrado');
+  validatePasswordStrength(password);
   const hash = password ? await bcrypt.hash(password, 10) : undefined;
   return await User.create({ name, email, password: hash, role, district, status });
 }
 
+export { validatePasswordStrength };
+
 export async function loginUser(email, password) {
   const user = await User.findOne({ email });
   if (!user || !user.password) throw new Error('Credenciales inválidas');
-  
+
   // Validar estado
   if (user.status === 'Eliminado') {
     throw new Error('Esta cuenta ha sido eliminada.');
@@ -47,7 +64,7 @@ export async function loginUser(email, password) {
   const token = jwt.sign(
     { sub: user._id, name: user.name, role: user.role, email: user.email },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
   );
   return { token, user };
 }
@@ -57,7 +74,7 @@ export async function loginWithGoogle(idToken) {
   if (!client) {
     throw new Error('Google Auth no está inicializado. Verifica GOOGLE_CLIENT_ID en .env');
   }
-  
+
   // Validar que el idToken no esté vacío
   if (!idToken || typeof idToken !== 'string') {
     throw new Error('Token inválido: idToken requerido');
@@ -85,7 +102,7 @@ export async function loginWithGoogle(idToken) {
   }
 
   const payload = ticket.getPayload();
-  
+
   // Validar que el payload contenga los datos esperados
   if (!payload?.email) {
     throw new Error('Token de Google no contiene email');
@@ -103,7 +120,7 @@ export async function loginWithGoogle(idToken) {
         email,
         role: 'user',
         avatarUrl: picture,
-        status: 'Activo'
+        status: 'Activo',
       });
     } catch (err) {
       // Si falla la creación, probablemente sea un error de base de datos
@@ -117,7 +134,7 @@ export async function loginWithGoogle(idToken) {
     if (user.status === 'Suspendido') {
       throw new Error('Esta cuenta está suspendida.');
     }
-    
+
     // Usuario existe y está activo
     if (!user.password && picture && !user.avatarUrl) {
       user.avatarUrl = picture;
@@ -129,7 +146,7 @@ export async function loginWithGoogle(idToken) {
   const token = jwt.sign(
     { sub: user._id, name: user.name, role: user.role, email: user.email },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' },
   );
 
   return { token, user };

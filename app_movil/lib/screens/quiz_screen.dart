@@ -4,6 +4,7 @@ import '../models/monument.dart';
 import '../services/app_settings_service.dart';
 import '../services/quiz_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_motion.dart';
 import '../widgets/app_states.dart';
 
@@ -175,9 +176,7 @@ class _QuizScreenState extends State<QuizScreen> {
       setState(() {
         _isSubmitting = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error al enviar quiz: $e')));
+      AppFeedback.error(context, 'Error al enviar quiz: $e');
     }
   }
 

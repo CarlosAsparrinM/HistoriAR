@@ -11,6 +11,7 @@ import '../contexts/auth_state.dart';
 import '../models/monument.dart';
 import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
+import '../screens/historical_data_screen.dart';
 import '../screens/quiz_screen.dart'; // Importing QuizScreen for navigation to quiz
 import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
@@ -19,6 +20,7 @@ import '../services/monuments_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
 
@@ -236,8 +238,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
   ) async {
     if (!_settings.nearbyNotificationsEnabled || nearby.isEmpty) return;
 
-    final activeTourMonumentIds = _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
-    final monumentosNotificables = _activeSessionId != null 
+    final activeTourMonumentIds =
+        _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
+    final monumentosNotificables = _activeSessionId != null
         ? nearby.where((m) => activeTourMonumentIds.contains(m.id)).toList()
         : nearby;
 
@@ -375,7 +378,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       final activeSessionId = activeSession['_id']?.toString();
       final activeTourId = _extractTourIdFromSession(activeSession);
-      
+
       final stopsVisited = activeSession['stopsVisited'] as List<dynamic>?;
       final visitedIds = <String>{};
       if (stopsVisited != null) {
@@ -393,7 +396,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (activeTourId != null) {
         try {
           final tours = await _toursService.getAllTours(activeOnly: true);
-          tourInfo = tours.cast<TourItem?>().firstWhere((t) => t?.id == activeTourId, orElse: () => null);
+          tourInfo = tours.cast<TourItem?>().firstWhere(
+            (t) => t?.id == activeTourId,
+            orElse: () => null,
+          );
         } catch (_) {}
       }
 
@@ -433,7 +439,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   // Clasificación del estado visual según status + distancia
-  _MarkerVisualState _computeVisualState(Monument m, {bool isActiveTourStop = false, bool isCompleted = false}) {
+  _MarkerVisualState _computeVisualState(
+    Monument m, {
+    bool isActiveTourStop = false,
+    bool isCompleted = false,
+  }) {
     // Umbral de "muy lejos" (ejemplo: > 1000m)
     const farThreshold = 1000.0;
 
@@ -504,18 +514,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     // Filtramos los monumentos a mostrar en el mapa
-    final activeTourMonumentIds = _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
-    
-    final monumentosAMostrar = _activeSessionId != null 
+    final activeTourMonumentIds =
+        _activeTour?.orderedStops.map((s) => s.monument.id).toSet() ?? {};
+
+    final monumentosAMostrar = _activeSessionId != null
         ? _monuments.where((m) => activeTourMonumentIds.contains(m.id)).toList()
         : _monuments;
 
     // Marcadores de monumentos
     for (final m in monumentosAMostrar) {
       final isCompleted = _visitedMonumentIds.contains(m.id);
-      final isActiveTourStop = _activeSessionId != null && activeTourMonumentIds.contains(m.id) && !isCompleted;
+      final isActiveTourStop =
+          _activeSessionId != null &&
+          activeTourMonumentIds.contains(m.id) &&
+          !isCompleted;
 
-      final visual = _computeVisualState(m, isActiveTourStop: isActiveTourStop, isCompleted: isCompleted);
+      final visual = _computeVisualState(
+        m,
+        isActiveTourStop: isActiveTourStop,
+        isCompleted: isCompleted,
+      );
 
       markers.add(
         Marker(
@@ -756,18 +774,38 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             _selectedMonument = null;
                           });
                         },
+                        onViewHistoricalData: () async {
+                          if (_selectedMonument == null) return;
+
+                          final token = authState.token;
+                          if (token.isEmpty) {
+                            if (!context.mounted) return;
+                            AppFeedback.error(
+                              context,
+                              'Sesión inválida o expirada. Vuelve a iniciar sesión.',
+                            );
+                            return;
+                          }
+
+                          if (!context.mounted) return;
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => HistoricalDataScreen(
+                                monument: _selectedMonument!,
+                                token: token,
+                              ),
+                            ),
+                          );
+                        },
                         onViewAr: () async {
                           if (_selectedMonument == null) return;
 
                           final token = authState.token;
                           if (token.isEmpty) {
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Sesión inválida o expirada. Vuelve a iniciar sesión.',
-                                ),
-                              ),
+                            AppFeedback.error(
+                              context,
+                              'Sesión inválida o expirada. Vuelve a iniciar sesión.',
                             );
                             return;
                           }
@@ -776,12 +814,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           final userId = prefs.getString(AuthState.userIdKey);
                           if (userId == null || userId.isEmpty) {
                             if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'No se pudo obtener el ID del usuario.',
-                                ),
-                              ),
+                            AppFeedback.warning(
+                              context,
+                              'No se pudo obtener el ID del usuario.',
                             );
                             return;
                           }
@@ -1316,12 +1351,14 @@ class _SelectedMonumentCard extends StatelessWidget {
   final String distanceText;
   final VoidCallback onClose;
   final VoidCallback onViewAr;
+  final VoidCallback onViewHistoricalData;
 
   const _SelectedMonumentCard({
     required this.monument,
     required this.distanceText,
     required this.onClose,
     required this.onViewAr,
+    required this.onViewHistoricalData,
   });
 
   @override
@@ -1437,14 +1474,25 @@ class _SelectedMonumentCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      side: BorderSide(color: AppColors.primary),
+                    ),
+                    onPressed: onViewHistoricalData,
+                    icon: Icon(
+                      Icons.history,
+                      color: AppColors.primary,
+                    ),
+                    label: Text(
+                      'Fichas',
+                      style: TextStyle(color: AppColors.primary),
+                    ),
                   ),
-                  child: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
                 ),
               ],
             ),

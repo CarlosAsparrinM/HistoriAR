@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
@@ -9,8 +10,8 @@ import '../services/monuments_service.dart';
 import '../services/user_service.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_states.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -47,9 +48,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (token == null || token.isEmpty) {
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('No hay sesión activa')));
+          AppFeedback.warning(context, 'No hay sesión activa');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const LoginScreen()),
           );
@@ -96,7 +95,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       await GoogleSignIn().signOut();
     } catch (_) {}
-    
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AuthState.tokenKey);
     await prefs.remove(AuthState.userIdKey);
@@ -113,18 +112,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     final nameController = TextEditingController(text: user.name);
     final emailController = TextEditingController(text: user.email);
-    
+
     final List<String> distritosLima = [
-      'Lima', 'Ancón', 'Ate', 'Barranco', 'Breña', 'Carabayllo', 'Chaclacayo',
-      'Chorrillos', 'Cieneguilla', 'Comas', 'El Agustino', 'Independencia',
-      'Jesús María', 'La Molina', 'La Victoria', 'Lince', 'Los Olivos',
-      'Lurigancho', 'Lurín', 'Magdalena del Mar', 'Miraflores', 'Pachacámac',
-      'Pucusana', 'Pueblo Libre', 'Puente Piedra', 'Punta Hermosa',
-      'Punta Negra', 'Rímac', 'San Bartolo', 'San Borja', 'San Isidro',
-      'San Juan de Lurigancho', 'San Juan de Miraflores', 'San Luis',
-      'San Martín de Porres', 'San Miguel', 'Santa Anita', 'Santa María del Mar',
-      'Santa Rosa', 'Santiago de Surco', 'Surquillo', 'Villa El Salvador',
-      'Villa María del Triunfo'
+      'Lima',
+      'Ancón',
+      'Ate',
+      'Barranco',
+      'Breña',
+      'Carabayllo',
+      'Chaclacayo',
+      'Chorrillos',
+      'Cieneguilla',
+      'Comas',
+      'El Agustino',
+      'Independencia',
+      'Jesús María',
+      'La Molina',
+      'La Victoria',
+      'Lince',
+      'Los Olivos',
+      'Lurigancho',
+      'Lurín',
+      'Magdalena del Mar',
+      'Miraflores',
+      'Pachacámac',
+      'Pucusana',
+      'Pueblo Libre',
+      'Puente Piedra',
+      'Punta Hermosa',
+      'Punta Negra',
+      'Rímac',
+      'San Bartolo',
+      'San Borja',
+      'San Isidro',
+      'San Juan de Lurigancho',
+      'San Juan de Miraflores',
+      'San Luis',
+      'San Martín de Porres',
+      'San Miguel',
+      'Santa Anita',
+      'Santa María del Mar',
+      'Santa Rosa',
+      'Santiago de Surco',
+      'Surquillo',
+      'Villa El Salvador',
+      'Villa María del Triunfo',
     ];
 
     String? selectedDistrict = user.district?.trim();
@@ -205,9 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (name.isEmpty || email.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nombre y correo son obligatorios')),
-      );
+      AppFeedback.warning(context, 'Nombre y correo son obligatorios');
       return;
     }
 
@@ -233,14 +263,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _loadUserProfile();
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Perfil actualizado correctamente')),
-      );
+      AppFeedback.success(context, 'Perfil actualizado correctamente');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('No se pudo actualizar: $e')));
+      AppFeedback.error(context, 'No se pudo actualizar: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -265,7 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
 
       await _userService.deleteMyAccount(token: token);
-      
+
       try {
         await GoogleSignIn().signOut();
       } catch (_) {}
@@ -280,9 +306,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo eliminar la cuenta: $e')),
-      );
+      AppFeedback.error(context, 'No se pudo eliminar la cuenta: $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -295,28 +319,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _confirmDeleteAccount() async {
     if (_isDeletingAccount) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Eliminar cuenta'),
-        content: const Text(
+    final confirmed = await AppFeedback.confirm(
+      context,
+      title: 'Eliminar cuenta',
+      message:
           'Esta acción marcará tu cuenta como eliminada y cerrará tu sesión. ¿Deseas continuar?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      icon: Icons.delete_forever,
     );
 
-    if (confirmed == true) {
+    if (confirmed) {
       await _deleteAccount();
     }
   }

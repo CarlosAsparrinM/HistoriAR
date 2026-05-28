@@ -7,6 +7,7 @@ import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_motion.dart';
 import 'main_scaffold.dart';
 import 'terms_screen.dart';
@@ -43,6 +44,9 @@ class _LoginScreenState extends State<LoginScreen>
   bool _registerObscure = true;
   bool _registerConfirmObscure = true;
 
+  static const String _passwordRulesText =
+      'Mínimo 9 caracteres, solo letras y números.';
+
   @override
   void initState() {
     super.initState();
@@ -67,15 +71,33 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
+  String? _validateStrongPassword(String? value) {
+    final password = value ?? '';
+    if (password.isEmpty) {
+      return 'La contraseña es obligatoria';
+    }
+    if (password.length < 9) {
+      return 'Debe tener al menos 9 caracteres';
+    }
+    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(password)) {
+      return 'Solo se permiten letras y números';
+    }
+    return null;
+  }
+
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.error(context, message);
+  }
+
+  void _showSuccess(String message) {
+    AppFeedback.success(context, message);
   }
 
   Future<void> _handleLogin() async {
     if (!_termsAccepted) {
-      _showError('Para proseguir con el login, acepta los Términos y Condiciones.');
+      _showError(
+        'Para proseguir con el login, acepta los Términos y Condiciones.',
+      );
       return;
     }
     if (!_loginFormKey.currentState!.validate()) return;
@@ -115,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
     try {
       await _authService.register(name: name, email: email, password: password);
-      _showError('Cuenta creada, ahora inicia sesión');
+      _showSuccess('Cuenta creada. Ahora inicia sesión.');
       _tabController.animateTo(0);
     } catch (e) {
       _showError(e.toString().replaceFirst('Exception: ', ''));
@@ -126,7 +148,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   Future<void> _handleGoogleLogin() async {
     if (!_termsAccepted) {
-      _showError('Para proseguir con el login, acepta los Términos y Condiciones.');
+      _showError(
+        'Para proseguir con el login, acepta los Términos y Condiciones.',
+      );
       return;
     }
     setState(() => _isLoading = true);
@@ -353,7 +377,9 @@ class _LoginScreenState extends State<LoginScreen>
                         setState(() => _termsAccepted = value ?? false);
                       }
                     : (value) {
-                        _showError('Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.');
+                        _showError(
+                          'Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.',
+                        );
                       },
                 activeColor: AppColors.primary,
               ),
@@ -375,7 +401,8 @@ class _LoginScreenState extends State<LoginScreen>
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const TermsScreen(initialTabIndex: 0),
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 0),
                               ),
                             );
                             setState(() {
@@ -396,7 +423,8 @@ class _LoginScreenState extends State<LoginScreen>
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const TermsScreen(initialTabIndex: 1),
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 1),
                               ),
                             );
                             setState(() {
@@ -422,7 +450,7 @@ class _LoginScreenState extends State<LoginScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 4,
-                          shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                shadowColor: AppColors.primary.withValues(alpha: 0.4),
               ),
               onPressed: _isLoading ? null : _handleLogin,
               child: _isLoading
@@ -472,11 +500,8 @@ class _LoginScreenState extends State<LoginScreen>
               icon: Image.network(
                 'https://developers.google.com/static/identity/images/g-logo.png',
                 height: 20,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.g_mobiledata,
-                  size: 24,
-                  color: Colors.red,
-                ),
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
               ),
               label: const Text(
                 'Iniciar sesión con Google',
@@ -571,15 +596,17 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerObscure,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) {
-              if (value?.isEmpty ?? true) {
-                return 'La contraseña es obligatoria';
-              }
-              if (value!.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres';
-              }
-              return null;
+              return _validateStrongPassword(value);
             },
+          ),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _passwordRulesText,
+              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -605,6 +632,7 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerConfirmObscure,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'Debe confirmar la contraseña';

@@ -13,6 +13,7 @@ import '../controllers/ar_camera_ar_controller.dart';
 import '../models/monument.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/ar_camera_actions_bar.dart';
 import '../widgets/ar_camera_status_overlays.dart';
 import '../widgets/ar_control_hints.dart';
@@ -98,15 +99,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   void _showSnackbar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.black.withValues(alpha: 0.8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    AppFeedback.info(context, message);
   }
 
   void onARViewCreated(

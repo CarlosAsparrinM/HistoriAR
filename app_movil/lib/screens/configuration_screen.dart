@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
 import '../styles/app_colors.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_states.dart';
 import 'login_screen.dart';
 
@@ -105,9 +106,7 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
         _nearbyNotificationsEnabled = false;
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permiso de notificaciones denegado')),
-      );
+      AppFeedback.warning(context, 'Permiso de notificaciones denegado');
     }
   }
 
@@ -123,37 +122,23 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   Future<void> _resetSettings() async {
     if (!mounted) return;
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restablecer ajustes'),
-        content: const Text(
+    final confirm = await AppFeedback.confirm(
+      context,
+      title: 'Restablecer ajustes',
+      message:
           '¿Estás seguro de que deseas restablecer todas las preferencias a sus valores predeterminados? Tu sesión no se cerrará.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Restablecer'),
-          ),
-        ],
-      ),
+      confirmText: 'Restablecer',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      icon: Icons.restore,
     );
 
-    if (confirm != true) return;
+    if (!confirm) return;
 
     await _settingsService.clearPreferences();
     await _loadConfiguration();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Preferencias locales restablecidas'),
-      ),
-    );
+    AppFeedback.success(context, 'Preferencias locales restablecidas');
   }
 
   Future<T?> _showChoiceSheet<T>({

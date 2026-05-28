@@ -14,6 +14,7 @@ import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
 
@@ -193,7 +194,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
   TourStopStatus _getStopStatus(TourStop stop, int index, List<TourStop> allStops) {
     if (_currentSessionId == null) return TourStopStatus.locked;
-    
+
     final monumentId = stop.monument.id;
     if (_visitedMonumentIds.contains(monumentId)) {
       return TourStopStatus.completed;
@@ -205,14 +206,14 @@ class _MyTourScreenState extends State<MyTourScreen> {
         return (i == index) ? TourStopStatus.active : TourStopStatus.locked;
       }
     }
-    
+
     return TourStopStatus.locked;
   }
 
   List<TourStop> _filteredStops() {
     final tour = _selectedTour;
-    final List<TourStop> stops = tour != null 
-        ? tour.orderedStops 
+    final List<TourStop> stops = tour != null
+        ? tour.orderedStops
         : _getFilteredTours().expand((t) => t.orderedStops).toList();
 
     if (stops.isEmpty) return const [];
@@ -233,10 +234,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final token = authState.token;
     if (token.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sesion invalida o expirada. Vuelve a iniciar sesion.'),
-        ),
+      AppFeedback.error(
+        context,
+        'Sesion invalida o expirada. Vuelve a iniciar sesion.',
       );
       return;
     }
@@ -246,9 +246,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final userId = prefs.getString(AuthState.userIdKey);
     if (userId == null || userId.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo obtener el ID del usuario.')),
-      );
+      AppFeedback.warning(context, 'No se pudo obtener el ID del usuario.');
       return;
     }
 
@@ -371,6 +369,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     if (token.isEmpty || tourId == null || _currentSessionId != null) return;
 
     setState(() => _isSessionLoading = true);
+    AppFeedback.loading(context, 'Iniciando tour...');
     try {
       final resp = await _sessionsService.startSession(
         tourId: tourId,
@@ -383,14 +382,10 @@ class _MyTourScreenState extends State<MyTourScreen> {
       });
       await _persistActiveTourSession();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Tour iniciado')));
+      AppFeedback.success(context, 'Tour iniciado');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error al iniciar tour: $e')));
+      AppFeedback.error(context, 'Error al iniciar tour: $e');
     } finally {
       if (mounted) setState(() => _isSessionLoading = false);
     }
@@ -402,6 +397,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     if (token.isEmpty || sessionId == null) return;
 
     setState(() => _isSessionLoading = true);
+    AppFeedback.loading(context, 'Finalizando tour...');
     try {
       await _sessionsService.stopSession(sessionId: sessionId, token: token);
       setState(() {
@@ -410,14 +406,10 @@ class _MyTourScreenState extends State<MyTourScreen> {
       });
       await _clearPersistedActiveTourSession();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Tour finalizado')));
+      AppFeedback.info(context, 'Tour finalizado');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error al finalizar tour: $e')));
+      AppFeedback.error(context, 'Error al finalizar tour: $e');
     } finally {
       if (mounted) setState(() => _isSessionLoading = false);
     }
@@ -427,10 +419,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final token = authState.token;
     if (token.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Sesion invalida o expirada. Vuelve a iniciar sesion.'),
-        ),
+      AppFeedback.error(
+        context,
+        'Sesion invalida o expirada. Vuelve a iniciar sesion.',
       );
       return;
     }
@@ -857,7 +848,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
       final activeSessionId = activeSession['_id']?.toString();
       final activeTourId = _extractTourIdFromSession(activeSession);
-      
+
       final stopsVisited = activeSession['stopsVisited'] as List<dynamic>?;
       final visitedIds = <String>{};
       if (stopsVisited != null) {

@@ -1,14 +1,14 @@
 import express from 'express';
 import multer from 'multer';
 import {
-  getHistoricalDataByMonument,
-  getHistoricalDataById,
   createHistoricalData,
-  updateHistoricalData,
   deleteHistoricalData,
-  reorderHistoricalData
+  getHistoricalDataById,
+  getHistoricalDataByMonument,
+  reorderHistoricalData,
+  updateHistoricalData,
 } from '../controllers/historicalDataController.js';
-import { verifyToken, requireRole } from '../middlewares/auth.js';
+import { requireRole, verifyToken } from '../middlewares/auth.js';
 
 const router = express.Router();
 
@@ -21,20 +21,10 @@ const upload = multer({
 });
 
 // Get all historical data for a monument
-router.get(
-  '/monuments/:monumentId/historical-data',
-  verifyToken,
-  requireRole('admin'),
-  getHistoricalDataByMonument
-);
+router.get('/monuments/:monumentId/historical-data', verifyToken, getHistoricalDataByMonument);
 
 // Get a single historical data entry
-router.get(
-  '/historical-data/:id',
-  verifyToken,
-  requireRole('admin'),
-  getHistoricalDataById
-);
+router.get('/historical-data/:id', verifyToken, getHistoricalDataById);
 
 // Create new historical data entry
 router.post(
@@ -42,7 +32,7 @@ router.post(
   verifyToken,
   requireRole('admin'),
   upload.single('image'),
-  createHistoricalData
+  createHistoricalData,
 );
 
 // Update historical data entry
@@ -51,23 +41,18 @@ router.put(
   verifyToken,
   requireRole('admin'),
   upload.single('image'),
-  updateHistoricalData
+  updateHistoricalData,
 );
 
 // Delete historical data entry
-router.delete(
-  '/historical-data/:id',
-  verifyToken,
-  requireRole('admin'),
-  deleteHistoricalData
-);
+router.delete('/historical-data/:id', verifyToken, requireRole('admin'), deleteHistoricalData);
 
 // Reorder historical data entries
 router.put(
   '/monuments/:monumentId/historical-data/reorder',
   verifyToken,
   requireRole('admin'),
-  reorderHistoricalData
+  reorderHistoricalData,
 );
 
 export default router;

@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
+import { validatePasswordStrength } from './authService.js';
 
 export async function getAllUsers(filter = {}, { skip = 0, limit = 10 } = {}) {
   const [items, total] = await Promise.all([
     User.find(filter).skip(skip).limit(limit).select('-password'),
-    User.countDocuments(filter)
+    User.countDocuments(filter),
   ]);
   return { items, total };
 }
@@ -14,12 +15,18 @@ export async function getUserById(id) {
 }
 
 export async function createUser(data) {
-  if (data.password) data.password = await bcrypt.hash(data.password, 10);
+  if (data.password) {
+    validatePasswordStrength(data.password);
+    data.password = await bcrypt.hash(data.password, 10);
+  }
   return await User.create(data);
 }
 
 export async function updateUser(id, data) {
-  if (data.password) data.password = await bcrypt.hash(data.password, 10);
+  if (data.password) {
+    validatePasswordStrength(data.password);
+    data.password = await bcrypt.hash(data.password, 10);
+  }
   return await User.findByIdAndUpdate(id, data, { new: true }).select('-password');
 }
 
@@ -33,8 +40,8 @@ export async function softDeleteUser(id) {
       status: 'Eliminado',
       password: null,
       avatarUrl: null,
-      district: null
+      district: null,
     },
-    { new: true }
+    { new: true },
   );
 }
