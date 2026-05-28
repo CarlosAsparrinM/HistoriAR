@@ -197,21 +197,25 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
+        fit: StackFit.expand,
         children: [
           if (_isArMode) ...[
-            GestureDetector(
-              onScaleStart: (details) {
-                _arController.handleScaleStart(details);
-              },
-              onScaleUpdate: (details) {
-                _arController.handleScaleUpdate(details);
-              },
-              child: RepaintBoundary(
-                key: _arController.repaintKey,
-                child: ARView(
-                  onARViewCreated: onARViewCreated,
-                  planeDetectionConfig: PlaneDetectionConfig.horizontal,
-                ),
+            Positioned.fill(
+              child: ARView(
+                onARViewCreated: onARViewCreated,
+                planeDetectionConfig: PlaneDetectionConfig.horizontal,
+              ),
+            ),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onScaleStart: (details) {
+                  _arController.handleScaleStart(details);
+                },
+                onScaleUpdate: (details) {
+                  _arController.handleScaleUpdate(details);
+                },
+                child: const SizedBox.expand(),
               ),
             ),
             if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),

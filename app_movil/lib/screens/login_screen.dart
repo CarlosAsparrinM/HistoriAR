@@ -7,7 +7,6 @@ import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
-import '../widgets/app_feedback.dart';
 import '../widgets/app_motion.dart';
 import 'main_scaffold.dart';
 import 'terms_screen.dart';
@@ -44,9 +43,6 @@ class _LoginScreenState extends State<LoginScreen>
   bool _registerObscure = true;
   bool _registerConfirmObscure = true;
 
-  static const String _passwordRulesText =
-      'Mínimo 9 caracteres, solo letras y números.';
-
   @override
   void initState() {
     super.initState();
@@ -71,38 +67,16 @@ class _LoginScreenState extends State<LoginScreen>
     );
   }
 
-  String? _validateStrongPassword(String? value) {
-    final password = value ?? '';
-    if (password.isEmpty) {
-      return 'La contraseña es obligatoria';
-    }
-    if (password.length < 9) {
-      return 'Debe tener al menos 9 caracteres';
-    }
-    if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(password)) {
-      return 'Solo se permiten letras y números';
-    }
-    return null;
-  }
-
   void _showError(String message) {
-    AppFeedback.error(context, message);
-  }
-
-  void _showSuccess(String message) {
-    AppFeedback.success(context, message);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleLogin() async {
-    if (!_termsAccepted) {
-      _showError(
-        'Para proseguir con el login, acepta los Términos y Condiciones.',
-      );
-      return;
-    }
     if (!_loginFormKey.currentState!.validate()) return;
 
-    final email = _loginEmailController.text.trim();
+    final email = _loginEmailController.text.trim().toLowerCase();
     final password = _loginPasswordController.text.trim();
 
     setState(() => _isLoading = true);
@@ -128,29 +102,36 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _handleRegister() async {
+    if (!_termsAccepted) {
+      _showError('Para registrarte, acepta los Términos y Condiciones.');
+      return;
+    }
     if (!_registerFormKey.currentState!.validate()) return;
 
     final name = _registerNameController.text.trim();
-    final email = _registerEmailController.text.trim();
+    final email = _registerEmailController.text.trim().toLowerCase();
     final password = _registerPasswordController.text.trim();
 
     setState(() => _isLoading = true);
     try {
       await _authService.register(name: name, email: email, password: password);
-      _showSuccess('Cuenta creada. Ahora inicia sesión.');
+      _showError('Cuenta creada, ahora inicia sesión');
       _tabController.animateTo(0);
     } catch (e) {
-      _showError(e.toString().replaceFirst('Exception: ', ''));
+      final errorMsg = e.toString().replaceFirst('Exception: ', '');
+      _showError(errorMsg);
+      if (errorMsg.contains('ya está registrado') ||
+          errorMsg.contains('ya existe')) {
+        _tabController.animateTo(0);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _handleGoogleLogin() async {
-    if (!_termsAccepted) {
-      _showError(
-        'Para proseguir con el login, acepta los Términos y Condiciones.',
-      );
+  Future<void> _handleGoogleAuth({required bool isRegister}) async {
+    if (isRegister && !_termsAccepted) {
+      _showError('Para registrarte, acepta los Términos y Condiciones.');
       return;
     }
     setState(() => _isLoading = true);
@@ -169,7 +150,13 @@ class _LoginScreenState extends State<LoginScreen>
       _goToApp();
     } catch (e) {
       if (!e.toString().contains('cancelado')) {
-        _showError(e.toString().replaceFirst('Exception: ', ''));
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        _showError(errorMsg);
+        if (isRegister &&
+            (errorMsg.contains('ya está registrado') ||
+                errorMsg.contains('ya existe'))) {
+          _tabController.animateTo(0);
+        }
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -277,15 +264,17 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Formularios sin scroll interno
+                  // Formularios con scroll interno para evitar overflow
                   SizedBox(
-                    height: 520,
+                    height: 650,
                     child: AppFadeSwitcher(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          _buildLoginForm(theme),
-                          _buildRegisterForm(theme),
+                          SingleChildScrollView(child: _buildLoginForm(theme)),
+                          SingleChildScrollView(
+                            child: _buildRegisterForm(theme),
+                          ),
                         ],
                       ),
                     ),
@@ -366,78 +355,7 @@ class _LoginScreenState extends State<LoginScreen>
               return null;
             },
           ),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Checkbox(
-                value: _termsAccepted,
-                onChanged: _termsRead
-                    ? (value) {
-                        setState(() => _termsAccepted = value ?? false);
-                      }
-                    : (value) {
-                        _showError(
-                          'Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.',
-                        );
-                      },
-                activeColor: AppColors.primary,
-              ),
-              Expanded(
-                child: RichText(
-                  text: TextSpan(
-                    text: 'He leído y acepto los ',
-                    style: const TextStyle(color: Colors.black87, fontSize: 13),
-                    children: [
-                      TextSpan(
-                        text: 'Términos y condiciones',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
-                        ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const TermsScreen(initialTabIndex: 0),
-                              ),
-                            );
-                            setState(() {
-                              _termsRead = true;
-                            });
-                          },
-                      ),
-                      const TextSpan(text: ' y la '),
-                      TextSpan(
-                        text: 'Política de Privacidad',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                          decoration: TextDecoration.underline,
-                        ),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    const TermsScreen(initialTabIndex: 1),
-                              ),
-                            );
-                            setState(() {
-                              _termsRead = true;
-                            });
-                          },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
@@ -496,7 +414,9 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 side: const BorderSide(color: Color(0xFFE8E8E8), width: 1.5),
               ),
-              onPressed: _isLoading ? null : _handleGoogleLogin,
+              onPressed: _isLoading
+                  ? null
+                  : () => _handleGoogleAuth(isRegister: false),
               icon: Image.network(
                 'https://developers.google.com/static/identity/images/g-logo.png',
                 height: 20,
@@ -596,17 +516,15 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerObscure,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) {
-              return _validateStrongPassword(value);
+              if (value?.isEmpty ?? true) {
+                return 'La contraseña es obligatoria';
+              }
+              if (value!.length < 6) {
+                return 'La contraseña debe tener al menos 6 caracteres';
+              }
+              return null;
             },
-          ),
-          const Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              _passwordRulesText,
-              style: TextStyle(fontSize: 12, color: AppColors.textMuted),
-            ),
           ),
           const SizedBox(height: 12),
           const Text(
@@ -632,7 +550,6 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerConfirmObscure,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'Debe confirmar la contraseña';
@@ -642,6 +559,78 @@ class _LoginScreenState extends State<LoginScreen>
               }
               return null;
             },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Checkbox(
+                value: _termsAccepted,
+                onChanged: _termsRead
+                    ? (value) {
+                        setState(() => _termsAccepted = value ?? false);
+                      }
+                    : (value) {
+                        _showError(
+                          'Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.',
+                        );
+                      },
+                activeColor: AppColors.primary,
+              ),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    text: 'He leído y acepto los ',
+                    style: const TextStyle(color: Colors.black87, fontSize: 13),
+                    children: [
+                      TextSpan(
+                        text: 'Términos y condiciones',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 0),
+                              ),
+                            );
+                            setState(() {
+                              _termsRead = true;
+                            });
+                          },
+                      ),
+                      const TextSpan(text: ' y la '),
+                      TextSpan(
+                        text: 'Política de Privacidad',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.bold,
+                          decoration: TextDecoration.underline,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 1),
+                              ),
+                            );
+                            setState(() {
+                              _termsRead = true;
+                            });
+                          },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -674,6 +663,50 @@ class _LoginScreenState extends State<LoginScreen>
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'o continuar con',
+                  style: TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: const BorderSide(color: Color(0xFFE8E8E8), width: 1.5),
+              ),
+              onPressed: _isLoading
+                  ? null
+                  : () => _handleGoogleAuth(isRegister: true),
+              icon: Image.network(
+                'https://developers.google.com/static/identity/images/g-logo.png',
+                height: 20,
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
+              ),
+              label: const Text(
+                'Registrarse con Google',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],

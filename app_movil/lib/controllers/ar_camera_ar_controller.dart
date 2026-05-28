@@ -14,10 +14,10 @@ import 'package:ar_flutter_plugin_plus/models/ar_hittest_result.dart';
 import 'package:ar_flutter_plugin_plus/models/ar_node.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import '../utils/http_interceptor.dart' as http;
 import 'package:vector_math/vector_math_64.dart' as vmath;
 
 import '../models/monument.dart';
+import '../utils/http_interceptor.dart' as http;
 import '../utils/model_cache_manager.dart';
 
 class ArCameraArController {
@@ -81,25 +81,29 @@ class ArCameraArController {
     this.arObjectManager = arObjectManager;
     this.arAnchorManager = arAnchorManager;
 
-    this.arSessionManager!.onInitialize(
-      showFeaturePoints: false,
-      showPlanes: false,
-      customPlaneTexturePath: 'Images/triangle.png',
-      showWorldOrigin: false,
-      handleTaps: true,
-    ).catchError((e) {
-      onArUnsupported?.call();
-    });
+    unawaited(_initializeAr());
+  }
 
-    this.arObjectManager!.onInitialize().catchError((e) {
-      onArUnsupported?.call();
-    });
+  Future<void> _initializeAr() async {
+    try {
+      await arSessionManager!.onInitialize(
+        showFeaturePoints: false,
+        showPlanes: false,
+        showWorldOrigin: false,
+        handleTaps: true,
+      );
 
-    this.arSessionManager!.onPlaneOrPointTap = _handlePlaneOrPointTap;
+      arObjectManager!.onInitialize();
+      arSessionManager!.onPlaneOrPointTap = _handlePlaneOrPointTap;
 
-    unawaited(_addWebObjectForMonument().catchError((e) {
+      unawaited(
+        _addWebObjectForMonument().catchError((e) {
+          onArUnsupported?.call();
+        }),
+      );
+    } catch (e) {
       onArUnsupported?.call();
-    }));
+    }
   }
 
   void updateARMetrics() {
@@ -201,7 +205,10 @@ class ArCameraArController {
       return;
     }
 
-    final cacheInfo = await ModelCacheManager.getCachedModel(remoteUrl, monument.id);
+    final cacheInfo = await ModelCacheManager.getCachedModel(
+      remoteUrl,
+      monument.id,
+    );
     if (cacheInfo == null) {
       loadError = 'Error al descargar el modelo 3D.';
       _onChanged();
@@ -247,7 +254,8 @@ class ArCameraArController {
         _handleLoadError('No se pudo cargar el modelo 3D.');
       }
     } catch (e) {
-      if (e.toString().contains('PlatformException') || e.toString().toLowerCase().contains('arcore')) {
+      if (e.toString().contains('PlatformException') ||
+          e.toString().toLowerCase().contains('arcore')) {
         onArUnsupported?.call();
       } else {
         _handleLoadError('Error al cargar el modelo: $e');
@@ -280,7 +288,10 @@ class ArCameraArController {
     });
   }
 
-  static Future<String?> resolveModelUrl(Monument monument, String token) async {
+  static Future<String?> resolveModelUrl(
+    Monument monument,
+    String token,
+  ) async {
     final directUrl = monument.model3DUrl;
     if (directUrl != null && directUrl.isNotEmpty) {
       return directUrl;
@@ -355,7 +366,10 @@ class ArCameraArController {
         return;
       }
 
-      final cacheInfo = await ModelCacheManager.getCachedModel(remoteUrl, monument.id);
+      final cacheInfo = await ModelCacheManager.getCachedModel(
+        remoteUrl,
+        monument.id,
+      );
       if (cacheInfo == null) {
         _onShowMessage('Error al descargar el modelo local');
         return;
