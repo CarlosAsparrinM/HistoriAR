@@ -349,8 +349,8 @@ class _LoginScreenState extends State<LoginScreen>
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres';
+              if (value!.length < 9) {
+                return 'La contraseña debe tener al menos 9 caracteres';
               }
               return null;
             },
@@ -520,8 +520,11 @@ class _LoginScreenState extends State<LoginScreen>
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres';
+              if (value!.length < 9) {
+                return 'La contraseña debe tener al menos 9 caracteres';
+              }
+              if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(value!)) {
+                return 'Solo puede contener letras y números';
               }
               return null;
             },

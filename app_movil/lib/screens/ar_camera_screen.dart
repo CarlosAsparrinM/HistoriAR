@@ -205,9 +205,12 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         children: [
           if (_isArMode) ...[
             Positioned.fill(
-              child: ARView(
-                onARViewCreated: onARViewCreated,
-                planeDetectionConfig: PlaneDetectionConfig.horizontal,
+              child: RepaintBoundary(
+                key: _arController.repaintKey,
+                child: ARView(
+                  onARViewCreated: onARViewCreated,
+                  planeDetectionConfig: PlaneDetectionConfig.horizontal,
+                ),
               ),
             ),
             Positioned.fill(
