@@ -197,7 +197,7 @@ class AuthService {
     }
   }
 
-  Future<String> loginWithGoogle() async {
+  Future<String> loginWithGoogle({bool isRegister = false}) async {
     try {
       // Paso 1: Obtener cuenta de Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -223,7 +223,7 @@ class AuthService {
           .post(
             uri,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'idToken': idToken}),
+            body: jsonEncode({'idToken': idToken, 'isRegister': isRegister}),
           )
           .timeout(
             const Duration(seconds: _timeoutSeconds),

@@ -13,11 +13,13 @@ import '../controllers/ar_camera_ar_controller.dart';
 import '../models/monument.dart';
 import '../services/visits_service.dart';
 import '../styles/app_colors.dart';
+import '../utils/model_cache_manager.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/ar_camera_actions_bar.dart';
 import '../widgets/ar_camera_status_overlays.dart';
 import '../widgets/ar_control_hints.dart';
 import '../widgets/ar_quality_indicator.dart';
+import '../widgets/fallback_3d_viewer.dart';
 import '../widgets/monument_info_sheet.dart';
 
 class ArCameraScreen extends StatefulWidget {
@@ -49,9 +51,60 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   bool _isInfoModalOpen = false;
   late Stopwatch _frameStopwatch;
 
+  bool _isArMode = false;
+  String? _fallbackModelUrl;
+  bool _isLoadingUrl = false;
+
+  Future<void> _loadFallbackUrl() async {
+    if (_fallbackModelUrl != null) return;
+    if (!mounted) return;
+    setState(() {
+      _isLoadingUrl = true;
+    });
+    try {
+      final url = await ArCameraArController.resolveModelUrl(
+        widget.monument,
+        widget.token,
+      );
+
+      if (url != null) {
+        // Descargar y cachear el modelo localmente
+        final cacheInfo = await ModelCacheManager.getCachedModel(url, widget.monument.id);
+
+        if (mounted && cacheInfo != null) {
+          setState(() {
+            _fallbackModelUrl = cacheInfo.localUri;
+            _isLoadingUrl = false;
+          });
+        }
+      } else {
+        throw Exception('URL no encontrada');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingUrl = false;
+        });
+        _showSnackbar('Error al cargar la URL del modelo');
+      }
+    }
+  }
+
+  void _toggleArMode() {
+    setState(() {
+      _isArMode = !_isArMode;
+    });
+    if (!_isArMode) {
+      _loadFallbackUrl();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    if (!_isArMode) {
+      _loadFallbackUrl();
+    }
     _arController = ArCameraArController(
       onChanged: () {
         if (mounted) {
@@ -59,6 +112,27 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         }
       },
       onShowMessage: _showSnackbar,
+      onArUnsupported: () {
+        if (!mounted) return;
+        setState(() {
+          _isArMode = false;
+        });
+        _loadFallbackUrl();
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('AR no compatible'),
+            content: const Text(
+                'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Entendido'),
+              ),
+            ],
+          ),
+        );
+      },
     );
     _visitStartTime = DateTime.now();
     _frameStopwatch = Stopwatch()..start();
@@ -124,27 +198,66 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          GestureDetector(
-            onScaleStart: (details) {
-              _arController.handleScaleStart(details);
-            },
-            onScaleUpdate: (details) {
-              _arController.handleScaleUpdate(details);
-            },
-            child: RepaintBoundary(
-              key: _arController.repaintKey,
-              child: ARView(
-                onARViewCreated: onARViewCreated,
-                planeDetectionConfig: PlaneDetectionConfig.horizontal,
+          if (_isArMode) ...[
+            GestureDetector(
+              onScaleStart: (details) {
+                _arController.handleScaleStart(details);
+              },
+              onScaleUpdate: (details) {
+                _arController.handleScaleUpdate(details);
+              },
+              child: RepaintBoundary(
+                key: _arController.repaintKey,
+                child: ARView(
+                  onARViewCreated: onARViewCreated,
+                  planeDetectionConfig: PlaneDetectionConfig.horizontal,
+                ),
               ),
             ),
-          ),
-          if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),
-          if (_arController.loadError != null && !_arController.isLoadingModel)
-            ArCameraErrorBanner(
-              message: _arController.loadError!,
-              onDismiss: () => setState(() => _arController.loadError = null),
+            if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),
+            if (_arController.loadError != null && !_arController.isLoadingModel)
+              ArCameraErrorBanner(
+                message: _arController.loadError!,
+                onDismiss: () => setState(() => _arController.loadError = null),
+              ),
+            Align(
+              alignment: Alignment.topRight,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12, top: 70), // Ajustado para no solapar el toggle
+                  child: ArQualityIndicator(
+                    isTrackingActive: _arController.isTrackingActive,
+                    isPlanDetected: _arController.isPlanDetected,
+                    lightIntensity: _arController.ambientLightIntensity,
+                    showDebugInfo: false,
+                  ),
+                ),
+              ),
             ),
+            if (!_arController.isLoadingModel && _arController.webObjectNode == null)
+              Align(
+                alignment: Alignment.center,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: ArControlHints(
+                    isModelLoaded: _arController.webObjectNode != null,
+                    onDismiss: () => setState(() {}),
+                  ),
+                ),
+              ),
+          ] else ...[
+            if (_isLoadingUrl)
+              const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            else if (_fallbackModelUrl != null)
+              Fallback3dViewer(modelUrl: _fallbackModelUrl!)
+            else
+              const Center(
+                child: Text(
+                  'No se encontró modelo 3D.',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+          ],
           Align(
             alignment: Alignment.topLeft,
             child: SafeArea(
@@ -184,27 +297,37 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(right: 12, top: 12),
-                child: ArQualityIndicator(
-                  isTrackingActive: _arController.isTrackingActive,
-                  isPlanDetected: _arController.isPlanDetected,
-                  lightIntensity: _arController.ambientLightIntensity,
-                  showDebugInfo: false,
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 12, right: 4),
+                        child: Text('AR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                      Switch(
+                        value: _isArMode,
+                        onChanged: (val) => _toggleArMode(),
+                        activeColor: AppColors.primary,
+                        activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+                        inactiveThumbColor: Colors.grey,
+                        inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-          if (!_arController.isLoadingModel &&
-              _arController.webObjectNode == null)
-            Align(
-              alignment: Alignment.center,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ArControlHints(
-                  isModelLoaded: _arController.webObjectNode != null,
-                  onDismiss: () => setState(() {}),
-                ),
-              ),
-            ),
           Align(
             alignment: Alignment.bottomCenter,
             child: SafeArea(
@@ -223,8 +346,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeInOut,
                       child: ArCameraActionsBar(
-                        onReset: _resetModelPosition,
-                        onScreenshot: _captureScreenshot,
+                        onReset: _isArMode ? _resetModelPosition : null,
+                        onScreenshot: _isArMode ? _captureScreenshot : null,
                         onInfo: () => _showMonumentInfo(context),
                       ),
                     ),
