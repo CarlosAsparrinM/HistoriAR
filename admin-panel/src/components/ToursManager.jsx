@@ -40,6 +40,8 @@ const TOUR_TYPES = [
   'Rápido'
 ];
 
+const MONUMENTS_PAGE_SIZE = 100;
+
 function ToursManager() {
   const { tourId } = useParams();
   const queryClient = useQueryClient();
@@ -108,7 +110,7 @@ function ToursManager() {
       setLoading(true);
       const [toursData, monumentsData] = await Promise.all([
         apiService.getToursByInstitution(institutionId, true),
-        apiService.getMonuments({ availableOnly: true }) // Solo monumentos disponibles
+        loadAllMonumentsForInstitution(institutionId)
       ]);
       
       setTours(toursData.items || toursData);
@@ -119,6 +121,37 @@ function ToursManager() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAllMonumentsForInstitution = async (institutionId) => {
+    const allMonuments = [];
+    let page = 1;
+    let total = Infinity;
+
+    while (allMonuments.length < total) {
+      const response = await apiService.searchMonuments({
+        institution: institutionId,
+        page,
+        limit: MONUMENTS_PAGE_SIZE
+      });
+
+      const items = response.items || response || [];
+      allMonuments.push(...items);
+
+      if (typeof response.total === 'number') {
+        total = response.total;
+      } else {
+        total = allMonuments.length;
+      }
+
+      if (!items.length) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return allMonuments;
   };
 
   const handleSelectInstitution = async (institution) => {

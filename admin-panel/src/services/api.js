@@ -115,6 +115,11 @@ class ApiService {
     return this.request(`/monuments${queryString ? `?${queryString}` : ''}`);
   }
 
+  async searchMonuments(params = {}) {
+    const queryString = this.buildQueryString(params);
+    return this.request(`/monuments/search${queryString ? `?${queryString}` : ''}`);
+  }
+
   async getMonument(id) {
     return this.request(`/monuments/${id}`);
   }
