@@ -8,6 +8,7 @@ import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
 import '../widgets/app_motion.dart';
+import '../widgets/app_feedback.dart';
 import 'main_scaffold.dart';
 import 'terms_screen.dart';
 
@@ -68,9 +69,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    AppFeedback.error(context, message);
   }
 
   Future<void> _handleLogin() async {
@@ -523,7 +522,7 @@ class _LoginScreenState extends State<LoginScreen>
               if (value!.length < 9) {
                 return 'La contraseña debe tener al menos 9 caracteres';
               }
-              if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(value!)) {
+              if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(value)) {
                 return 'Solo puede contener letras y números';
               }
               return null;
