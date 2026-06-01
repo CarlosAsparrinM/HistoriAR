@@ -1,8 +1,8 @@
-# MEJORAS PENDIENTES PARA LA VERSION ESTABLE 1.0
+# MEJORAS PENDIENTES PARA LA VERSION ESTABLE 1.0.4
 
 **Proyecto:** HistoriAR Mobile
 **Fecha:** Mayo de 2026
-**Objetivo:** Consolidar los pendientes funcionales, visuales, de rendimiento y de salida a produccion para considerar la aplicacion como version estable 1.0.
+**Objetivo:** Consolidar los pendientes funcionales, visuales, de rendimiento y de salida a produccion para considerar la aplicacion como version estable 1.0.4.
 
 ---
 

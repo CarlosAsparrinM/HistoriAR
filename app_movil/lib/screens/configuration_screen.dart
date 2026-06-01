@@ -205,9 +205,9 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
   @override
   Widget build(BuildContext context) {
     final appInfo = {
-      'version': '1.0.2',
-      'build': 'Build 2026.05.28',
-      'lastUpdate': '28 Mayo 2026',
+      'version': '1.0.4',
+      'build': 'Build 2026.05.31',
+      'lastUpdate': '31 Mayo 2026',
     };
 
     return Scaffold(

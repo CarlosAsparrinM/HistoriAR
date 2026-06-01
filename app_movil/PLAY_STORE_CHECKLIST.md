@@ -19,15 +19,15 @@ Fecha de revisión: 22-05-2026
   - Evidencia: android/app/src/main/AndroidManifest.xml, android/app/src/debug/AndroidManifest.xml, android/app/src/profile/AndroidManifest.xml
   - Resultado: release ya puede consumir API.
 
-- [ ] Definir `.env` de producción real para el build release
-  - Estado actual: se carga `.env` al iniciar, y el fallback de API apunta a localhost.
-  - Evidencia: lib/main.dart, lib/config/environment.dart, .env.example
-  - Acción: crear `.env` productivo con API HTTPS pública y `ENVIRONMENT=production`.
+- [x] Definir `.env` de producción real para el build release
+  - Estado actual: `.env` productivo configurado.
+  - Evidencia: lib/main.dart, lib/config/environment.dart, .env
+  - Resultado: configurado `.env` con API HTTPS pública y `ENVIRONMENT=production`.
 
 ## 2) Versión y compatibilidad Play
 
 - [ ] Incrementar versión para release
-  - Estado actual: `version: 1.0.0+1`
+  - Estado actual: `version: 1.0.4+4`
   - Evidencia: pubspec.yaml
   - Acción: subir a una versión final y reservar estrategia de incrementos (`versionCode` siempre creciente).
 
@@ -84,7 +84,7 @@ Marca GO solo si todo esto está en verde:
 - [x] Application ID de producción
 - [x] Firma release real (no debug)
 - [x] INTERNET en manifest main
-- [ ] `.env` productivo válido (API HTTPS)
+- [x] `.env` productivo válido (API HTTPS)
 - [x] AAB firmado generado
 - [ ] AAB probado en Internal testing
 - [ ] Política de privacidad publicada
@@ -97,7 +97,6 @@ Con el estado actual del proyecto, **ya se resolvieron los 3 bloqueantes técnic
 
 Pendientes para subir a producción:
 
-- Configurar `.env` productivo real (API HTTPS pública, sin localhost)
 - Completar formulario Data Safety y Content Rating
 - Publicar URL de política de privacidad
 - Completar smoke test release en Internal Testing
