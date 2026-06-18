@@ -7,7 +7,9 @@ import '../utils/http_interceptor.dart' as http;
 class QuizService {
   static const String _basePath = '/api/quizzes';
 
-  const QuizService();
+  const QuizService({http.Client? client}) : _client = client;
+
+  final http.Client? _client;
 
   Future<Map<String, dynamic>?> getQuizForMonument({
     required String monumentId,
@@ -17,13 +19,16 @@ class QuizService {
       '${Environment.apiBaseUrl}$_basePath?monumentId=$monumentId',
     );
 
-    final response = await http.get(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    final response = _client == null
+        ? await http.get(uri, headers: headers)
+        : await _client.get(uri, headers: headers);
+    if (_client != null) {
+      await http.inspectResponse(response, headers: headers);
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final data = jsonDecode(response.body);
@@ -65,14 +70,16 @@ class QuizService {
       'timeSpent': timeSpent.inSeconds,
     });
 
-    final response = await http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: body,
-    );
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $token',
+    };
+    final response = _client == null
+        ? await http.post(uri, headers: headers, body: body)
+        : await _client.post(uri, headers: headers, body: body);
+    if (_client != null) {
+      await http.inspectResponse(response, headers: headers);
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final data = jsonDecode(response.body);

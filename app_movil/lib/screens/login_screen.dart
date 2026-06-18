@@ -1,9 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
+import '../services/session_storage_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
@@ -24,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   final _authService = AuthService();
   final _userService = UserService();
+  final _sessionStorage = SessionStorageService();
   bool _isLoading = false;
 
   final _loginFormKey = GlobalKey<FormState>();
@@ -82,14 +83,11 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
     try {
       final token = await _authService.login(email: email, password: password);
-      authState.token = token;
-      // Persistimos token y userId para otras pantallas
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(AuthState.tokenKey, token);
+      await _sessionStorage.saveToken(token);
 
       try {
         final me = await _userService.getMyProfile(token);
-        await prefs.setString(AuthState.userIdKey, me.id);
+        await _sessionStorage.saveUserId(me.id);
       } catch (_) {
         // Si falla obtener el perfil, igual continuamos con token
       }
@@ -136,13 +134,11 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
     try {
       final token = await _authService.loginWithGoogle();
-      authState.token = token;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(AuthState.tokenKey, token);
+      await _sessionStorage.saveToken(token);
 
       try {
         final me = await _userService.getMyProfile(token);
-        await prefs.setString(AuthState.userIdKey, me.id);
+        await _sessionStorage.saveUserId(me.id);
       } catch (_) {
         // Continuar si falla obtener el perfil secundario
       }

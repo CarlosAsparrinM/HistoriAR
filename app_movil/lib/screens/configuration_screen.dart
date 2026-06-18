@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
+import '../services/session_storage_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_states.dart';
 import 'login_screen.dart';
@@ -15,6 +16,7 @@ class ConfigurationScreen extends StatefulWidget {
 
 class _ConfigurationScreenState extends State<ConfigurationScreen> {
   final AppSettingsService _settingsService = AppSettingsService();
+  final SessionStorageService _sessionStorage = SessionStorageService();
 
   bool _isLoading = true;
   bool _requestingNotificationPermission = false;
@@ -500,7 +502,8 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                           _OptionTile(
                             icon: Icons.restore,
                             title: 'Restablecer ajustes',
-                            subtitle: 'Restaura las preferencias a valores por defecto',
+                            subtitle:
+                                'Restaura las preferencias a valores por defecto',
                             onTap: _resetSettings,
                           ),
                           const Divider(height: 0),
@@ -509,12 +512,13 @@ class _ConfigurationScreenState extends State<ConfigurationScreen> {
                             title: 'Cerrar Sesión',
                             subtitle: 'Salir de tu cuenta',
                             onTap: () async {
-                              await _settingsService.clearSession();
+                              await _sessionStorage.clearSession();
                               if (!context.mounted) return;
-                              Navigator.of(context).pushReplacement(
+                              Navigator.of(context).pushAndRemoveUntil(
                                 MaterialPageRoute(
                                   builder: (_) => const LoginScreen(),
                                 ),
+                                (_) => false,
                               );
                             },
                             isDestructive: true,

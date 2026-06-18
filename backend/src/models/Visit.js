@@ -9,6 +9,7 @@ const VisitSchema = new mongoose.Schema(
     duration: { type: Number }, // minutos
     rating: { type: Number, min: 1, max: 5 },
     device: { type: String },
+    clientVisitId: { type: String, trim: true },
   },
   { timestamps: true },
 );
@@ -18,5 +19,12 @@ VisitSchema.index({ userId: 1 });
 VisitSchema.index({ monumentId: 1 });
 VisitSchema.index({ tourId: 1 });
 VisitSchema.index({ userId: 1, tourId: 1 }); // Para obtener todas visitas de un user en un tour
+VisitSchema.index(
+  { userId: 1, clientVisitId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { clientVisitId: { $type: 'string' } },
+  },
+);
 
 export default mongoose.model('Visit', VisitSchema);

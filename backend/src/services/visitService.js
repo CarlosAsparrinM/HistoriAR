@@ -14,7 +14,27 @@ export async function getVisitById(id) {
 }
 
 export async function createVisit(data) {
-  const visit = await Visit.create(data);
+  let visit;
+  if (data.clientVisitId && data.userId) {
+    const existingVisit = await Visit.findOne({
+      userId: data.userId,
+      clientVisitId: data.clientVisitId,
+    });
+    if (existingVisit) return existingVisit;
+  }
+
+  try {
+    visit = await Visit.create(data);
+  } catch (error) {
+    if (error?.code === 11000 && data.clientVisitId && data.userId) {
+      const existingVisit = await Visit.findOne({
+        userId: data.userId,
+        clientVisitId: data.clientVisitId,
+      });
+      if (existingVisit) return existingVisit;
+    }
+    throw error;
+  }
 
   // Si la visita pertenece a un tour, intentar registrar la parada en la TourSession activa
   try {

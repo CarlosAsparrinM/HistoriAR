@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/pending_visits_service.dart';
 import '../styles/app_colors.dart';
-import '../widgets/app_motion.dart';
 import 'configuration_screen.dart';
 import 'explore_screen.dart';
 import 'my_tour_screen.dart';
@@ -24,6 +24,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   void initState() {
     super.initState();
+    PendingVisitsService().sync();
     _screens = [
       const ExploreScreen(), // 0
       const MyTourScreen(), // 1 usa el token real
@@ -41,12 +42,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: AppFadeSwitcher(
-        child: KeyedSubtree(
-          key: ValueKey(_selectedIndex),
-          child: _screens[_selectedIndex],
-        ),
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         elevation: 8,
         currentIndex: _selectedIndex,

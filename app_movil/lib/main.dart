@@ -3,6 +3,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'screens/auth_gate.dart';
 import 'services/local_notification_service.dart';
+import 'services/session_storage_service.dart';
 import 'styles/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -15,7 +16,9 @@ Future<void> main() async {
 }
 
 class HistoriARApp extends StatelessWidget {
-  const HistoriARApp({super.key});
+  final SessionStorageService? sessionStorage;
+
+  const HistoriARApp({super.key, this.sessionStorage});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,7 @@ class HistoriARApp extends StatelessWidget {
       title: 'HistoriAR',
       theme: AppTheme.light,
       navigatorKey: navigatorKey,
-      home: const AuthGate(),
+      home: AuthGate(sessionStorage: sessionStorage),
     );
   }
 }

@@ -10,13 +10,19 @@ import 'package:ar_flutter_plugin_plus/managers/ar_session_manager.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/ar_camera_ar_controller.dart';
+import '../models/historical_data.dart';
 import '../models/monument.dart';
-import '../services/visits_service.dart';
+import '../services/historical_data_service.dart';
+import '../services/pending_visits_service.dart';
 import '../styles/app_colors.dart';
 import '../utils/model_cache_manager.dart';
+import '../widgets/app_feedback.dart';
 import '../widgets/ar_camera_actions_bar.dart';
 import '../widgets/ar_camera_status_overlays.dart';
-import '../widgets/ar_control_hints.dart';
+import '../widgets/ar_contextual_guide.dart';
+import '../widgets/ar_historical_floating_cards.dart';
+import '../widgets/ar_historical_info_panel.dart';
+import '../widgets/ar_monument_timeline.dart';
 import '../widgets/ar_quality_indicator.dart';
 import '../widgets/fallback_3d_viewer.dart';
 import '../widgets/monument_info_sheet.dart';
@@ -42,12 +48,20 @@ class ArCameraScreen extends StatefulWidget {
 class _ArCameraScreenState extends State<ArCameraScreen> {
   late final ArCameraArController _arController;
 
-  // Variables para registro de visita
-  DateTime? _visitStartTime;
-  final VisitsService _visitsService = const VisitsService();
+  final PendingVisitsService _pendingVisitsService = PendingVisitsService();
+  final HistoricalDataService _historicalDataService = HistoricalDataService();
+  DateTime? _experienceReadyAt;
+  bool _visitQueued = false;
+  bool _isClosing = false;
+  bool _allowPop = false;
+  List<HistoricalData> _historicalData = [];
+  bool _isLoadingHistoricalData = false;
+  String? _historicalDataError;
 
   // Nuevas variables para mejoras de UX
   bool _isInfoModalOpen = false;
+  bool _isHistoricalPanelExpanded = false;
+  bool _shouldShowContextualGuide = true;
   late Stopwatch _frameStopwatch;
 
   bool _isArMode = false;
@@ -65,26 +79,33 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         widget.monument,
         widget.token,
       );
-      
-      if (url != null) {
-        // Descargar y cachear el modelo localmente
-        final cacheInfo = await ModelCacheManager.getCachedModel(url, widget.monument.id);
-        
-        if (mounted && cacheInfo != null) {
-          setState(() {
-            _fallbackModelUrl = cacheInfo.localUri;
-            _isLoadingUrl = false;
-          });
-        }
-      } else {
+
+      if (url == null || url.isEmpty) {
         throw Exception('URL no encontrada');
       }
+
+      final cacheInfo = await ModelCacheManager.getCachedModel(
+        url,
+        widget.monument.id,
+      );
+      if (cacheInfo == null) {
+        throw Exception('No se pudo descargar un modelo 3D válido');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _fallbackModelUrl = cacheInfo.localUri;
+      });
+      _markExperienceReady();
     } catch (e) {
+      if (mounted) {
+        _showSnackbar('Error al cargar la URL del modelo');
+      }
+    } finally {
       if (mounted) {
         setState(() {
           _isLoadingUrl = false;
         });
-        _showSnackbar('Error al cargar la URL del modelo');
       }
     }
   }
@@ -107,6 +128,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     _arController = ArCameraArController(
       onChanged: () {
         if (mounted) {
+          if (_arController.webObjectNode != null) {
+            _markExperienceReady();
+          }
           setState(() {});
         }
       },
@@ -122,7 +146,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           builder: (ctx) => AlertDialog(
             title: const Text('AR no compatible'),
             content: const Text(
-                'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.'),
+              'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -132,10 +157,11 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           ),
         );
       },
+      onHistoricalCardTap: _showHistoricalDataDetail,
     );
-    _visitStartTime = DateTime.now();
     _frameStopwatch = Stopwatch()..start();
     _startPeriodicTracking();
+    unawaited(_loadHistoricalData());
   }
 
   void _startPeriodicTracking() {
@@ -152,11 +178,42 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     _arController.updateARMetrics();
   }
 
+  Future<void> _loadHistoricalData() async {
+    if (_isLoadingHistoricalData) return;
+    if (mounted) {
+      setState(() {
+        _isLoadingHistoricalData = true;
+        _historicalDataError = null;
+      });
+    }
+
+    try {
+      final data = await _historicalDataService.fetchHistoricalDataByMonument(
+        widget.monument.id,
+        token: widget.token,
+      );
+      if (!mounted) return;
+      setState(() {
+        _historicalData = data;
+        _isLoadingHistoricalData = false;
+      });
+      unawaited(_arController.setHistoricalData(data));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingHistoricalData = false;
+        _historicalDataError = 'No se pudieron cargar las fichas';
+      });
+    }
+  }
+
   @override
   void dispose() {
     _frameStopwatch.stop();
     _arController.dispose();
-    _registerVisit();
+    if (!_visitQueued && _experienceReadyAt != null) {
+      unawaited(_queueVisit());
+    }
     super.dispose();
   }
 
@@ -172,15 +229,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   void _showSnackbar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: Colors.black.withValues(alpha: 0.8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
+    AppFeedback.info(context, message);
   }
 
   void onARViewCreated(
@@ -197,179 +246,337 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       arAnchorManager: arAnchorManager,
       arLocationManager: arLocationManager,
     );
+    unawaited(_arController.setHistoricalData(_historicalData));
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
+  Widget _buildBackButton() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 8),
+        ],
+      ),
+      child: IconButton(
+        onPressed: _onBackPressed,
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        padding: const EdgeInsets.all(10),
+        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        splashRadius: 22,
+      ),
+    );
+  }
+
+  Widget _buildArModeToggle() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (_isArMode) ...[
-            GestureDetector(
-              onScaleStart: (details) {
-                _arController.handleScaleStart(details);
-              },
-              onScaleUpdate: (details) {
-                _arController.handleScaleUpdate(details);
-              },
-              child: RepaintBoundary(
-                key: _arController.repaintKey,
-                child: ARView(
-                  onARViewCreated: onARViewCreated,
-                  planeDetectionConfig: PlaneDetectionConfig.horizontal,
-                ),
-              ),
-            ),
-            if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),
-            if (_arController.loadError != null && !_arController.isLoadingModel)
-              ArCameraErrorBanner(
-                message: _arController.loadError!,
-                onDismiss: () => setState(() => _arController.loadError = null),
-              ),
-            Align(
-              alignment: Alignment.topRight,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12, top: 70), // Ajustado para no solapar el toggle
-                  child: ArQualityIndicator(
-                    isTrackingActive: _arController.isTrackingActive,
-                    isPlanDetected: _arController.isPlanDetected,
-                    lightIntensity: _arController.ambientLightIntensity,
-                    showDebugInfo: false,
-                  ),
-                ),
-              ),
-            ),
-            if (!_arController.isLoadingModel && _arController.webObjectNode == null)
-              Align(
-                alignment: Alignment.center,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ArControlHints(
-                    isModelLoaded: _arController.webObjectNode != null,
-                    onDismiss: () => setState(() {}),
-                  ),
-                ),
-              ),
-          ] else ...[
-            if (_isLoadingUrl)
-              const Center(child: CircularProgressIndicator(color: AppColors.primary))
-            else if (_fallbackModelUrl != null)
-              Fallback3dViewer(modelUrl: _fallbackModelUrl!)
-            else
-              const Center(
-                child: Text(
-                  'No se encontró modelo 3D.',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-          ],
-          Align(
-            alignment: Alignment.topLeft,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(left: 12, top: 12),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: IconButton(
-                    onPressed: _onBackPressed,
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    padding: const EdgeInsets.all(10),
-                    constraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
-                    ),
-                    splashRadius: 22,
-                  ),
-                ),
+          const Padding(
+            padding: EdgeInsets.only(left: 12, right: 4),
+            child: Text(
+              'AR',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          Align(
-            alignment: Alignment.topRight,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 12, top: 12),
-                child: Container(
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: AppColors.primary.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(left: 12, right: 4),
-                        child: Text('AR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      ),
-                      Switch(
-                        value: _isArMode,
-                        onChanged: (val) => _toggleArMode(),
-                        activeColor: AppColors.primary,
-                        activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
-                        inactiveThumbColor: Colors.grey,
-                        inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: IgnorePointer(
-                  ignoring: _isInfoModalOpen,
-                  child: AnimatedSlide(
-                    offset: _isInfoModalOpen
-                        ? const Offset(0, 1.25)
-                        : Offset.zero,
-                    duration: const Duration(milliseconds: 320),
-                    curve: Curves.easeInOutCubic,
-                    child: AnimatedOpacity(
-                      opacity: _isInfoModalOpen ? 0.0 : 1.0,
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeInOut,
-                      child: ArCameraActionsBar(
-                        onReset: _isArMode ? _resetModelPosition : null,
-                        onScreenshot: _isArMode ? _captureScreenshot : null,
-                        onInfo: () => _showMonumentInfo(context),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+          Switch(
+            value: _isArMode,
+            onChanged: (_) => _toggleArMode(),
+            activeThumbColor: AppColors.primary,
+            activeTrackColor: AppColors.primary.withValues(alpha: 0.4),
+            inactiveThumbColor: Colors.grey,
+            inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildHistoricalToggle() {
+    return IconButton(
+      tooltip: _isHistoricalPanelExpanded
+          ? 'Ocultar información histórica'
+          : 'Mostrar información histórica',
+      onPressed: () {
+        setState(() {
+          _isHistoricalPanelExpanded = !_isHistoricalPanelExpanded;
+          if (_isHistoricalPanelExpanded) {
+            _shouldShowContextualGuide = false;
+          }
+        });
+      },
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.black.withValues(alpha: 0.7),
+        side: BorderSide(
+          color: _isHistoricalPanelExpanded
+              ? AppColors.primary
+              : AppColors.primary.withValues(alpha: 0.3),
+        ),
+        minimumSize: const Size(44, 44),
+      ),
+      icon: Icon(
+        _isHistoricalPanelExpanded ? Icons.history : Icons.history_outlined,
+        color: _isHistoricalPanelExpanded ? AppColors.primary : Colors.white,
+        size: 20,
+      ),
+    );
+  }
+
+  Widget _buildTopControls() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.black.withValues(alpha: 0.65), Colors.transparent],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  _buildBackButton(),
+                  const Spacer(),
+                  _buildArModeToggle(),
+                ],
+              ),
+              if (_isArMode) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const SizedBox(width: 44),
+                    Expanded(
+                      child: Center(
+                        child: ArQualityIndicator(
+                          isTrackingActive: _arController.isTrackingActive,
+                          isPlanDetected: _arController.isPlanDetected,
+                          lightIntensity: _arController.ambientLightIntensity,
+                          showDebugInfo: false,
+                        ),
+                      ),
+                    ),
+                    _buildHistoricalToggle(),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeArea = MediaQuery.paddingOf(context);
+    final hasVisibleModel = _isArMode
+        ? _arController.webObjectNode != null && !_arController.isLoadingModel
+        : _fallbackModelUrl != null && !_isLoadingUrl;
+    final showFloatingHistoricalCards =
+        hasVisibleModel &&
+        !_isInfoModalOpen &&
+        !_isHistoricalPanelExpanded &&
+        !(_isArMode && _shouldShowContextualGuide) &&
+        (!_isArMode ||
+            _historicalData.isEmpty ||
+            _arController.historicalCardsFailed ||
+            _arController.isLoadingHistoricalCards);
+    final isPreparingArHistoricalCards =
+        _isArMode &&
+        _historicalData.isNotEmpty &&
+        _arController.isLoadingHistoricalCards;
+    final showHistoricalCardHitTargets =
+        _isArMode &&
+        _arController.hasHistoricalCardNodes &&
+        !showFloatingHistoricalCards &&
+        !_isInfoModalOpen &&
+        !_isHistoricalPanelExpanded &&
+        !_shouldShowContextualGuide;
+
+    return PopScope<void>(
+      canPop: _allowPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) {
+          unawaited(_finishAndPop());
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (_isArMode) ...[
+              Positioned.fill(
+                child: RepaintBoundary(
+                  key: _arController.repaintKey,
+                  child: ARView(
+                    onARViewCreated: onARViewCreated,
+                    planeDetectionConfig: PlaneDetectionConfig.horizontal,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: IgnorePointer(
+                  ignoring: _arController.hasHistoricalCardNodes,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onScaleStart: (details) {
+                      _arController.handleScaleStart(details);
+                    },
+                    onScaleUpdate: (details) {
+                      _arController.handleScaleUpdate(details);
+                    },
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+              // Estado de carga del modelo
+              if (_arController.isLoadingModel) const ArCameraLoadingOverlay(),
+              // Banner de error
+              if (_arController.loadError != null &&
+                  !_arController.isLoadingModel)
+                ArCameraErrorBanner(
+                  message: _arController.loadError!,
+                  onDismiss: () =>
+                      setState(() => _arController.loadError = null),
+                ),
+              // Instrucciones contextuales mejoradas
+              if (_shouldShowContextualGuide &&
+                  (!_arController.isLoadingModel ||
+                      !_arController.isPlanDetected))
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  top: safeArea.top + 132,
+                  child: ArContextualGuide(
+                    monument: widget.monument,
+                    isModelLoaded: _arController.webObjectNode != null,
+                    isTrackingActive: _arController.isTrackingActive,
+                    onDismiss: () =>
+                        setState(() => _shouldShowContextualGuide = false),
+                  ),
+                ),
+              // Panel de información histórica (abajo)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: safeArea.bottom + 96,
+                child: ArHistoricalInfoPanel(
+                  monument: widget.monument,
+                  isExpanded: _isHistoricalPanelExpanded,
+                ),
+              ),
+            ] else ...[
+              // Modo fallback 3D
+              if (_isLoadingUrl)
+                const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                )
+              else if (_fallbackModelUrl != null)
+                Fallback3dViewer(modelUrl: _fallbackModelUrl!)
+              else
+                const Center(
+                  child: Text(
+                    'No se encontró modelo 3D.',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              // Timeline visual en modo fallback
+              Positioned(
+                top: safeArea.top + 76,
+                right: 16,
+                left: 16,
+                child: ArMonumentTimeline(
+                  monument: widget.monument,
+                  showYears: true,
+                ),
+              ),
+            ],
+            if (showFloatingHistoricalCards)
+              Positioned(
+                top: safeArea.top + (_isArMode ? 150 : 156),
+                left: 0,
+                right: 0,
+                child: ArHistoricalFloatingCards(
+                  items: _historicalData,
+                  isLoading:
+                      _isLoadingHistoricalData || isPreparingArHistoricalCards,
+                  errorMessage: _historicalDataError,
+                  onRetry: () => unawaited(_loadHistoricalData()),
+                  onTap: _showHistoricalDataDetail,
+                ),
+              ),
+            if (showHistoricalCardHitTargets)
+              Positioned(
+                top: safeArea.top + 150,
+                left: 0,
+                right: 0,
+                child: ArHistoricalFloatingCards(
+                  items: _historicalData,
+                  hitTestOnly: true,
+                  onTap: _showHistoricalDataDetail,
+                ),
+              ),
+            Positioned(top: 0, left: 0, right: 0, child: _buildTopControls()),
+            // Barra de acciones inferior (siempre visible cuando está el modelo cargado)
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: IgnorePointer(
+                    ignoring: _isInfoModalOpen,
+                    child: AnimatedSlide(
+                      offset: _isInfoModalOpen
+                          ? const Offset(0, 1.25)
+                          : Offset.zero,
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.easeInOutCubic,
+                      child: AnimatedOpacity(
+                        opacity: _isInfoModalOpen ? 0.0 : 1.0,
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeInOut,
+                        child: ArCameraActionsBar(
+                          onReset: _isArMode ? _resetModelPosition : null,
+                          onScreenshot: _isArMode ? _captureScreenshot : null,
+                          onInfo: () => _showMonumentInfo(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _onBackPressed() async {
-    Navigator.of(context).pop();
+    await _finishAndPop();
   }
 
   Future<void> _showMonumentInfo(BuildContext context) async {
@@ -392,41 +599,69 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     }
   }
 
-  Future<void> _registerVisit() async {
-    if (_visitStartTime == null) return;
+  Future<void> _showHistoricalDataDetail(HistoricalData data) async {
+    if (_isInfoModalOpen) return;
+
+    if (mounted) {
+      setState(() {
+        _isInfoModalOpen = true;
+      });
+    }
 
     try {
-      // Obtener contexto de autenticación desde Navigator
-      // El token se pasa en el constructor, pero para userId necesitaríamos acceso a authState
-      // Por ahora, asumimos que el usuario está autenticado (ya pasamos el token)
-
-      // Calcular duración en minutos
-      final now = DateTime.now();
-      final duration = now.difference(_visitStartTime!).inMinutes;
-
-      // Registrar visita de forma asíncrona sin bloquear la navegación
-      // No esperamos la respuesta para no ralentizar el pop de la pantalla
-      unawaited(_registerVisitInBackground(duration));
-    } catch (e) {
-      stdout.writeln('Error preparando registro de visita: $e');
+      await showHistoricalDataDetailSheet(context, data);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInfoModalOpen = false;
+        });
+      }
     }
   }
 
-  Future<void> _registerVisitInBackground(int durationMinutes) async {
+  void _markExperienceReady() {
+    _experienceReadyAt ??= DateTime.now();
+  }
+
+  Future<void> _finishAndPop() async {
+    if (_isClosing) return;
+    _isClosing = true;
+
     try {
-      await _visitsService.registerVisit(
-        userId: widget.userId,
-        monumentId: widget.monument.id,
-        token: widget.token,
-        tourId: widget.tourId, // Pasar tourId si está disponible
-        durationMinutes: durationMinutes,
-      );
-      stdout.writeln(
-        'Visita registrada exitosamente: monumentId=${widget.monument.id}, tourId=${widget.tourId}, duration=$durationMinutes min',
-      );
+      await _queueVisit();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _allowPop = true;
+        });
+        await Future<void>.delayed(Duration.zero);
+      }
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
+  Future<void> _queueVisit() async {
+    final readyAt = _experienceReadyAt;
+    if (_visitQueued || readyAt == null) return;
+    _visitQueued = true;
+
+    final elapsedSeconds = DateTime.now().difference(readyAt).inSeconds;
+    final durationMinutes = (elapsedSeconds / 60).ceil().clamp(1, 1440);
+    final visit = PendingVisit.create(
+      userId: widget.userId,
+      monumentId: widget.monument.id,
+      tourId: widget.tourId,
+      durationMinutes: durationMinutes,
+    );
+
+    try {
+      await _pendingVisitsService.enqueue(visit);
+      unawaited(_pendingVisitsService.sync());
     } catch (e) {
-      stdout.writeln('Error al registrar visita: $e');
-      // No mostrar error al usuario, solo loguear
+      _visitQueued = false;
+      stdout.writeln('Error guardando visita pendiente: $e');
     }
   }
 }

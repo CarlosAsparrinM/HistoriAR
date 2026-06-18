@@ -52,6 +52,7 @@ class VisitsService {
     String? tourId, // Nuevo: tour al que pertenece esta visita (opcional)
     int? durationMinutes,
     String? device,
+    String? clientVisitId,
   }) async {
     final uri = Uri.parse('${Environment.apiBaseUrl}/api/visits');
 
@@ -61,6 +62,7 @@ class VisitsService {
       'duration': durationMinutes,
       'device': device ?? _getPlatformDevice(),
       if (tourId != null) 'tourId': tourId, // Incluir si se proporciona
+      if (clientVisitId != null) 'clientVisitId': clientVisitId,
     };
     // Retry + timeout
     for (int attempt = 0; attempt < _maxRetries; attempt++) {
