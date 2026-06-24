@@ -91,6 +91,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _logout() async {
+    final confirmed = await AppFeedback.confirm(
+      context,
+      title: 'Cerrar sesión',
+      message: '¿Deseas salir de tu cuenta en este dispositivo?',
+      confirmText: 'Cerrar sesión',
+      cancelText: 'Cancelar',
+      isDestructive: true,
+      icon: Icons.logout,
+    );
+    if (!confirmed) return;
+
     try {
       await GoogleSignIn().signOut();
     } catch (_) {}
@@ -468,65 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 32,
-                          backgroundColor: AppColors.primary,
-                          backgroundImage: userProfile.profileImage != null
-                              ? NetworkImage(userProfile.profileImage!)
-                              : null,
-                          child: userProfile.profileImage == null
-                              ? Text(
-                                  initials,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                userProfile.name,
-                                style: const TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                userProfile.email,
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (userProfile.joinDate != null)
-                                    _InfoChip(label: userProfile.joinDate!),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _isUpdatingProfile
-                              ? null
-                              : () => _showEditProfileDialog(userProfile),
-                          icon: const Icon(Icons.edit_outlined, size: 16),
-                          label: Text(
-                            _isUpdatingProfile ? 'Guardando...' : 'Editar',
-                          ),
-                        ),
-                      ],
-                    ),
+                    _buildProfileHeader(userProfile, initials),
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -714,6 +667,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildProfileHeader(User userProfile, String initials) {
+    final avatar = Semantics(
+      image: true,
+      label: 'Avatar de ${userProfile.name}',
+      child: CircleAvatar(
+        radius: 40,
+        backgroundColor: AppColors.primary,
+        backgroundImage: userProfile.profileImage != null
+            ? NetworkImage(userProfile.profileImage!)
+            : null,
+        child: userProfile.profileImage == null
+            ? Text(
+                initials,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            : null,
+      ),
+    );
+
+    final details = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          userProfile.name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          userProfile.email,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: AppColors.textMuted),
+        ),
+        if (userProfile.joinDate != null) ...[
+          const SizedBox(height: 8),
+          _InfoChip(label: userProfile.joinDate!),
+        ],
+      ],
+    );
+
+    final editButton = OutlinedButton.icon(
+      onPressed: _isUpdatingProfile
+          ? null
+          : () => _showEditProfileDialog(userProfile),
+      icon: const Icon(Icons.edit_outlined, size: 18),
+      label: Text(_isUpdatingProfile ? 'Guardando...' : 'Editar perfil'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 420) {
+          return Column(
+            children: [
+              avatar,
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerLeft, child: details),
+              const SizedBox(height: 12),
+              SizedBox(width: double.infinity, child: editButton),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            avatar,
+            const SizedBox(width: 16),
+            Expanded(child: details),
+            const SizedBox(width: 12),
+            editButton,
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _ProfileData {
@@ -879,7 +913,10 @@ class _StatCard extends StatelessWidget {
               Text(
                 label,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textMuted,
+                ),
               ),
             ],
           ),

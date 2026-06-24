@@ -144,9 +144,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('AR no compatible'),
+            title: const Text('RA no compatible'),
             content: const Text(
-              'Lo sentimos, tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de Realidad Aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.',
+              'Tu dispositivo no cuenta con el soporte necesario (ARCore) para mostrar experiencias de realidad aumentada.\n\nPuedes seguir explorando el monumento en el visor 3D.',
             ),
             actions: [
               TextButton(
@@ -289,7 +289,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           const Padding(
             padding: EdgeInsets.only(left: 12, right: 4),
             child: Text(
-              'AR',
+              'RA',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

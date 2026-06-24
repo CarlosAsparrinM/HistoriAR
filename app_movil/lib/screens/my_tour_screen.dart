@@ -234,7 +234,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     List<TourStop> allStops,
   ) {
     if (_currentSessionId == null) return TourStopStatus.locked;
-    
+
     final monumentId = stop.monument.id;
     if (_visitedMonumentIds.contains(monumentId)) {
       return TourStopStatus.completed;
@@ -246,14 +246,14 @@ class _MyTourScreenState extends State<MyTourScreen> {
         return (i == index) ? TourStopStatus.active : TourStopStatus.locked;
       }
     }
-    
+
     return TourStopStatus.locked;
   }
 
   List<TourStop> _filteredStops() {
     final tour = _selectedTour;
-    final List<TourStop> stops = tour != null 
-        ? tour.orderedStops 
+    final List<TourStop> stops = tour != null
+        ? tour.orderedStops
         : _getFilteredTours().expand((t) => t.orderedStops).toList();
 
     if (stops.isEmpty) return const [];
@@ -498,6 +498,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
           icon: const Icon(Icons.refresh),
         ),
       ],
+      bottomNavigationBar: selectedTour == null
+          ? null
+          : _buildTourActionBar(selectedTour),
       child: RefreshIndicator(
         onRefresh: _loadTours,
         child: _isLoading
@@ -779,39 +782,105 @@ class _MyTourScreenState extends State<MyTourScreen> {
                   label: tour.isActive ? 'Activo' : 'Inactivo',
                   icon: tour.isActive ? Icons.check_circle : Icons.pause_circle,
                 ),
-                const SizedBox(width: 8),
-                // Botón iniciar/finalizar tour
-                Builder(
-                  builder: (ctx) {
-                    final isActive = _currentSessionId != null;
-                    return ElevatedButton(
-                      onPressed: _isSessionLoading
-                          ? null
-                          : () async {
-                              if (isActive) {
-                                await _stopTour();
-                              } else {
-                                await _startTour();
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isActive
-                            ? Colors.redAccent
-                            : AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(isActive ? 'Finalizar Tour' : 'Iniciar Tour'),
-                    );
-                  },
-                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTourActionBar(TourItem tour) {
+    final isActive = _currentSessionId != null;
+
+    return Material(
+      color: Colors.white,
+      elevation: 10,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isActive ? 'Tour en curso' : 'Tour seleccionado',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    Text(
+                      tour.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _isSessionLoading ? null : _handleTourAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isActive
+                      ? AppColors.danger
+                      : AppColors.primary,
+                ),
+                icon: _isSessionLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(isActive ? Icons.stop_circle : Icons.play_arrow),
+                label: Text(isActive ? 'Finalizar' : 'Iniciar tour'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleTourAction() async {
+    if (_currentSessionId == null) {
+      await _startTour();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.stop_circle_outlined, color: AppColors.danger),
+        title: const Text('Finalizar tour'),
+        content: const Text(
+          'Se cerrará el recorrido actual. Las visitas ya registradas se conservarán.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Finalizar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _stopTour();
+    }
   }
 
   Widget _buildSearchBox() {
@@ -922,7 +991,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
       final activeSessionId = activeSession['_id']?.toString();
       final activeTourId = _extractTourIdFromSession(activeSession);
-      
+
       final stopsVisited = activeSession['stopsVisited'] as List<dynamic>?;
       final visitedIds = <String>{};
       if (stopsVisited != null) {

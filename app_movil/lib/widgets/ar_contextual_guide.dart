@@ -174,7 +174,7 @@ class _ArContextualGuideState extends State<ArContextualGuide>
                     _buildGuideStep(
                       '📸',
                       'Captura tu momento',
-                      'Usa el botón inferior para guardar tu fotografía AR.',
+                      'Usa el botón inferior para guardar tu fotografía de RA.',
                     ),
                   ],
                 ),
@@ -242,7 +242,7 @@ class _ArContextualGuideState extends State<ArContextualGuide>
                 description,
                 style: const TextStyle(
                   color: Colors.white54,
-                  fontSize: 10,
+                  fontSize: 11,
                   height: 1.3,
                 ),
               ),

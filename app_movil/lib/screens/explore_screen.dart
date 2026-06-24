@@ -26,7 +26,9 @@ import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
 
 class ExploreScreen extends StatefulWidget {
-  const ExploreScreen({super.key});
+  final int settingsRevision;
+
+  const ExploreScreen({super.key, this.settingsRevision = 0});
 
   @override
   State<ExploreScreen> createState() => _ExploreScreenState();
@@ -76,6 +78,61 @@ class _ExploreScreenState extends State<ExploreScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeScreen();
+  }
+
+  @override
+  void didUpdateWidget(covariant ExploreScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settingsRevision != widget.settingsRevision) {
+      unawaited(_reloadSettings());
+    }
+  }
+
+  Future<void> _reloadSettings({bool restartLocation = false}) async {
+    final previous = _settings;
+    final next = await _settingsService.load();
+    if (!mounted) return;
+
+    final accuracyChanged =
+        previous.locationAccuracyMode != next.locationAccuracyMode;
+    final refreshChanged =
+        previous.locationRefreshPreset != next.locationRefreshPreset;
+    final notificationChanged =
+        previous.nearbyNotificationsEnabled !=
+            next.nearbyNotificationsEnabled ||
+        previous.nearbyNotificationDistancePreset !=
+            next.nearbyNotificationDistancePreset;
+
+    _settings = next;
+
+    if (refreshChanged) {
+      _lastContextLatLng = null;
+      _lastContextFetch = null;
+    }
+    if (notificationChanged) {
+      _lastNearbyNotificationMonumentId = null;
+      _lastNearbyNotificationAt = null;
+    }
+
+    if (accuracyChanged || restartLocation) {
+      await _startLocationUpdates();
+      return;
+    }
+
+    final currentPosition = _currentLatLng;
+    if (refreshChanged && currentPosition != null) {
+      await _refreshLocationContext(currentPosition);
+      return;
+    }
+
+    if (notificationChanged &&
+        next.nearbyNotificationsEnabled &&
+        currentPosition != null &&
+        _nearbyMonuments.isNotEmpty) {
+      try {
+        await _notifyNearbyMonuments(currentPosition, _nearbyMonuments);
+      } catch (_) {}
+    }
   }
 
   Future<void> _initializeScreen() async {
@@ -313,7 +370,12 @@ class _ExploreScreenState extends State<ExploreScreen>
         );
       } catch (_) {}
 
-      await _notifyNearbyMonuments(position, nearby);
+      try {
+        await _notifyNearbyMonuments(position, nearby);
+      } catch (_) {
+        // Un fallo al mostrar la notificaciÃ³n no invalida el mapa ni
+        // el contexto de ubicaciÃ³n que ya fueron cargados correctamente.
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -521,7 +583,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      _startLocationUpdates();
+      unawaited(_reloadSettings(restartLocation: true));
     }
   }
 
@@ -642,19 +704,24 @@ class _ExploreScreenState extends State<ExploreScreen>
           height: 68,
           alignment: Alignment.center,
           rotate: false,
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedMonument = m;
-              });
-            },
-            child: _MonumentMarker(
-              name: m.name,
-              distanceText: visual.distanceMeters != null
-                  ? '${visual.distanceMeters!.round()}m'
-                  : '--',
-              imageUrl: m.imageUrl,
-              statusIcon: visual.statusIcon,
+          child: Semantics(
+            button: true,
+            label:
+                '${m.name}, ${visual.distanceMeters != null ? '${visual.distanceMeters!.round()} metros' : 'distancia no disponible'}',
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedMonument = m;
+                });
+              },
+              child: _MonumentMarker(
+                name: m.name,
+                distanceText: visual.distanceMeters != null
+                    ? '${visual.distanceMeters!.round()}m'
+                    : '--',
+                imageUrl: m.imageUrl,
+                statusIcon: visual.statusIcon,
+              ),
             ),
           ),
         ),
@@ -715,17 +782,19 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ),
                   ],
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    _LegendDot(color: Colors.green, label: 'Disponible'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.blue, label: 'Visitado'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.red, label: 'Muy lejos'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.grey, label: 'Oculto'),
-                  ],
+                child: const SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _LegendDot(color: Colors.green, label: 'Disponible'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.blue, label: 'Visitado'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.red, label: 'Muy lejos'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.grey, label: 'Oculto'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -838,6 +907,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                       children: [
                         _SquareIconButton(
                           icon: Icons.add,
+                          tooltip: 'Acercar mapa',
                           onTap: () {
                             setState(() {
                               _followUser = false;
@@ -850,6 +920,7 @@ class _ExploreScreenState extends State<ExploreScreen>
                         const SizedBox(height: 8),
                         _SquareIconButton(
                           icon: Icons.remove,
+                          tooltip: 'Alejar mapa',
                           onTap: () {
                             setState(() {
                               _followUser = false;
@@ -863,27 +934,12 @@ class _ExploreScreenState extends State<ExploreScreen>
                     ),
                   ),
 
-                  // Botones buscar / capas (sin lógica todavía)
-                  Positioned(
-                    top: 20,
-                    right: 20,
-                    child: Row(
-                      children: [
-                        _SquareIconButton(icon: Icons.search, onTap: () {}),
-                        const SizedBox(width: 8),
-                        _SquareIconButton(
-                          icon: Icons.layers_outlined,
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-
                   // Botón mi ubicación
                   Positioned(
                     right: 20,
                     bottom: 24,
                     child: FloatingActionButton(
+                      tooltip: 'Centrar mapa en mi ubicación',
                       backgroundColor: Colors.white,
                       elevation: 4,
                       onPressed: () {
@@ -1284,7 +1340,11 @@ class _MonumentMarker extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: imageUrl != null && imageUrl!.isNotEmpty
-              ? Image.network(imageUrl!, fit: BoxFit.cover)
+              ? Image.network(
+                  imageUrl!,
+                  fit: BoxFit.cover,
+                  semanticLabel: 'Imagen de $name',
+                )
               : const Icon(Icons.location_city, color: Colors.white, size: 24),
         ),
         // Nombre arriba
@@ -1310,7 +1370,7 @@ class _MonumentMarker extends StatelessWidget {
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -1335,7 +1395,7 @@ class _MonumentMarker extends StatelessWidget {
             child: Text(
               distanceText,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -1468,8 +1528,13 @@ class _LegendDot extends StatelessWidget {
 class _SquareIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
 
-  const _SquareIconButton({required this.icon, required this.onTap});
+  const _SquareIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1477,10 +1542,13 @@ class _SquareIconButton extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       elevation: 3,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 22)),
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: SizedBox(width: 48, height: 48, child: Icon(icon, size: 22)),
+        ),
       ),
     );
   }

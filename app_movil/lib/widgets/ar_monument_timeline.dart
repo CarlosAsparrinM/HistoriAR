@@ -99,7 +99,7 @@ class ArMonumentTimeline extends StatelessWidget {
                 monument.periodName ?? "Período",
                 style: const TextStyle(
                   color: Colors.white70,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontStyle: FontStyle.italic,
                 ),
               ),

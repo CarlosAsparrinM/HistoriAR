@@ -14,8 +14,16 @@ class LocalNotificationService {
 
     const initializationSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
-      macOS: DarwinInitializationSettings(),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+      macOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     );
 
     await _plugin.initialize(settings: initializationSettings);
@@ -23,6 +31,8 @@ class LocalNotificationService {
   }
 
   Future<bool> requestPermissions() async {
+    await initialize();
+
     final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -55,6 +65,8 @@ class LocalNotificationService {
     required String monumentName,
     required String body,
   }) async {
+    await initialize();
+
     const androidDetails = AndroidNotificationDetails(
       'nearby_monuments',
       'Monumentos cercanos',

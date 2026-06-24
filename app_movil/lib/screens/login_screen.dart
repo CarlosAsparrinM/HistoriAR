@@ -26,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen>
   final _userService = UserService();
   final _sessionStorage = SessionStorageService();
   bool _isLoading = false;
+  int _selectedTabIndex = 0;
 
   final _loginFormKey = GlobalKey<FormState>();
   final _loginEmailController = TextEditingController();
@@ -48,10 +49,12 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
@@ -60,6 +63,14 @@ class _LoginScreenState extends State<LoginScreen>
     _registerPasswordController.dispose();
     _registerConfirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (_tabController.indexIsChanging ||
+        _selectedTabIndex == _tabController.index) {
+      return;
+    }
+    setState(() => _selectedTabIndex = _tabController.index);
   }
 
   void _goToApp() {
@@ -118,7 +129,8 @@ class _LoginScreenState extends State<LoginScreen>
     } catch (e) {
       final errorMsg = e.toString().replaceFirst('Exception: ', '');
       _showError(errorMsg);
-      if (errorMsg.contains('ya está registrado') || errorMsg.contains('ya existe')) {
+      if (errorMsg.contains('ya está registrado') ||
+          errorMsg.contains('ya existe')) {
         _tabController.animateTo(0);
       }
     } finally {
@@ -147,7 +159,9 @@ class _LoginScreenState extends State<LoginScreen>
       if (!e.toString().contains('cancelado')) {
         final errorMsg = e.toString().replaceFirst('Exception: ', '');
         _showError(errorMsg);
-        if (isRegister && (errorMsg.contains('ya está registrado') || errorMsg.contains('ya existe'))) {
+        if (isRegister &&
+            (errorMsg.contains('ya está registrado') ||
+                errorMsg.contains('ya existe'))) {
           _tabController.animateTo(0);
         }
       }
@@ -159,43 +173,54 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 360 || size.height < 700;
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 16 : 24,
+              vertical: compact ? 20 : 32,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Avatar con iniciales y sombra
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 48,
-                      backgroundColor: AppColors.primary,
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Image.asset(
-                          'assets/icon/icon.png',
-                          fit: BoxFit.contain,
+                  Semantics(
+                    image: true,
+                    label: 'Logo de HistoriAR',
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.24),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: compact ? 40 : 48,
+                        backgroundColor: AppColors.primary,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Image.asset(
+                            'assets/icon/icon.png',
+                            fit: BoxFit.contain,
+                            excludeFromSemantics: true,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xxl),
+                  SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
                   const Text(
                     'Bienvenido a HistoriAR',
                     textAlign: TextAlign.center,
@@ -215,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen>
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xxl),
+                  SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
 
                   // Tabs Iniciar sesión / Registrarse
                   Container(
@@ -257,17 +282,12 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Formularios con scroll interno para evitar overflow
-                  SizedBox(
-                    height: 650,
-                    child: AppFadeSwitcher(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          SingleChildScrollView(child: _buildLoginForm(theme)),
-                          SingleChildScrollView(child: _buildRegisterForm(theme)),
-                        ],
-                      ),
+                  AppFadeSwitcher(
+                    child: KeyedSubtree(
+                      key: ValueKey(_selectedTabIndex),
+                      child: _selectedTabIndex == 0
+                          ? _buildLoginForm(theme)
+                          : _buildRegisterForm(theme),
                     ),
                   ),
                 ],
@@ -295,15 +315,14 @@ class _LoginScreenState extends State<LoginScreen>
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Correo electrónico',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Correo electrónico'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _loginEmailController,
             decoration: _inputDecoration('tu@ejemplo.com'),
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El correo es obligatorio';
@@ -317,10 +336,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _loginPasswordController,
@@ -336,6 +352,11 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _loginObscure,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.password],
+            onFieldSubmitted: (_) {
+              if (!_isLoading) _handleLogin();
+            },
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
@@ -359,7 +380,7 @@ class _LoginScreenState extends State<LoginScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
                 elevation: 4,
-                          shadowColor: AppColors.primary.withValues(alpha: 0.4),
+                shadowColor: AppColors.primary.withValues(alpha: 0.4),
               ),
               onPressed: _isLoading ? null : _handleLogin,
               child: _isLoading
@@ -405,15 +426,14 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 side: const BorderSide(color: Color(0xFFE8E8E8), width: 1.5),
               ),
-              onPressed: _isLoading ? null : () => _handleGoogleAuth(isRegister: false),
+              onPressed: _isLoading
+                  ? null
+                  : () => _handleGoogleAuth(isRegister: false),
               icon: Image.network(
                 'https://developers.google.com/static/identity/images/g-logo.png',
                 height: 20,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.g_mobiledata,
-                  size: 24,
-                  color: Colors.red,
-                ),
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
               ),
               label: const Text(
                 'Iniciar sesión con Google',
@@ -446,15 +466,14 @@ class _LoginScreenState extends State<LoginScreen>
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Nombre',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Nombre'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerNameController,
             decoration: _inputDecoration('Tu nombre completo'),
             textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.name],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El nombre es obligatorio';
@@ -466,15 +485,14 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Correo electrónico',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Correo electrónico'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerEmailController,
             decoration: _inputDecoration('tu@ejemplo.com'),
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El correo es obligatorio';
@@ -488,10 +506,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerPasswordController,
@@ -508,6 +523,8 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerObscure,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.newPassword],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
@@ -519,10 +536,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Confirmar Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Confirmar contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerConfirmPasswordController,
@@ -542,6 +556,11 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerConfirmObscure,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.newPassword],
+            onFieldSubmitted: (_) {
+              if (!_isLoading) _handleRegister();
+            },
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'Debe confirmar la contraseña';
@@ -563,7 +582,9 @@ class _LoginScreenState extends State<LoginScreen>
                         setState(() => _termsAccepted = value ?? false);
                       }
                     : (value) {
-                        _showError('Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.');
+                        _showError(
+                          'Por favor, haz clic y lee los Términos y Condiciones antes de aceptar.',
+                        );
                       },
                 activeColor: AppColors.primary,
               ),
@@ -585,7 +606,8 @@ class _LoginScreenState extends State<LoginScreen>
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const TermsScreen(initialTabIndex: 0),
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 0),
                               ),
                             );
                             setState(() {
@@ -606,7 +628,8 @@ class _LoginScreenState extends State<LoginScreen>
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) => const TermsScreen(initialTabIndex: 1),
+                                builder: (_) =>
+                                    const TermsScreen(initialTabIndex: 1),
                               ),
                             );
                             setState(() {
@@ -678,15 +701,14 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
                 side: const BorderSide(color: Color(0xFFE8E8E8), width: 1.5),
               ),
-              onPressed: _isLoading ? null : () => _handleGoogleAuth(isRegister: true),
+              onPressed: _isLoading
+                  ? null
+                  : () => _handleGoogleAuth(isRegister: true),
               icon: Image.network(
                 'https://developers.google.com/static/identity/images/g-logo.png',
                 height: 20,
-                errorBuilder: (context, error, stackTrace) => const Icon(
-                  Icons.g_mobiledata,
-                  size: 24,
-                  color: Colors.red,
-                ),
+                errorBuilder: (context, error, stackTrace) =>
+                    const Icon(Icons.g_mobiledata, size: 24, color: Colors.red),
               ),
               label: const Text(
                 'Registrarse con Google',
@@ -729,6 +751,16 @@ class _LoginScreenState extends State<LoginScreen>
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFFF3B30), width: 2),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }

@@ -93,49 +93,63 @@ class _CompactActionButtonState extends State<_CompactActionButton>
   }
 
   void _onTapDown(TapDownDetails _) {
+    if (widget.onTap == null) return;
     _controller.forward();
   }
 
   void _onTapUp(TapUpDetails _) {
+    if (widget.onTap == null) return;
     _controller.reverse();
     widget.onTap?.call();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: () => _controller.reverse(),
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.85),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                  ),
-                ],
+    final enabled = widget.onTap != null;
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.label,
+      child: GestureDetector(
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: () => _controller.reverse(),
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                decoration: BoxDecoration(
+                  color: enabled
+                      ? AppColors.primary
+                      : Colors.grey.withValues(alpha: 0.7),
+                  shape: BoxShape.circle,
+                  boxShadow: enabled
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                          ),
+                        ]
+                      : null,
+                ),
+                alignment: Alignment.center,
+                child: Icon(widget.icon, color: Colors.white, size: 20),
               ),
-              child: Icon(widget.icon, color: Colors.white, size: 18),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              widget.label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
+              const SizedBox(height: 4),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: enabled ? Colors.white : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

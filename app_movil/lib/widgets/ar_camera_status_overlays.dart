@@ -36,7 +36,7 @@ class ArCameraLoadingOverlay extends StatelessWidget {
               ),
               SizedBox(height: 12),
               Text(
-                'Preparando experiencia AR...',
+                'Preparando experiencia de RA...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
