@@ -220,6 +220,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   /// Reset la posición del modelo al estado inicial
   Future<void> _resetModelPosition() async {
     await _arController.resetModelPosition();
+    _showSnackbar('Modelo centrado');
   }
 
   /// Captura pantalla de la experiencia AR
@@ -438,18 +439,16 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
               Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: _arController.hasHistoricalCardNodes,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onScaleStart: (details) {
-                      _arController.handleScaleStart(details);
-                    },
-                    onScaleUpdate: (details) {
-                      _arController.handleScaleUpdate(details);
-                    },
-                    child: const SizedBox.expand(),
-                  ),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onDoubleTap: () => unawaited(_resetModelPosition()),
+                  onScaleStart: (details) {
+                    _arController.handleScaleStart(details);
+                  },
+                  onScaleUpdate: (details) {
+                    _arController.handleScaleUpdate(details);
+                  },
+                  child: const SizedBox.expand(),
                 ),
               ),
               // Estado de carga del modelo
@@ -515,19 +514,34 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
               ),
             ],
             if (showFloatingHistoricalCards)
-              Positioned(
-                top: safeArea.top + (_isArMode ? 150 : 156),
-                left: 0,
-                right: 0,
-                child: ArHistoricalFloatingCards(
-                  items: _historicalData,
-                  isLoading:
-                      _isLoadingHistoricalData || isPreparingArHistoricalCards,
-                  errorMessage: _historicalDataError,
-                  onRetry: () => unawaited(_loadHistoricalData()),
-                  onTap: _showHistoricalDataDetail,
+              if (_isArMode)
+                Positioned(
+                  top: safeArea.top + 150,
+                  left: 0,
+                  right: 0,
+                  child: ArHistoricalFloatingCards(
+                    items: _historicalData,
+                    isLoading:
+                        _isLoadingHistoricalData ||
+                        isPreparingArHistoricalCards,
+                    errorMessage: _historicalDataError,
+                    onRetry: () => unawaited(_loadHistoricalData()),
+                    onTap: _showHistoricalDataDetail,
+                  ),
+                )
+              else
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: safeArea.bottom + 96,
+                  child: ArHistoricalCarouselCards(
+                    items: _historicalData,
+                    isLoading: _isLoadingHistoricalData,
+                    errorMessage: _historicalDataError,
+                    onRetry: () => unawaited(_loadHistoricalData()),
+                    onTap: _showHistoricalDataDetail,
+                  ),
                 ),
-              ),
             if (showHistoricalCardHitTargets)
               Positioned(
                 top: safeArea.top + 150,

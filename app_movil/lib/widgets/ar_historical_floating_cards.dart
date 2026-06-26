@@ -8,6 +8,7 @@ const double _compactCardWidth = 108;
 const double _regularCardWidth = 116;
 const double _compactCardHeight = 76;
 const double _regularCardHeight = 80;
+const double _carouselHeight = 176;
 
 class ArHistoricalFloatingCards extends StatelessWidget {
   final List<HistoricalData> items;
@@ -109,6 +110,298 @@ class ArHistoricalFloatingCards extends StatelessWidget {
       _CalloutPlacement(left: centerLeft, top: 4),
       _CalloutPlacement(left: rightLeft, top: 82),
     ];
+  }
+}
+
+class ArHistoricalCarouselCards extends StatefulWidget {
+  final List<HistoricalData> items;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback? onRetry;
+  final ValueChanged<HistoricalData> onTap;
+
+  const ArHistoricalCarouselCards({
+    super.key,
+    required this.items,
+    required this.onTap,
+    this.isLoading = false,
+    this.errorMessage,
+    this.onRetry,
+  });
+
+  @override
+  State<ArHistoricalCarouselCards> createState() =>
+      _ArHistoricalCarouselCardsState();
+}
+
+class _ArHistoricalCarouselCardsState extends State<ArHistoricalCarouselCards> {
+  late final PageController _pageController;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(viewportFraction: 0.84);
+  }
+
+  @override
+  void didUpdateWidget(covariant ArHistoricalCarouselCards oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_currentPage >= widget.items.length && widget.items.isNotEmpty) {
+      _currentPage = widget.items.length - 1;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(_currentPage);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.isLoading) {
+      return const _FloatingStatusCard(
+        icon: Icons.auto_stories_outlined,
+        label: 'Cargando fichas...',
+      );
+    }
+
+    if (widget.errorMessage != null) {
+      return _FloatingStatusCard(
+        icon: Icons.warning_amber_rounded,
+        label: 'No se pudieron cargar las fichas',
+        onTap: widget.onRetry,
+      );
+    }
+
+    if (widget.items.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: _carouselHeight,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 0, 22, 8),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.auto_stories_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Fichas historicas',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${_currentPage + 1}/${widget.items.length}',
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.items.length,
+              onPageChanged: (index) => setState(() => _currentPage = index),
+              itemBuilder: (context, index) {
+                return AnimatedPadding(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  padding: EdgeInsets.fromLTRB(
+                    index == 0 ? 6 : 8,
+                    0,
+                    index == widget.items.length - 1 ? 6 : 8,
+                    0,
+                  ),
+                  child: _HistoricalCarouselCard(
+                    item: widget.items[index],
+                    onTap: () => widget.onTap(widget.items[index]),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          _CarouselDots(count: widget.items.length, activeIndex: _currentPage),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoricalCarouselCard extends StatelessWidget {
+  final HistoricalData item;
+  final VoidCallback onTap;
+
+  const _HistoricalCarouselCard({required this.item, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = (item.imageUrl ?? '').trim();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.42),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(19),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (imageUrl.isNotEmpty)
+                  Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const _ImagePlaceholder(),
+                  )
+                else
+                  const _ImagePlaceholder(),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.1),
+                        Colors.black.withValues(alpha: 0.84),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 14,
+                  right: 48,
+                  bottom: 14,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          height: 1.08,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black87,
+                              blurRadius: 8,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Toca para ver informacion',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Positioned(
+                  right: 14,
+                  bottom: 16,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.primary,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.28),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CarouselDots extends StatelessWidget {
+  final int count;
+  final int activeIndex;
+
+  const _CarouselDots({required this.count, required this.activeIndex});
+
+  @override
+  Widget build(BuildContext context) {
+    if (count <= 1) return const SizedBox(height: 6);
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(count, (index) {
+        final isActive = index == activeIndex;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: isActive ? 18 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.primary
+                : Colors.white.withValues(alpha: 0.34),
+            borderRadius: BorderRadius.circular(999),
+          ),
+        );
+      }),
+    );
   }
 }
 

@@ -20,7 +20,7 @@ class ArHistoricalCardModelFactory {
   Future<String> buildCardModel(HistoricalData data) async {
     final directory = await _cardsDirectory();
     final signature = _stableHash(
-      'v2|${data.id}|${data.title}|${data.imageUrl ?? ''}|${data.updatedAt.toIso8601String()}',
+      'v3|${data.id}|${data.title}|${data.imageUrl ?? ''}|${data.updatedAt.toIso8601String()}',
     );
     final file = File('${directory.path}/historical_card_$signature.glb');
 
@@ -63,8 +63,8 @@ class ArHistoricalCardModelFactory {
         Offset(0, size.height),
         [
           Colors.transparent,
-          Colors.black.withValues(alpha: 0.52),
-          Colors.black.withValues(alpha: 0.92),
+          Colors.black.withValues(alpha: 0.36),
+          Colors.black.withValues(alpha: 0.78),
         ],
         [0, 0.45, 1],
       );
@@ -286,9 +286,12 @@ class ArHistoricalCardModelFactory {
         {
           'pbrMetallicRoughness': {
             'baseColorTexture': {'index': 0},
+            'baseColorFactor': [1, 1, 1, 1],
             'metallicFactor': 0,
-            'roughnessFactor': 0.9,
+            'roughnessFactor': 0.82,
           },
+          'emissiveTexture': {'index': 0},
+          'emissiveFactor': [0.85, 0.85, 0.85],
         },
       ],
       'textures': [

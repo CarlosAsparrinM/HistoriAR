@@ -142,6 +142,7 @@ class ArCameraArController {
         handlePans: false,
         handleRotation: false,
       );
+      await arSessionManager!.setLightIntensityMultiplier(1.25);
 
       arObjectManager!.onInitialize();
       arObjectManager!.onNodeTap = _handleNodeTap;
