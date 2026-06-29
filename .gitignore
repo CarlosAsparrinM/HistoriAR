@@ -41,3 +41,4 @@ coverage/
 *.tmp
 temp/
 tmp/
+app_movil/.codex-temp/

@@ -1,22 +1,22 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../contexts/auth_state.dart';
+import 'session_storage_service.dart';
 
 enum QuizPostVisitMode { alwaysAsk, autoOpen, neverShow }
 
 extension QuizPostVisitModeX on QuizPostVisitMode {
   String get storageValue => switch (this) {
-        QuizPostVisitMode.alwaysAsk => 'alwaysAsk',
-        QuizPostVisitMode.autoOpen => 'autoOpen',
-        QuizPostVisitMode.neverShow => 'neverShow',
-      };
+    QuizPostVisitMode.alwaysAsk => 'alwaysAsk',
+    QuizPostVisitMode.autoOpen => 'autoOpen',
+    QuizPostVisitMode.neverShow => 'neverShow',
+  };
 
   String get label => switch (this) {
-        QuizPostVisitMode.alwaysAsk => 'Siempre preguntar',
-        QuizPostVisitMode.autoOpen => 'Abrir automático',
-        QuizPostVisitMode.neverShow => 'Nunca mostrar',
-      };
+    QuizPostVisitMode.alwaysAsk => 'Siempre preguntar',
+    QuizPostVisitMode.autoOpen => 'Abrir automático',
+    QuizPostVisitMode.neverShow => 'Nunca mostrar',
+  };
 
   static QuizPostVisitMode fromStorage(String? value) {
     return switch (value) {
@@ -32,16 +32,16 @@ enum LocationAccuracyMode { high, medium, economy }
 
 extension LocationAccuracyModeX on LocationAccuracyMode {
   String get storageValue => switch (this) {
-        LocationAccuracyMode.high => 'high',
-        LocationAccuracyMode.medium => 'medium',
-        LocationAccuracyMode.economy => 'economy',
-      };
+    LocationAccuracyMode.high => 'high',
+    LocationAccuracyMode.medium => 'medium',
+    LocationAccuracyMode.economy => 'economy',
+  };
 
   String get label => switch (this) {
-        LocationAccuracyMode.high => 'Alta',
-        LocationAccuracyMode.medium => 'Media',
-        LocationAccuracyMode.economy => 'Ahorro',
-      };
+    LocationAccuracyMode.high => 'Alta',
+    LocationAccuracyMode.medium => 'Media',
+    LocationAccuracyMode.economy => 'Ahorro',
+  };
 
   static LocationAccuracyMode fromStorage(String? value) {
     return switch (value) {
@@ -53,47 +53,47 @@ extension LocationAccuracyModeX on LocationAccuracyMode {
   }
 
   LocationSettings get locationSettings => switch (this) {
-        LocationAccuracyMode.high => const LocationSettings(
-            accuracy: LocationAccuracy.best,
-            distanceFilter: 1,
-          ),
-        LocationAccuracyMode.medium => const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 10,
-          ),
-        LocationAccuracyMode.economy => const LocationSettings(
-            accuracy: LocationAccuracy.low,
-            distanceFilter: 50,
-          ),
-      };
+    LocationAccuracyMode.high => const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 1,
+    ),
+    LocationAccuracyMode.medium => const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 10,
+    ),
+    LocationAccuracyMode.economy => const LocationSettings(
+      accuracy: LocationAccuracy.low,
+      distanceFilter: 50,
+    ),
+  };
 }
 
 enum LocationRefreshPreset { fast, normal, economy }
 
 extension LocationRefreshPresetX on LocationRefreshPreset {
   String get storageValue => switch (this) {
-        LocationRefreshPreset.fast => 'fast',
-        LocationRefreshPreset.normal => 'normal',
-        LocationRefreshPreset.economy => 'economy',
-      };
+    LocationRefreshPreset.fast => 'fast',
+    LocationRefreshPreset.normal => 'normal',
+    LocationRefreshPreset.economy => 'economy',
+  };
 
   String get label => switch (this) {
-        LocationRefreshPreset.fast => 'Rápida',
-        LocationRefreshPreset.normal => 'Normal',
-        LocationRefreshPreset.economy => 'Ahorro',
-      };
+    LocationRefreshPreset.fast => 'Rápida',
+    LocationRefreshPreset.normal => 'Normal',
+    LocationRefreshPreset.economy => 'Ahorro',
+  };
 
   int get seconds => switch (this) {
-        LocationRefreshPreset.fast => 15,
-        LocationRefreshPreset.normal => 45,
-        LocationRefreshPreset.economy => 120,
-      };
+    LocationRefreshPreset.fast => 15,
+    LocationRefreshPreset.normal => 45,
+    LocationRefreshPreset.economy => 120,
+  };
 
   int get distanceMeters => switch (this) {
-        LocationRefreshPreset.fast => 50,
-        LocationRefreshPreset.normal => 100,
-        LocationRefreshPreset.economy => 250,
-      };
+    LocationRefreshPreset.fast => 50,
+    LocationRefreshPreset.normal => 100,
+    LocationRefreshPreset.economy => 250,
+  };
 
   static LocationRefreshPreset fromStorage(String? value) {
     return switch (value) {
@@ -109,22 +109,22 @@ enum QuizFeedbackPreset { fast, normal, slow }
 
 extension QuizFeedbackPresetX on QuizFeedbackPreset {
   String get storageValue => switch (this) {
-        QuizFeedbackPreset.fast => 'fast',
-        QuizFeedbackPreset.normal => 'normal',
-        QuizFeedbackPreset.slow => 'slow',
-      };
+    QuizFeedbackPreset.fast => 'fast',
+    QuizFeedbackPreset.normal => 'normal',
+    QuizFeedbackPreset.slow => 'slow',
+  };
 
   String get label => switch (this) {
-        QuizFeedbackPreset.fast => 'Rápido',
-        QuizFeedbackPreset.normal => 'Normal',
-        QuizFeedbackPreset.slow => 'Lento',
-      };
+    QuizFeedbackPreset.fast => 'Rápido',
+    QuizFeedbackPreset.normal => 'Normal',
+    QuizFeedbackPreset.slow => 'Lento',
+  };
 
   int get seconds => switch (this) {
-        QuizFeedbackPreset.fast => 1,
-        QuizFeedbackPreset.normal => 3,
-        QuizFeedbackPreset.slow => 5,
-      };
+    QuizFeedbackPreset.fast => 1,
+    QuizFeedbackPreset.normal => 3,
+    QuizFeedbackPreset.slow => 5,
+  };
 
   static QuizFeedbackPreset fromStorage(String? value) {
     return switch (value) {
@@ -138,24 +138,25 @@ extension QuizFeedbackPresetX on QuizFeedbackPreset {
 
 enum NearbyNotificationDistancePreset { close, near, far }
 
-extension NearbyNotificationDistancePresetX on NearbyNotificationDistancePreset {
+extension NearbyNotificationDistancePresetX
+    on NearbyNotificationDistancePreset {
   String get storageValue => switch (this) {
-        NearbyNotificationDistancePreset.close => 'close',
-        NearbyNotificationDistancePreset.near => 'near',
-        NearbyNotificationDistancePreset.far => 'far',
-      };
+    NearbyNotificationDistancePreset.close => 'close',
+    NearbyNotificationDistancePreset.near => 'near',
+    NearbyNotificationDistancePreset.far => 'far',
+  };
 
   String get label => switch (this) {
-        NearbyNotificationDistancePreset.close => 'Cerca',
-        NearbyNotificationDistancePreset.near => 'Media',
-        NearbyNotificationDistancePreset.far => 'Amplia',
-      };
+    NearbyNotificationDistancePreset.close => 'Cerca',
+    NearbyNotificationDistancePreset.near => 'Media',
+    NearbyNotificationDistancePreset.far => 'Amplia',
+  };
 
   int get meters => switch (this) {
-        NearbyNotificationDistancePreset.close => 250,
-        NearbyNotificationDistancePreset.near => 500,
-        NearbyNotificationDistancePreset.far => 1000,
-      };
+    NearbyNotificationDistancePreset.close => 250,
+    NearbyNotificationDistancePreset.near => 500,
+    NearbyNotificationDistancePreset.far => 1000,
+  };
 
   static NearbyNotificationDistancePreset fromStorage(String? value) {
     return switch (value) {
@@ -185,12 +186,12 @@ class AppSettings {
   });
 
   const AppSettings.defaults()
-      : quizPostVisitMode = QuizPostVisitMode.alwaysAsk,
-        locationAccuracyMode = LocationAccuracyMode.high,
-        locationRefreshPreset = LocationRefreshPreset.normal,
-        quizFeedbackPreset = QuizFeedbackPreset.normal,
-        nearbyNotificationsEnabled = false,
-        nearbyNotificationDistancePreset = NearbyNotificationDistancePreset.near;
+    : quizPostVisitMode = QuizPostVisitMode.alwaysAsk,
+      locationAccuracyMode = LocationAccuracyMode.high,
+      locationRefreshPreset = LocationRefreshPreset.normal,
+      quizFeedbackPreset = QuizFeedbackPreset.normal,
+      nearbyNotificationsEnabled = false,
+      nearbyNotificationDistancePreset = NearbyNotificationDistancePreset.near;
 }
 
 class AppSettingsService {
@@ -233,8 +234,8 @@ class AppSettingsService {
           prefs.getBool(_nearbyNotificationsEnabledKey) ?? false,
       nearbyNotificationDistancePreset:
           NearbyNotificationDistancePresetX.fromStorage(
-        prefs.getString(_nearbyNotificationDistanceKey),
-      ),
+            prefs.getString(_nearbyNotificationDistanceKey),
+          ),
     );
   }
 
@@ -295,9 +296,7 @@ class AppSettingsService {
   }
 
   Future<void> clearSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AuthState.tokenKey);
-    await prefs.remove(AuthState.userIdKey);
+    await SessionStorageService().clearSession();
   }
 
   Future<void> clearAllLocalData() async {

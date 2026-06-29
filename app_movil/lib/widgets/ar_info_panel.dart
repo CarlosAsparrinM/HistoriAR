@@ -332,14 +332,14 @@ class _ArInfoPanelState extends State<ArInfoPanel>
                   '${monument.periodStartYear}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                 ),
                 Text(
                   '${monument.periodEndYear}',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -392,7 +392,7 @@ class _InfoBadge extends StatelessWidget {
             label,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),

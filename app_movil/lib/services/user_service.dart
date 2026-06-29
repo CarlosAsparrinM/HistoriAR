@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
+
+import 'api_exceptions.dart';
 import '../utils/http_interceptor.dart' as http;
 
 import '../models/user.dart';
@@ -25,6 +27,10 @@ class UserService {
       final userData = data['data'] ?? data;
       return User.fromJson(userData);
     } else {
+      if (response.statusCode == 401) {
+        throw const SessionExpiredException();
+      }
+
       String message = 'Error al obtener el perfil';
       try {
         final data = jsonDecode(response.body);

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:app_movil/config/environment.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+import 'api_exceptions.dart';
 import '../utils/http_interceptor.dart' as http;
 
 class AuthService {
@@ -125,7 +127,7 @@ class AuthService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         return true;
       } else if (response.statusCode == 401) {
-        throw Exception('Token expirado o inválido');
+        throw const SessionExpiredException();
       } else if (response.statusCode == 500) {
         throw Exception('Error del servidor');
       } else {

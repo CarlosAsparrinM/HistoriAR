@@ -105,4 +105,27 @@ describe('visitService.createVisit', () => {
 
     consoleSpy.mockRestore();
   });
+
+  it('devuelve la visita existente para una clave idempotente repetida', async () => {
+    const data = {
+      userId: 'user-idempotent',
+      monumentId: 'mon-idempotent',
+      clientVisitId: 'client-visit-1',
+    };
+    const existingVisit = { _id: 'existing-visit', ...data };
+
+    const findOneSpy = vi
+      .spyOn(Visit, 'findOne')
+      .mockResolvedValue(existingVisit);
+    const createSpy = vi.spyOn(Visit, 'create');
+
+    const result = await visitService.createVisit(data);
+
+    expect(findOneSpy).toHaveBeenCalledWith({
+      userId: data.userId,
+      clientVisitId: data.clientVisitId,
+    });
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(result).toEqual(existingVisit);
+  });
 });

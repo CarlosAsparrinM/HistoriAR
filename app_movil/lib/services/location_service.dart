@@ -6,6 +6,16 @@ import '../utils/http_interceptor.dart' as http;
 import '../models/monument.dart';
 import '../models/tour.dart';
 
+bool isRecentLocationTimestamp(
+  DateTime? timestamp, {
+  DateTime? now,
+  Duration maxAge = const Duration(minutes: 15),
+}) {
+  if (timestamp == null) return false;
+  final age = (now ?? DateTime.now()).difference(timestamp);
+  return !age.isNegative && age <= maxAge;
+}
+
 class LocationService {
   const LocationService();
 

@@ -17,6 +17,7 @@ import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
+import '../services/session_storage_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
@@ -25,13 +26,16 @@ import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
 
 class ExploreScreen extends StatefulWidget {
-  const ExploreScreen({super.key});
+  final int settingsRevision;
+
+  const ExploreScreen({super.key, this.settingsRevision = 0});
 
   @override
   State<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserver {
+class _ExploreScreenState extends State<ExploreScreen>
+    with WidgetsBindingObserver {
   final MapController _mapController = MapController();
 
   final MonumentsService _monumentsService = MonumentsService();
@@ -39,6 +43,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
   final AppSettingsService _settingsService = AppSettingsService();
   final SessionsService _sessionsService = const SessionsService();
   final ToursService _toursService = const ToursService();
+  final SessionStorageService _sessionStorage = SessionStorageService();
 
   String? _activeSessionId;
   Set<String> _visitedMonumentIds = {};
@@ -56,6 +61,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
   AppSettings _settings = const AppSettings.defaults();
   String? _lastNearbyNotificationMonumentId;
   DateTime? _lastNearbyNotificationAt;
+  String? _locationStatusMessage;
 
   // Estado relacionado a monumentos
   List<Monument> _monuments = [];
@@ -74,6 +80,61 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
     _initializeScreen();
   }
 
+  @override
+  void didUpdateWidget(covariant ExploreScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.settingsRevision != widget.settingsRevision) {
+      unawaited(_reloadSettings());
+    }
+  }
+
+  Future<void> _reloadSettings({bool restartLocation = false}) async {
+    final previous = _settings;
+    final next = await _settingsService.load();
+    if (!mounted) return;
+
+    final accuracyChanged =
+        previous.locationAccuracyMode != next.locationAccuracyMode;
+    final refreshChanged =
+        previous.locationRefreshPreset != next.locationRefreshPreset;
+    final notificationChanged =
+        previous.nearbyNotificationsEnabled !=
+            next.nearbyNotificationsEnabled ||
+        previous.nearbyNotificationDistancePreset !=
+            next.nearbyNotificationDistancePreset;
+
+    _settings = next;
+
+    if (refreshChanged) {
+      _lastContextLatLng = null;
+      _lastContextFetch = null;
+    }
+    if (notificationChanged) {
+      _lastNearbyNotificationMonumentId = null;
+      _lastNearbyNotificationAt = null;
+    }
+
+    if (accuracyChanged || restartLocation) {
+      await _startLocationUpdates();
+      return;
+    }
+
+    final currentPosition = _currentLatLng;
+    if (refreshChanged && currentPosition != null) {
+      await _refreshLocationContext(currentPosition);
+      return;
+    }
+
+    if (notificationChanged &&
+        next.nearbyNotificationsEnabled &&
+        currentPosition != null &&
+        _nearbyMonuments.isNotEmpty) {
+      try {
+        await _notifyNearbyMonuments(currentPosition, _nearbyMonuments);
+      } catch (_) {}
+    }
+  }
+
   Future<void> _initializeScreen() async {
     _settings = await _settingsService.load();
     await _loadMonuments();
@@ -82,7 +143,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
     // Cargar contexto de ubicación/tours guardado localmente si existe
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString('last_tour_context');
+      final saved = prefs.getString(SessionStorageService.lastTourContextKey);
       if (saved != null && saved.isNotEmpty) {
         final Map<String, dynamic> decoded = jsonDecode(saved);
         _locationContext = TourContextResponse.fromJson(decoded);
@@ -119,27 +180,12 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
   }
 
   Future<void> _startLocationUpdates() async {
-    void setFallbackLocation() {
-      if (!mounted) return;
-      if (_currentLatLng == null) {
-        setState(() {
-          _currentLatLng = _initialCenter;
-          if (_followUser) {
-            _zoom = _zoom < 16 ? 16 : _zoom;
-            _mapCenter = _initialCenter;
-            try {
-              _mapController.move(_initialCenter, _zoom);
-            } catch (_) {}
-          }
-        });
-        _refreshLocationContext(_initialCenter);
-      }
-    }
-
     try {
       final bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        setFallbackLocation();
+        await _markLocationUnavailable(
+          'Activa el GPS para calcular distancias y monumentos cercanos.',
+        );
         return;
       }
 
@@ -147,30 +193,38 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          setFallbackLocation();
+          await _markLocationUnavailable(
+            'Permite el acceso a la ubicación para calcular distancias.',
+          );
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
-        setFallbackLocation();
+        await _markLocationUnavailable(
+          'El permiso de ubicación está bloqueado. Puedes habilitarlo en Ajustes.',
+        );
         return;
       }
-    } catch (e) {
-      print('Error comprobando permisos o GPS: $e');
-      setFallbackLocation();
+    } catch (_) {
+      await _markLocationUnavailable(
+        'No se pudo comprobar el estado de la ubicación.',
+      );
       return;
     }
 
     await _positionSub?.cancel();
+    _positionSub = null;
 
-    // 1. Intentar obtener la última ubicación conocida para que sea rápido
     try {
       final lastPos = await Geolocator.getLastKnownPosition();
-      if (lastPos != null && mounted) {
+      if (lastPos != null &&
+          isRecentLocationTimestamp(lastPos.timestamp) &&
+          mounted) {
         final latLng = LatLng(lastPos.latitude, lastPos.longitude);
         setState(() {
           _currentLatLng = latLng;
+          _locationStatusMessage = null;
           if (_followUser) {
             _zoom = _zoom < 16 ? 16 : _zoom;
             _mapCenter = latLng;
@@ -184,15 +238,15 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
       }
     } catch (_) {}
 
-    // 2. Intentar forzar una lectura actual antes del stream
     try {
       final pos = await Geolocator.getCurrentPosition(
-        timeLimit: const Duration(seconds: 5),
+        locationSettings: _settings.locationAccuracyMode.locationSettings,
       );
       if (mounted) {
         final latLng = LatLng(pos.latitude, pos.longitude);
         setState(() {
           _currentLatLng = latLng;
+          _locationStatusMessage = null;
           if (_followUser) {
             _zoom = _zoom < 16 ? 16 : _zoom;
             _mapCenter = latLng;
@@ -203,44 +257,62 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
         });
         _refreshLocationContext(latLng);
       }
-    } catch (e) {
-      print('Aviso: No se pudo obtener la ubicación actual rápida: $e');
-      // Si estamos en un emulador sin ubicación, podríamos forzar una ubicación de prueba
-      // para que el mapa no se quede sin mostrar la distancia.
+    } catch (_) {
       if (_currentLatLng == null && mounted) {
         setState(() {
-          _currentLatLng = _initialCenter; // Ubicación en Lima por defecto
-          if (_followUser) {
-            _mapCenter = _initialCenter;
-            try {
-              _mapController.move(_initialCenter, _zoom);
-            } catch (_) {}
-          }
+          _locationStatusMessage =
+              'Esperando una ubicación válida del dispositivo.';
         });
-        _refreshLocationContext(_initialCenter);
       }
     }
 
     _positionSub =
         Geolocator.getPositionStream(
           locationSettings: _settings.locationAccuracyMode.locationSettings,
-        ).listen((Position pos) {
-          final LatLng latLng = LatLng(pos.latitude, pos.longitude);
+        ).listen(
+          (Position pos) {
+            final LatLng latLng = LatLng(pos.latitude, pos.longitude);
 
-          if (mounted) {
-            setState(() {
-              _currentLatLng = latLng;
-              if (_followUser) {
-                _zoom = _zoom < 16 ? 16 : _zoom;
-                _mapCenter = latLng;
-                try {
-                  _mapController.move(latLng, _zoom);
-                } catch (_) {}
-              }
-            });
-            _refreshLocationContext(latLng);
-          }
-        });
+            if (mounted) {
+              setState(() {
+                _currentLatLng = latLng;
+                _locationStatusMessage = null;
+                if (_followUser) {
+                  _zoom = _zoom < 16 ? 16 : _zoom;
+                  _mapCenter = latLng;
+                  try {
+                    _mapController.move(latLng, _zoom);
+                  } catch (_) {}
+                }
+              });
+              _refreshLocationContext(latLng);
+            }
+          },
+          onError: (_) {
+            unawaited(
+              _markLocationUnavailable(
+                'Se perdió el acceso a la ubicación del dispositivo.',
+              ),
+            );
+          },
+        );
+  }
+
+  Future<void> _markLocationUnavailable(String message) async {
+    await _positionSub?.cancel();
+    _positionSub = null;
+    if (!mounted) return;
+
+    setState(() {
+      _currentLatLng = null;
+      _locationContext = null;
+      _nearbyMonuments = [];
+      _isLoadingLocationContext = false;
+      _locationContextError = null;
+      _locationStatusMessage = message;
+      _lastContextLatLng = null;
+      _lastContextFetch = null;
+    });
   }
 
   bool _shouldRefreshLocationContext(LatLng position) {
@@ -293,12 +365,17 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString(
-          'last_tour_context',
+          SessionStorageService.lastTourContextKey,
           jsonEncode(context.toJson()),
         );
       } catch (_) {}
 
-      await _notifyNearbyMonuments(position, nearby);
+      try {
+        await _notifyNearbyMonuments(position, nearby);
+      } catch (_) {
+        // Un fallo al mostrar la notificaciÃ³n no invalida el mapa ni
+        // el contexto de ubicaciÃ³n que ya fueron cargados correctamente.
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -506,7 +583,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      _startLocationUpdates();
+      unawaited(_reloadSettings(restartLocation: true));
     }
   }
 
@@ -627,19 +704,24 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
           height: 68,
           alignment: Alignment.center,
           rotate: false,
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedMonument = m;
-              });
-            },
-            child: _MonumentMarker(
-              name: m.name,
-              distanceText: visual.distanceMeters != null
-                  ? '${visual.distanceMeters!.round()}m'
-                  : '--',
-              imageUrl: m.imageUrl,
-              statusIcon: visual.statusIcon,
+          child: Semantics(
+            button: true,
+            label:
+                '${m.name}, ${visual.distanceMeters != null ? '${visual.distanceMeters!.round()} metros' : 'distancia no disponible'}',
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedMonument = m;
+                });
+              },
+              child: _MonumentMarker(
+                name: m.name,
+                distanceText: visual.distanceMeters != null
+                    ? '${visual.distanceMeters!.round()}m'
+                    : '--',
+                imageUrl: m.imageUrl,
+                statusIcon: visual.statusIcon,
+              ),
             ),
           ),
         ),
@@ -700,17 +782,19 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                     ),
                   ],
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    _LegendDot(color: Colors.green, label: 'Disponible'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.blue, label: 'Visitado'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.red, label: 'Muy lejos'),
-                    SizedBox(width: 12),
-                    _LegendDot(color: Colors.grey, label: 'Oculto'),
-                  ],
+                child: const SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _LegendDot(color: Colors.green, label: 'Disponible'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.blue, label: 'Visitado'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.red, label: 'Muy lejos'),
+                      SizedBox(width: 12),
+                      _LegendDot(color: Colors.grey, label: 'Oculto'),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -776,6 +860,44 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                         ),
                       ),
                     ),
+                  if (_locationStatusMessage != null)
+                    Positioned(
+                      top: 72,
+                      left: 16,
+                      right: 76,
+                      child: Material(
+                        color: Colors.amber.shade50,
+                        elevation: 2,
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.location_off_outlined,
+                                size: 18,
+                                color: Colors.amber.shade900,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _locationStatusMessage!,
+                                  style: TextStyle(
+                                    color: Colors.amber.shade900,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Reintentar ubicación',
+                                onPressed: _startLocationUpdates,
+                                icon: const Icon(Icons.refresh, size: 18),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
 
                   // Botones + / -
                   Positioned(
@@ -785,6 +907,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                       children: [
                         _SquareIconButton(
                           icon: Icons.add,
+                          tooltip: 'Acercar mapa',
                           onTap: () {
                             setState(() {
                               _followUser = false;
@@ -797,6 +920,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                         const SizedBox(height: 8),
                         _SquareIconButton(
                           icon: Icons.remove,
+                          tooltip: 'Alejar mapa',
                           onTap: () {
                             setState(() {
                               _followUser = false;
@@ -810,27 +934,12 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                     ),
                   ),
 
-                  // Botones buscar / capas (sin lógica todavía)
-                  Positioned(
-                    top: 20,
-                    right: 20,
-                    child: Row(
-                      children: [
-                        _SquareIconButton(icon: Icons.search, onTap: () {}),
-                        const SizedBox(width: 8),
-                        _SquareIconButton(
-                          icon: Icons.layers_outlined,
-                          onTap: () {},
-                        ),
-                      ],
-                    ),
-                  ),
-
                   // Botón mi ubicación
                   Positioned(
                     right: 20,
                     bottom: 24,
                     child: FloatingActionButton(
+                      tooltip: 'Centrar mapa en mi ubicación',
                       backgroundColor: Colors.white,
                       elevation: 4,
                       onPressed: () {
@@ -895,8 +1004,7 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                             return;
                           }
 
-                          final prefs = await SharedPreferences.getInstance();
-                          final userId = prefs.getString(AuthState.userIdKey);
+                          final userId = await _sessionStorage.readUserId();
                           if (userId == null || userId.isEmpty) {
                             if (!context.mounted) return;
                             AppFeedback.warning(
@@ -917,13 +1025,16 @@ class _ExploreScreenState extends State<ExploreScreen> with WidgetsBindingObserv
                             ),
                           );
 
-                          if (!context.mounted) return;
-                          final shouldAskForQuizzes =
-                              prefs.getBool('pref_askForQuizzes') ?? true;
+                          final quizMode =
+                              (await _settingsService.load()).quizPostVisitMode;
+                          if (!context.mounted ||
+                              quizMode == QuizPostVisitMode.neverShow) {
+                            return;
+                          }
 
-                          if (!shouldAskForQuizzes) {
+                          if (quizMode == QuizPostVisitMode.autoOpen) {
                             if (!context.mounted) return;
-                            Navigator.of(context).push(
+                            await Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (_) => QuizScreen(
                                   monument: _selectedMonument!,
@@ -1229,7 +1340,11 @@ class _MonumentMarker extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: imageUrl != null && imageUrl!.isNotEmpty
-              ? Image.network(imageUrl!, fit: BoxFit.cover)
+              ? Image.network(
+                  imageUrl!,
+                  fit: BoxFit.cover,
+                  semanticLabel: 'Imagen de $name',
+                )
               : const Icon(Icons.location_city, color: Colors.white, size: 24),
         ),
         // Nombre arriba
@@ -1255,7 +1370,7 @@ class _MonumentMarker extends StatelessWidget {
               textAlign: TextAlign.center,
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -1280,7 +1395,7 @@ class _MonumentMarker extends StatelessWidget {
             child: Text(
               distanceText,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -1413,8 +1528,13 @@ class _LegendDot extends StatelessWidget {
 class _SquareIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
+  final String tooltip;
 
-  const _SquareIconButton({required this.icon, required this.onTap});
+  const _SquareIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1422,10 +1542,13 @@ class _SquareIconButton extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       elevation: 3,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 22)),
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: SizedBox(width: 48, height: 48, child: Icon(icon, size: 22)),
+        ),
       ),
     );
   }
@@ -1569,10 +1692,7 @@ class _SelectedMonumentCard extends StatelessWidget {
                       side: BorderSide(color: AppColors.primary),
                     ),
                     onPressed: onViewHistoricalData,
-                    icon: Icon(
-                      Icons.history,
-                      color: AppColors.primary,
-                    ),
+                    icon: Icon(Icons.history, color: AppColors.primary),
                     label: Text(
                       'Fichas',
                       style: TextStyle(color: AppColors.primary),

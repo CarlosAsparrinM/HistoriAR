@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 
 import 'app_colors.dart';
 import 'app_tokens.dart';
@@ -22,6 +21,13 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+      ),
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
@@ -100,6 +106,7 @@ class AppTheme {
           elevation: 0,
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
+          minimumSize: const Size(48, 48),
           shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -111,6 +118,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: AppColors.border),
           foregroundColor: AppColors.textPrimary,
+          minimumSize: const Size(48, 48),
           shape: const RoundedRectangleBorder(borderRadius: AppRadius.md),
           padding: const EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -127,6 +135,27 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         selectedColor: AppColors.primary.withValues(alpha: 0.12),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 72,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.primary.withValues(alpha: 0.14),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            color: selected ? AppColors.primary : AppColors.textMuted,
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          );
+        }),
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          return IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? AppColors.primary
+                : AppColors.textMuted,
+          );
+        }),
       ),
     );
   }

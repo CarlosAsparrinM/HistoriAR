@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
 
 class ArCameraLoadingOverlay extends StatelessWidget {
-  const ArCameraLoadingOverlay({super.key});
+  final double topMargin;
+
+  const ArCameraLoadingOverlay({super.key, this.topMargin = 128});
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +13,7 @@ class ArCameraLoadingOverlay extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: SafeArea(
         child: Container(
-          margin: const EdgeInsets.only(top: 72),
+          margin: EdgeInsets.only(top: topMargin),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.85),
@@ -34,7 +36,7 @@ class ArCameraLoadingOverlay extends StatelessWidget {
               ),
               SizedBox(height: 12),
               Text(
-                'Preparando experiencia AR...',
+                'Preparando experiencia de RA...',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
@@ -58,8 +60,14 @@ class ArCameraLoadingOverlay extends StatelessWidget {
 class ArCameraErrorBanner extends StatelessWidget {
   final String message;
   final VoidCallback? onDismiss;
+  final double topMargin;
 
-  const ArCameraErrorBanner({super.key, required this.message, this.onDismiss});
+  const ArCameraErrorBanner({
+    super.key,
+    required this.message,
+    this.onDismiss,
+    this.topMargin = 128,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +77,7 @@ class ArCameraErrorBanner extends StatelessWidget {
         child: GestureDetector(
           onTap: onDismiss,
           child: Container(
-            margin: const EdgeInsets.only(top: 16),
+            margin: EdgeInsets.only(top: topMargin),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: AppColors.danger.withValues(alpha: 0.95),

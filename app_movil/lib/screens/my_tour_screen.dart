@@ -10,6 +10,7 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
+import '../services/session_storage_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
 import '../styles/app_colors.dart';
@@ -26,11 +27,9 @@ class MyTourScreen extends StatefulWidget {
 }
 
 class _MyTourScreenState extends State<MyTourScreen> {
-  static const String _activeSessionIdKey = 'active_tour_session_id';
-  static const String _activeSessionTourIdKey = 'active_tour_session_tour_id';
-
   final ToursService _toursService = const ToursService();
   final SessionsService _sessionsService = const SessionsService();
+  final SessionStorageService _sessionStorage = SessionStorageService();
 
   bool _isLoading = true;
   String? _error;
@@ -46,16 +45,49 @@ class _MyTourScreenState extends State<MyTourScreen> {
   Set<String> _visitedMonumentIds = {};
 
   final List<String> _distritosLima = [
-    'Todos', 'Lima', 'Ate', 'Barranco', 'Breña', 'Carabayllo', 'Chaclacayo',
-    'Chorrillos', 'Cieneguilla', 'Comas', 'El Agustino', 'Independencia',
-    'Jesús María', 'La Molina', 'La Victoria', 'Lince', 'Los Olivos',
-    'Lurigancho', 'Lurín', 'Magdalena del Mar', 'Miraflores', 'Pachacamac',
-    'Pucusana', 'Pueblo Libre', 'Puente Piedra', 'Punta Hermosa',
-    'Punta Negra', 'Rímac', 'San Bartolo', 'San Borja', 'San Isidro',
-    'San Juan de Lurigancho', 'San Juan de Miraflores', 'San Luis',
-    'San Martín de Porres', 'San Miguel', 'Santa Anita', 'Santa María del Mar',
-    'Santa Rosa', 'Santiago de Surco', 'Surquillo', 'Villa El Salvador',
-    'Villa María del Triunfo'
+    'Todos',
+    'Lima',
+    'Ate',
+    'Barranco',
+    'Breña',
+    'Carabayllo',
+    'Chaclacayo',
+    'Chorrillos',
+    'Cieneguilla',
+    'Comas',
+    'El Agustino',
+    'Independencia',
+    'Jesús María',
+    'La Molina',
+    'La Victoria',
+    'Lince',
+    'Los Olivos',
+    'Lurigancho',
+    'Lurín',
+    'Magdalena del Mar',
+    'Miraflores',
+    'Pachacamac',
+    'Pucusana',
+    'Pueblo Libre',
+    'Puente Piedra',
+    'Punta Hermosa',
+    'Punta Negra',
+    'Rímac',
+    'San Bartolo',
+    'San Borja',
+    'San Isidro',
+    'San Juan de Lurigancho',
+    'San Juan de Miraflores',
+    'San Luis',
+    'San Martín de Porres',
+    'San Miguel',
+    'Santa Anita',
+    'Santa María del Mar',
+    'Santa Rosa',
+    'Santiago de Surco',
+    'Surquillo',
+    'Villa El Salvador',
+    'Villa María del Triunfo',
   ];
   String _selectedDistrictFilter = 'Todos';
 
@@ -74,7 +106,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     // Intentar cargar contexto guardado localmente para mostrar algo rápido
     try {
       final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString('last_tour_context');
+      final saved = prefs.getString(SessionStorageService.lastTourContextKey);
       if (saved != null && saved.isNotEmpty) {
         final Map<String, dynamic> decoded = jsonDecode(saved);
         final cached = TourContextResponse.fromJson(decoded);
@@ -112,7 +144,10 @@ class _MyTourScreenState extends State<MyTourScreen> {
       setState(() {
         _currentPosition = position;
         _tours = tours;
-        _selectedTour = _resolveSelectedTour(_getFilteredTours(), _selectedTour);
+        _selectedTour = _resolveSelectedTour(
+          _getFilteredTours(),
+          _selectedTour,
+        );
         _alignSelectedTourWithActiveSession(tours);
         _currentInstitution = tours.isNotEmpty ? tours.first.institution : null;
         _isLoading = false;
@@ -188,11 +223,17 @@ class _MyTourScreenState extends State<MyTourScreen> {
     if (_selectedDistrictFilter == 'Todos') return _tours;
     final query = _selectedDistrictFilter.toLowerCase();
     return _tours.where((t) {
-      return t.orderedStops.any((s) => s.monument.district?.toLowerCase() == query);
+      return t.orderedStops.any(
+        (s) => s.monument.district?.toLowerCase() == query,
+      );
     }).toList();
   }
 
-  TourStopStatus _getStopStatus(TourStop stop, int index, List<TourStop> allStops) {
+  TourStopStatus _getStopStatus(
+    TourStop stop,
+    int index,
+    List<TourStop> allStops,
+  ) {
     if (_currentSessionId == null) return TourStopStatus.locked;
 
     final monumentId = stop.monument.id;
@@ -241,9 +282,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
       return;
     }
 
-    // Obtener userId y preferencias de SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString(AuthState.userIdKey);
+    final userId = await _sessionStorage.readUserId();
     if (userId == null || userId.isEmpty) {
       if (!mounted) return;
       AppFeedback.warning(context, 'No se pudo obtener el ID del usuario.');
@@ -450,6 +489,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
           icon: const Icon(Icons.refresh),
         ),
       ],
+      bottomNavigationBar: selectedTour == null
+          ? null
+          : _buildTourActionBar(selectedTour),
       child: RefreshIndicator(
         onRefresh: _loadTours,
         child: _isLoading
@@ -501,12 +543,14 @@ class _MyTourScreenState extends State<MyTourScreen> {
                     else
                       ...stops.asMap().entries.map(
                         (entry) => Padding(
-                          padding: const EdgeInsets.only(
-                            bottom: AppSpacing.md,
-                          ),
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
                           child: _TourStopCard(
                             stop: entry.value,
-                            status: _getStopStatus(entry.value, entry.key, stops),
+                            status: _getStopStatus(
+                              entry.value,
+                              entry.key,
+                              stops,
+                            ),
                             onOpenAr: () async {
                               await _openArExperience(
                                 entry.value.monument,
@@ -591,7 +635,8 @@ class _MyTourScreenState extends State<MyTourScreen> {
               children: [
                 _InfoPill(label: '${_tours.length} tours', icon: Icons.route),
                 _InfoPill(
-                  label: '${_tours.fold<int>(0, (sum, t) => sum + t.orderedStops.length)} monumentos',
+                  label:
+                      '${_tours.fold<int>(0, (sum, t) => sum + t.orderedStops.length)} monumentos',
                   icon: Icons.account_balance,
                 ),
                 _InfoPill(
@@ -619,7 +664,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
       children: [
         DropdownButtonFormField<String>(
           initialValue: _selectedDistrictFilter,
-          items: _distritosLima.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+          items: _distritosLima
+              .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+              .toList(),
           onChanged: hasActiveSession
               ? null
               : (value) {
@@ -637,7 +684,11 @@ class _MyTourScreenState extends State<MyTourScreen> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          initialValue: selectedTour == null ? 'todos' : (filteredTours.any((t) => t.id == selectedTour.id) ? selectedTour.id : 'todos'),
+          initialValue: selectedTour == null
+              ? 'todos'
+              : (filteredTours.any((t) => t.id == selectedTour.id)
+                    ? selectedTour.id
+                    : 'todos'),
           items: [
             const DropdownMenuItem<String>(
               value: 'todos',
@@ -672,7 +723,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
           decoration: InputDecoration(
             labelText: hasActiveSession
                 ? 'Tour bloqueado durante sesión activa'
-                : (filteredTours.isEmpty ? 'No hay tours en este distrito' : 'Elegir tour'),
+                : (filteredTours.isEmpty
+                      ? 'No hay tours en este distrito'
+                      : 'Elegir tour'),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
@@ -720,39 +773,105 @@ class _MyTourScreenState extends State<MyTourScreen> {
                   label: tour.isActive ? 'Activo' : 'Inactivo',
                   icon: tour.isActive ? Icons.check_circle : Icons.pause_circle,
                 ),
-                const SizedBox(width: 8),
-                // Botón iniciar/finalizar tour
-                Builder(
-                  builder: (ctx) {
-                    final isActive = _currentSessionId != null;
-                    return ElevatedButton(
-                      onPressed: _isSessionLoading
-                          ? null
-                          : () async {
-                              if (isActive) {
-                                await _stopTour();
-                              } else {
-                                await _startTour();
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: isActive
-                            ? Colors.redAccent
-                            : AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(isActive ? 'Finalizar Tour' : 'Iniciar Tour'),
-                    );
-                  },
-                ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildTourActionBar(TourItem tour) {
+    final isActive = _currentSessionId != null;
+
+    return Material(
+      color: Colors.white,
+      elevation: 10,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isActive ? 'Tour en curso' : 'Tour seleccionado',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                    Text(
+                      tour.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: _isSessionLoading ? null : _handleTourAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isActive
+                      ? AppColors.danger
+                      : AppColors.primary,
+                ),
+                icon: _isSessionLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Icon(isActive ? Icons.stop_circle : Icons.play_arrow),
+                label: Text(isActive ? 'Finalizar' : 'Iniciar tour'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleTourAction() async {
+    if (_currentSessionId == null) {
+      await _startTour();
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.stop_circle_outlined, color: AppColors.danger),
+        title: const Text('Finalizar tour'),
+        content: const Text(
+          'Se cerrará el recorrido actual. Las visitas ya registradas se conservarán.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Finalizar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _stopTour();
+    }
   }
 
   Widget _buildSearchBox() {
@@ -807,8 +926,23 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
   Future<void> _restoreActiveTourSession() async {
     final prefs = await SharedPreferences.getInstance();
-    final savedSessionId = prefs.getString(_activeSessionIdKey);
-    final savedTourId = prefs.getString(_activeSessionTourIdKey);
+    final currentUserId = await _sessionStorage.readUserId();
+    final savedOwnerId = prefs.getString(
+      SessionStorageService.activeTourOwnerIdKey,
+    );
+    var savedSessionId = prefs.getString(
+      SessionStorageService.activeTourSessionIdKey,
+    );
+    var savedTourId = prefs.getString(SessionStorageService.activeTourIdKey);
+
+    if (!isPersistedTourSessionOwnedBy(
+      savedOwnerId: savedOwnerId,
+      currentUserId: currentUserId,
+    )) {
+      await _clearPersistedActiveTourSession();
+      savedSessionId = null;
+      savedTourId = null;
+    }
 
     if (savedSessionId != null && savedSessionId.isNotEmpty) {
       if (!mounted) return;
@@ -894,24 +1028,35 @@ class _MyTourScreenState extends State<MyTourScreen> {
     final prefs = await SharedPreferences.getInstance();
     final sessionId = _currentSessionId;
     final tourId = _activeSessionTourId;
+    final userId = await _sessionStorage.readUserId();
 
     if (sessionId == null || sessionId.isEmpty) {
-      await prefs.remove(_activeSessionIdKey);
+      await prefs.remove(SessionStorageService.activeTourSessionIdKey);
     } else {
-      await prefs.setString(_activeSessionIdKey, sessionId);
+      await prefs.setString(
+        SessionStorageService.activeTourSessionIdKey,
+        sessionId,
+      );
     }
 
     if (tourId == null || tourId.isEmpty) {
-      await prefs.remove(_activeSessionTourIdKey);
+      await prefs.remove(SessionStorageService.activeTourIdKey);
     } else {
-      await prefs.setString(_activeSessionTourIdKey, tourId);
+      await prefs.setString(SessionStorageService.activeTourIdKey, tourId);
+    }
+
+    if (userId == null || sessionId == null || sessionId.isEmpty) {
+      await prefs.remove(SessionStorageService.activeTourOwnerIdKey);
+    } else {
+      await prefs.setString(SessionStorageService.activeTourOwnerIdKey, userId);
     }
   }
 
   Future<void> _clearPersistedActiveTourSession() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_activeSessionIdKey);
-    await prefs.remove(_activeSessionTourIdKey);
+    await prefs.remove(SessionStorageService.activeTourSessionIdKey);
+    await prefs.remove(SessionStorageService.activeTourIdKey);
+    await prefs.remove(SessionStorageService.activeTourOwnerIdKey);
   }
 }
 
@@ -989,7 +1134,11 @@ class _TourStopCard extends StatelessWidget {
                             color: Colors.green,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.check, color: Colors.white, size: 16),
+                          child: const Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                       if (status == TourStopStatus.locked)
                         Container(
@@ -999,7 +1148,11 @@ class _TourStopCard extends StatelessWidget {
                             color: Colors.black.withValues(alpha: 0.62),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.lock, color: Colors.white, size: 16),
+                          child: const Icon(
+                            Icons.lock,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                     ],
                   ),
@@ -1057,7 +1210,9 @@ class _TourStopCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: status == TourStopStatus.locked ? null : onOpenAr,
+                        onPressed: status == TourStopStatus.locked
+                            ? null
+                            : onOpenAr,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
@@ -1161,8 +1316,4 @@ class _Tag extends StatelessWidget {
   }
 }
 
-enum TourStopStatus {
-  completed,
-  active,
-  locked,
-}
+enum TourStopStatus { completed, active, locked }

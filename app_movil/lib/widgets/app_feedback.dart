@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../styles/app_colors.dart';
 
-/// Tipos de mensajes soportados por el sistema de feedback global.
 enum AppFeedbackType { success, info, warning, error, loading }
 
 class AppFeedback {
@@ -31,7 +30,7 @@ class AppFeedback {
         content: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(style.icon, color: Colors.white, size: 18),
+            Icon(style.icon, color: Colors.white, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -53,11 +52,11 @@ class AppFeedback {
             if (type == AppFeedbackType.loading) ...[
               const SizedBox(width: 8),
               const SizedBox(
-                width: 16,
-                height: 16,
+                width: 18,
+                height: 18,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  color: Colors.white,
                 ),
               ),
             ],
@@ -114,16 +113,11 @@ class AppFeedback {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              icon,
-              color: isDestructive ? AppColors.danger : AppColors.primary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: Text(title)),
-          ],
+        icon: Icon(
+          icon,
+          color: isDestructive ? AppColors.danger : AppColors.primary,
         ),
+        title: Text(title),
         content: Text(message),
         actions: [
           TextButton(
@@ -190,31 +184,26 @@ class _FeedbackStyle {
 }
 
 _FeedbackStyle _styleFor(AppFeedbackType type) {
-  switch (type) {
-    case AppFeedbackType.success:
-      return const _FeedbackStyle(
-        background: AppColors.success,
-        icon: Icons.check_circle_outline,
-      );
-    case AppFeedbackType.info:
-      return const _FeedbackStyle(
-        background: AppColors.secondary,
-        icon: Icons.info_outline,
-      );
-    case AppFeedbackType.warning:
-      return const _FeedbackStyle(
-        background: AppColors.warning,
-        icon: Icons.warning_amber_rounded,
-      );
-    case AppFeedbackType.error:
-      return const _FeedbackStyle(
-        background: AppColors.danger,
-        icon: Icons.error_outline,
-      );
-    case AppFeedbackType.loading:
-      return const _FeedbackStyle(
-        background: AppColors.textSecondary,
-        icon: Icons.hourglass_top,
-      );
-  }
+  return switch (type) {
+    AppFeedbackType.success => const _FeedbackStyle(
+      background: AppColors.success,
+      icon: Icons.check_circle_outline,
+    ),
+    AppFeedbackType.info => const _FeedbackStyle(
+      background: AppColors.secondary,
+      icon: Icons.info_outline,
+    ),
+    AppFeedbackType.warning => const _FeedbackStyle(
+      background: AppColors.warning,
+      icon: Icons.warning_amber_rounded,
+    ),
+    AppFeedbackType.error => const _FeedbackStyle(
+      background: AppColors.danger,
+      icon: Icons.error_outline,
+    ),
+    AppFeedbackType.loading => const _FeedbackStyle(
+      background: AppColors.textSecondary,
+      icon: Icons.hourglass_top,
+    ),
+  };
 }

@@ -1,4 +1,3 @@
-/// Modelo de dominio para fichas históricas de un monumento.
 class HistoricalData {
   final String id;
   final String monumentId;
@@ -35,35 +34,19 @@ class HistoricalData {
   factory HistoricalData.fromJson(Map<String, dynamic> json) {
     return HistoricalData(
       id: json['_id'] as String? ?? '',
-      monumentId: json['monumentId'] as String? ?? '',
+      monumentId: _extractId(json['monumentId']),
       title: json['title'] as String? ?? '',
       description: json['description'] as String?,
       imageUrl: json['imageUrl'] as String?,
       s3ImageKey: json['s3ImageKey'] as String?,
       s3ImageFileName: json['s3ImageFileName'] as String?,
       discoveryInfo: json['discoveryInfo'] as String?,
-      oldImages:
-          (json['oldImages'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      activities:
-          (json['activities'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      sources:
-          (json['sources'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
+      oldImages: _stringList(json['oldImages']),
+      activities: _stringList(json['activities']),
+      sources: _stringList(json['sources']),
       order: (json['order'] as num?)?.toInt() ?? 0,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : DateTime.now(),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : DateTime.now(),
+      createdAt: _parseDate(json['createdAt']),
+      updatedAt: _parseDate(json['updatedAt']),
     );
   }
 
@@ -84,5 +67,25 @@ class HistoricalData {
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
+  }
+
+  static List<String> _stringList(dynamic value) {
+    return (value as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .where((item) => item.isNotEmpty)
+            .toList() ??
+        const [];
+  }
+
+  static String _extractId(dynamic value) {
+    if (value is String) return value;
+    if (value is Map<String, dynamic>) {
+      return value['_id']?.toString() ?? '';
+    }
+    return '';
+  }
+
+  static DateTime _parseDate(dynamic value) {
+    return DateTime.tryParse(value?.toString() ?? '') ?? DateTime.now();
   }
 }

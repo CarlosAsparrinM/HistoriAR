@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Brand
-  static const Color primary = Color(0xFFFF6600);
-  static const Color primaryVariant = Color(0xFFFF8A3D);
-  static const Color secondary = Color(0xFF4E6AFF);
+  // Naranjas oscuros para mantener contraste AA con texto blanco.
+  static const Color primary = Color(0xFFEA580C);
+  static const Color primaryVariant = Color(0xFFEA580C);
+  static const Color primaryAccent = Color(0xFFEA580C);
+  static const Color secondary = Color(0xFF3F51B5);
 
   // Superficies
   static const Color background = Color(0xFFFFFFFF);
@@ -27,7 +29,7 @@ class AppColors {
   static const Color muted = Colors.grey;
 
   // Estados
-  static const Color success = Color(0xFF16A34A);
-  static const Color warning = Color(0xFFF59E0B);
-  static const Color danger = Color(0xFFFF3B30);
+  static const Color success = Color(0xFF15803D);
+  static const Color warning = Color(0xFF92400E);
+  static const Color danger = Color(0xFFB42318);
 }

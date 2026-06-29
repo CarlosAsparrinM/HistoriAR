@@ -8,7 +8,8 @@ import '../utils/http_interceptor.dart' as http;
 
 /// Servicio responsable de obtener fichas históricas de monumentos desde la API.
 class HistoricalDataService {
-  HistoricalDataService({http.Client? client}) : _client = client ?? http.Client();
+  HistoricalDataService({http.Client? client})
+    : _client = client ?? http.Client();
 
   final http.Client _client;
 
@@ -22,20 +23,20 @@ class HistoricalDataService {
         '${Environment.apiBaseUrl}/api/monuments/$monumentId/historical-data',
       );
 
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-      };
+      final headers = <String, String>{'Content-Type': 'application/json'};
 
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      final response = await _client.get(uri, headers: headers).timeout(
-            const Duration(seconds: 10),
-          );
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 10));
+      await http.inspectResponse(response, headers: headers);
 
       if (response.statusCode == 200) {
-        final List<dynamic> decoded = json.decode(response.body) as List<dynamic>;
+        final List<dynamic> decoded =
+            json.decode(response.body) as List<dynamic>;
         return decoded
             .map((e) => HistoricalData.fromJson(e as Map<String, dynamic>))
             .toList();
@@ -62,17 +63,16 @@ class HistoricalDataService {
         '${Environment.apiBaseUrl}/api/historical-data/$id',
       );
 
-      final headers = <String, String>{
-        'Content-Type': 'application/json',
-      };
+      final headers = <String, String>{'Content-Type': 'application/json'};
 
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
 
-      final response = await _client.get(uri, headers: headers).timeout(
-            const Duration(seconds: 10),
-          );
+      final response = await _client
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 10));
+      await http.inspectResponse(response, headers: headers);
 
       if (response.statusCode == 200) {
         final decoded = json.decode(response.body) as Map<String, dynamic>;

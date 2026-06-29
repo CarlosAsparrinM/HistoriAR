@@ -1,14 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
 import '../services/auth_service.dart';
+import '../services/session_storage_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import '../styles/app_tokens.dart';
 import '../widgets/app_motion.dart';
-import '../widgets/app_feedback.dart';
 import 'main_scaffold.dart';
 import 'terms_screen.dart';
 
@@ -25,7 +24,9 @@ class _LoginScreenState extends State<LoginScreen>
 
   final _authService = AuthService();
   final _userService = UserService();
+  final _sessionStorage = SessionStorageService();
   bool _isLoading = false;
+  int _selectedTabIndex = 0;
 
   final _loginFormKey = GlobalKey<FormState>();
   final _loginEmailController = TextEditingController();
@@ -48,10 +49,12 @@ class _LoginScreenState extends State<LoginScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChange);
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChange);
     _tabController.dispose();
     _loginEmailController.dispose();
     _loginPasswordController.dispose();
@@ -62,6 +65,14 @@ class _LoginScreenState extends State<LoginScreen>
     super.dispose();
   }
 
+  void _handleTabChange() {
+    if (_tabController.indexIsChanging ||
+        _selectedTabIndex == _tabController.index) {
+      return;
+    }
+    setState(() => _selectedTabIndex = _tabController.index);
+  }
+
   void _goToApp() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => MainScaffold(token: authState.token)),
@@ -69,26 +80,25 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   void _showError(String message) {
-    AppFeedback.error(context, message);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _handleLogin() async {
     if (!_loginFormKey.currentState!.validate()) return;
 
-    final email = _loginEmailController.text.trim().toLowerCase();
+    final email = _loginEmailController.text.trim();
     final password = _loginPasswordController.text.trim();
 
     setState(() => _isLoading = true);
     try {
       final token = await _authService.login(email: email, password: password);
-      authState.token = token;
-      // Persistimos token y userId para otras pantallas
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(AuthState.tokenKey, token);
+      await _sessionStorage.saveToken(token);
 
       try {
         final me = await _userService.getMyProfile(token);
-        await prefs.setString(AuthState.userIdKey, me.id);
+        await _sessionStorage.saveUserId(me.id);
       } catch (_) {
         // Si falla obtener el perfil, igual continuamos con token
       }
@@ -108,7 +118,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (!_registerFormKey.currentState!.validate()) return;
 
     final name = _registerNameController.text.trim();
-    final email = _registerEmailController.text.trim().toLowerCase();
+    final email = _registerEmailController.text.trim();
     final password = _registerPasswordController.text.trim();
 
     setState(() => _isLoading = true);
@@ -136,13 +146,11 @@ class _LoginScreenState extends State<LoginScreen>
     setState(() => _isLoading = true);
     try {
       final token = await _authService.loginWithGoogle();
-      authState.token = token;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(AuthState.tokenKey, token);
+      await _sessionStorage.saveToken(token);
 
       try {
         final me = await _userService.getMyProfile(token);
-        await prefs.setString(AuthState.userIdKey, me.id);
+        await _sessionStorage.saveUserId(me.id);
       } catch (_) {
         // Continuar si falla obtener el perfil secundario
       }
@@ -165,43 +173,54 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 360 || size.height < 700;
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 16 : 24,
+              vertical: compact ? 20 : 32,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Avatar con iniciales y sombra
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(alpha: 0.3),
-                          blurRadius: 16,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 48,
-                      backgroundColor: AppColors.primary,
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Image.asset(
-                          'assets/icon/icon.png',
-                          fit: BoxFit.contain,
+                  Semantics(
+                    image: true,
+                    label: 'Logo de HistoriAR',
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.24),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: compact ? 48 : 58,
+                        backgroundColor: AppColors.primary,
+                        child: Padding(
+                          padding: EdgeInsets.all(compact ? 16 : 18),
+                          child: Image.asset(
+                            'assets/icon/icon.png',
+                            fit: BoxFit.contain,
+                            excludeFromSemantics: true,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xxl),
+                  SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
                   const Text(
                     'Bienvenido a HistoriAR',
                     textAlign: TextAlign.center,
@@ -221,7 +240,7 @@ class _LoginScreenState extends State<LoginScreen>
                       fontWeight: FontWeight.w400,
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.xxl),
+                  SizedBox(height: compact ? AppSpacing.lg : AppSpacing.xxl),
 
                   // Tabs Iniciar sesión / Registrarse
                   Container(
@@ -263,19 +282,12 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Formularios con scroll interno para evitar overflow
-                  SizedBox(
-                    height: 650,
-                    child: AppFadeSwitcher(
-                      child: TabBarView(
-                        controller: _tabController,
-                        children: [
-                          SingleChildScrollView(child: _buildLoginForm(theme)),
-                          SingleChildScrollView(
-                            child: _buildRegisterForm(theme),
-                          ),
-                        ],
-                      ),
+                  AppFadeSwitcher(
+                    child: KeyedSubtree(
+                      key: ValueKey(_selectedTabIndex),
+                      child: _selectedTabIndex == 0
+                          ? _buildLoginForm(theme)
+                          : _buildRegisterForm(theme),
                     ),
                   ),
                 ],
@@ -303,15 +315,14 @@ class _LoginScreenState extends State<LoginScreen>
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Correo electrónico',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Correo electrónico'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _loginEmailController,
             decoration: _inputDecoration('tu@ejemplo.com'),
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El correo es obligatorio';
@@ -325,10 +336,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _loginPasswordController,
@@ -344,12 +352,17 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _loginObscure,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.password],
+            onFieldSubmitted: (_) {
+              if (!_isLoading) _handleLogin();
+            },
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 9) {
-                return 'La contraseña debe tener al menos 9 caracteres';
+              if (value!.length < 6) {
+                return 'La contraseña debe tener al menos 6 caracteres';
               }
               return null;
             },
@@ -453,15 +466,14 @@ class _LoginScreenState extends State<LoginScreen>
             style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Nombre',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Nombre'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerNameController,
             decoration: _inputDecoration('Tu nombre completo'),
             textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.name],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El nombre es obligatorio';
@@ -473,15 +485,14 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Correo electrónico',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Correo electrónico'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerEmailController,
             decoration: _inputDecoration('tu@ejemplo.com'),
             keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'El correo es obligatorio';
@@ -495,10 +506,7 @@ class _LoginScreenState extends State<LoginScreen>
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerPasswordController,
@@ -515,24 +523,20 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerObscure,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.newPassword],
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 9) {
-                return 'La contraseña debe tener al menos 9 caracteres';
-              }
-              if (!RegExp(r'^[A-Za-z0-9]+$').hasMatch(value)) {
-                return 'Solo puede contener letras y números';
+              if (value!.length < 6) {
+                return 'La contraseña debe tener al menos 6 caracteres';
               }
               return null;
             },
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Confirmar Contraseña',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          ),
+          _fieldLabel('Confirmar contraseña'),
           const SizedBox(height: 6),
           TextFormField(
             controller: _registerConfirmPasswordController,
@@ -552,6 +556,11 @@ class _LoginScreenState extends State<LoginScreen>
               ),
             ),
             obscureText: _registerConfirmObscure,
+            textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.newPassword],
+            onFieldSubmitted: (_) {
+              if (!_isLoading) _handleRegister();
+            },
             validator: (value) {
               if (value?.isEmpty ?? true) {
                 return 'Debe confirmar la contraseña';
@@ -742,6 +751,16 @@ class _LoginScreenState extends State<LoginScreen>
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFFFF3B30), width: 2),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
     );
   }

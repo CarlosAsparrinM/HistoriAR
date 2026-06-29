@@ -10,6 +10,7 @@ class AppShell extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final bool useSafeArea;
+  final Widget? bottomNavigationBar;
 
   const AppShell({
     super.key,
@@ -24,6 +25,7 @@ class AppShell extends StatelessWidget {
       AppSpacing.md,
     ),
     this.useSafeArea = true,
+    this.bottomNavigationBar,
   });
 
   @override
@@ -45,6 +47,7 @@ class AppShell extends StatelessWidget {
         actions: actions,
       ),
       body: useSafeArea ? SafeArea(child: body) : body,
+      bottomNavigationBar: bottomNavigationBar,
     );
   }
 }

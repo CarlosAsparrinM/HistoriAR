@@ -3,17 +3,17 @@ import 'package:flutter/material.dart';
 import '../styles/app_colors.dart';
 
 /// Indicador visual de la calidad del tracking de AR.
-/// Muestra: luz ambiental, detección de plano, y estabilidad del tracking.
+/// Muestra: luz ambiental, anclaje del modelo, y estabilidad del tracking.
 class ArQualityIndicator extends StatefulWidget {
   final bool isTrackingActive;
-  final bool isPlanDetected;
+  final bool isModelAnchoredToPlane;
   final double lightIntensity; // 0.0 a 1.0
   final bool showDebugInfo;
 
   const ArQualityIndicator({
     super.key,
     this.isTrackingActive = true,
-    this.isPlanDetected = false,
+    this.isModelAnchoredToPlane = false,
     this.lightIntensity = 0.5,
     this.showDebugInfo = false,
   });
@@ -43,14 +43,14 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
 
   Color _getTrackingColor() {
     if (!widget.isTrackingActive) return AppColors.danger;
-    if (!widget.isPlanDetected) return AppColors.warning;
+    if (!widget.isModelAnchoredToPlane) return AppColors.warning;
     return AppColors.success;
   }
 
   String _getTrackingStatus() {
     if (!widget.isTrackingActive) return 'Tracking desactivado';
-    if (!widget.isPlanDetected) return 'Buscando superficie...';
-    return 'Tracking activo';
+    if (!widget.isModelAnchoredToPlane) return 'Modelo sin anclar';
+    return 'Modelo anclado';
   }
 
   @override
@@ -84,7 +84,8 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
                       color: trackingColor,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        if (widget.isTrackingActive && widget.isPlanDetected)
+                        if (widget.isTrackingActive &&
+                            widget.isModelAnchoredToPlane)
                           BoxShadow(
                             color: trackingColor.withValues(
                               alpha: 0.5 + 0.5 * (1 - _pulseController.value),
@@ -134,9 +135,9 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
                 ),
                 const SizedBox(height: 4),
                 _DebugRow(
-                  label: 'Plano detectado',
-                  value: widget.isPlanDetected ? 'Sí' : 'No',
-                  color: widget.isPlanDetected
+                  label: 'Anclado a superficie',
+                  value: widget.isModelAnchoredToPlane ? 'Sí' : 'No',
+                  color: widget.isModelAnchoredToPlane
                       ? AppColors.success
                       : AppColors.warning,
                 ),

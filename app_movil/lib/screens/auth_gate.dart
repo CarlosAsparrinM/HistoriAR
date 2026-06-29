@@ -1,23 +1,35 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../contexts/auth_state.dart';
+import '../services/api_exceptions.dart';
 import '../services/auth_service.dart';
+import '../services/session_storage_service.dart';
 import '../services/user_service.dart';
 import '../styles/app_colors.dart';
 import 'login_screen.dart';
 import 'main_scaffold.dart';
 
 class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
+  final Future<void> Function(String token)? validateSession;
+  final Future<String> Function(String token)? loadUserId;
+  final SessionStorageService? sessionStorage;
+
+  const AuthGate({
+    super.key,
+    this.validateSession,
+    this.loadUserId,
+    this.sessionStorage,
+  });
 
   @override
   State<AuthGate> createState() => _AuthGateState();
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final AuthService _authService = AuthService();
-  final UserService _userService = UserService();
+  AuthService? _authService;
+  UserService? _userService;
+  late final SessionStorageService _sessionStorage =
+      widget.sessionStorage ?? SessionStorageService();
 
   Future<Widget>? _bootstrapFuture;
 
@@ -28,28 +40,50 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<Widget> _bootstrap() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AuthState.tokenKey);
+    final token = await _sessionStorage.readToken();
 
     if (token == null || token.isEmpty) {
       authState.token = '';
       return const LoginScreen();
     }
 
-    try {
-      await _authService.validateToken(token);
-      final me = await _userService.getMyProfile(token);
+    authState.token = token;
 
-      authState.token = token;
-      await prefs.setString(AuthState.userIdKey, me.id);
+    try {
+      await _validateSession(token);
+      final userId = await _loadUserId(token);
+
+      await _sessionStorage.saveUserId(userId);
 
       return MainScaffold(token: token);
-    } catch (_) {
-      authState.token = '';
-      await prefs.remove(AuthState.tokenKey);
-      await prefs.remove(AuthState.userIdKey);
+    } on SessionExpiredException {
+      await _sessionStorage.clearSession();
       return const LoginScreen();
+    } catch (_) {
+      rethrow;
     }
+  }
+
+  Future<void> _validateSession(String token) async {
+    final validator = widget.validateSession;
+    if (validator != null) {
+      await validator(token);
+      return;
+    }
+
+    _authService ??= AuthService();
+    await _authService!.validateToken(token);
+  }
+
+  Future<String> _loadUserId(String token) async {
+    final loader = widget.loadUserId;
+    if (loader != null) {
+      return loader(token);
+    }
+
+    _userService ??= UserService();
+    final user = await _userService!.getMyProfile(token);
+    return user.id;
   }
 
   @override
@@ -73,7 +107,13 @@ class _AuthGateState extends State<AuthGate> {
                 children: [
                   const Icon(Icons.error_outline, size: 48, color: Colors.red),
                   const SizedBox(height: 12),
-                  Text('No se pudo validar la sesión: ${snapshot.error}'),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'No se pudo conectar con el servidor. Tu sesión sigue guardada.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   ElevatedButton(
                     onPressed: () {
