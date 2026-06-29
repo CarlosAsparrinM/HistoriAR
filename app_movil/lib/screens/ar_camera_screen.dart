@@ -8,6 +8,7 @@ import 'package:ar_flutter_plugin_plus/managers/ar_location_manager.dart';
 import 'package:ar_flutter_plugin_plus/managers/ar_object_manager.dart';
 import 'package:ar_flutter_plugin_plus/managers/ar_session_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controllers/ar_camera_ar_controller.dart';
 import '../models/historical_data.dart';
@@ -47,6 +48,8 @@ class ArCameraScreen extends StatefulWidget {
 
 class _ArCameraScreenState extends State<ArCameraScreen> {
   late final ArCameraArController _arController;
+  static const double _repositionHoldMoveTolerance = 18.0;
+  static const Duration _gestureHapticCooldown = Duration(milliseconds: 280);
 
   final PendingVisitsService _pendingVisitsService = PendingVisitsService();
   final HistoricalDataService _historicalDataService = HistoricalDataService();
@@ -67,6 +70,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   bool _isArMode = false;
   String? _fallbackModelUrl;
   bool _isLoadingUrl = false;
+  bool _showArFallbackSafetyNotice = false;
+  Timer? _repositionHoldTimer;
+  int? _repositionHoldPointer;
+  Offset? _repositionHoldStart;
+  bool _repositionHoldConfirmed = false;
+  bool _transformFeedbackSent = false;
+  DateTime? _lastGestureHapticAt;
 
   Future<void> _loadFallbackUrl() async {
     if (_fallbackModelUrl != null) return;
@@ -113,6 +123,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   void _toggleArMode() {
     setState(() {
       _isArMode = !_isArMode;
+      _showArFallbackSafetyNotice = false;
     });
     if (!_isArMode) {
       _loadFallbackUrl();
@@ -157,6 +168,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
           ),
         );
       },
+      onArSceneFailed: _switchToFallbackAfterArSceneFailure,
       onHistoricalCardTap: _showHistoricalDataDetail,
     );
     _frameStopwatch = Stopwatch()..start();
@@ -207,9 +219,24 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     }
   }
 
+  void _switchToFallbackAfterArSceneFailure() {
+    if (!mounted || !_isArMode) return;
+    _clearLocalRepositionHold();
+    setState(() {
+      _isArMode = false;
+      _shouldShowContextualGuide = false;
+      _isHistoricalPanelExpanded = false;
+      _showArFallbackSafetyNotice = true;
+      _arController.loadError = null;
+    });
+    unawaited(_loadFallbackUrl());
+    _showSnackbar('Se abrió el visor 3D por seguridad');
+  }
+
   @override
   void dispose() {
     _frameStopwatch.stop();
+    _cancelRepositionHold();
     _arController.dispose();
     if (!_visitQueued && _experienceReadyAt != null) {
       unawaited(_queueVisit());
@@ -231,6 +258,119 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   void _showSnackbar(String message) {
     if (!mounted) return;
     AppFeedback.info(context, message);
+  }
+
+  void _emitGestureHaptic(
+    Future<void> Function() feedback, {
+    bool force = false,
+  }) {
+    final now = DateTime.now();
+    final last = _lastGestureHapticAt;
+    if (!force &&
+        last != null &&
+        now.difference(last) < _gestureHapticCooldown) {
+      return;
+    }
+    _lastGestureHapticAt = now;
+    unawaited(feedback());
+  }
+
+  void _startRepositionHold(PointerDownEvent event) {
+    if (!_isArMode || _isInfoModalOpen || _arController.isLoadingModel) {
+      return;
+    }
+
+    if (_arController.isRelocationModeActive) {
+      return;
+    }
+
+    if (_repositionHoldPointer != null) {
+      _cancelRepositionHold(clearPendingTarget: true);
+      return;
+    }
+
+    _repositionHoldPointer = event.pointer;
+    _repositionHoldStart = event.position;
+    _repositionHoldConfirmed = false;
+    _arController.startRepositionHold();
+    _repositionHoldTimer?.cancel();
+    _repositionHoldTimer = Timer(
+      ArCameraArController.repositionHoldDuration,
+      () {
+        if (!mounted || _repositionHoldPointer != event.pointer) return;
+
+        _repositionHoldConfirmed = true;
+        _repositionHoldTimer = null;
+        _emitGestureHaptic(HapticFeedback.mediumImpact, force: true);
+        unawaited(_arController.confirmRepositionHold());
+      },
+    );
+  }
+
+  void _updateRepositionHold(PointerMoveEvent event) {
+    if (event.pointer != _repositionHoldPointer) return;
+
+    final start = _repositionHoldStart;
+    if (start == null) return;
+
+    if ((event.position - start).distance > _repositionHoldMoveTolerance) {
+      _cancelRepositionHold(clearPendingTarget: true);
+    }
+  }
+
+  void _endRepositionHold(PointerEvent event) {
+    if (event.pointer != _repositionHoldPointer) return;
+
+    final wasConfirmed = _repositionHoldConfirmed;
+    _clearLocalRepositionHold();
+
+    if (wasConfirmed) {
+      return;
+    }
+
+    _arController.cancelPendingRepositionTarget();
+  }
+
+  void _clearLocalRepositionHold() {
+    _repositionHoldTimer?.cancel();
+    _repositionHoldTimer = null;
+    _repositionHoldPointer = null;
+    _repositionHoldStart = null;
+    _repositionHoldConfirmed = false;
+  }
+
+  void _cancelRepositionHold({bool clearPendingTarget = false}) {
+    _clearLocalRepositionHold();
+    if (clearPendingTarget) {
+      _arController.cancelPendingRepositionTarget();
+      return;
+    }
+    _arController.cancelRepositionHold();
+  }
+
+  void _cancelRelocationMode() {
+    _cancelRepositionHold(clearPendingTarget: true);
+    _emitGestureHaptic(HapticFeedback.selectionClick, force: true);
+  }
+
+  void _handleTransformGestureStart(ScaleStartDetails details) {
+    _transformFeedbackSent = false;
+    _arController.handleScaleStart(details);
+  }
+
+  void _handleTransformGestureUpdate(ScaleUpdateDetails details) {
+    final didTransform = _arController.handleScaleUpdate(details);
+    if (!didTransform) return;
+
+    _cancelRepositionHold(clearPendingTarget: true);
+    if (!_transformFeedbackSent) {
+      _transformFeedbackSent = true;
+      _emitGestureHaptic(HapticFeedback.selectionClick);
+    }
+  }
+
+  void _handleTransformGestureEnd(ScaleEndDetails details) {
+    _transformFeedbackSent = false;
   }
 
   void onARViewCreated(
@@ -340,6 +480,83 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
     );
   }
 
+  Widget _buildRelocationBanner() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary, width: 1.2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.open_with, color: AppColors.primary, size: 20),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'Toca una superficie plana para mover el modelo',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cancelar movimiento',
+            onPressed: _cancelRelocationMode,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildArFallbackSafetyBanner() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.warning.withValues(alpha: 0.85),
+          width: 1.1,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.35), blurRadius: 8),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'RA reiniciada por seguridad. Puedes continuar en 3D.',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Ocultar aviso',
+            onPressed: () {
+              setState(() => _showArFallbackSafetyNotice = false);
+            },
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTopControls() {
     return Container(
       decoration: BoxDecoration(
@@ -372,7 +589,8 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                       child: Center(
                         child: ArQualityIndicator(
                           isTrackingActive: _arController.isTrackingActive,
-                          isPlanDetected: _arController.isPlanDetected,
+                          isModelAnchoredToPlane:
+                              _arController.isModelAnchoredToPlane,
                           lightIntensity: _arController.ambientLightIntensity,
                           showDebugInfo: false,
                         ),
@@ -397,6 +615,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         : _fallbackModelUrl != null && !_isLoadingUrl;
     final showFloatingHistoricalCards =
         hasVisibleModel &&
+        !_arController.isRelocationModeActive &&
         !_isInfoModalOpen &&
         !_isHistoricalPanelExpanded &&
         !(_isArMode && _shouldShowContextualGuide) &&
@@ -410,6 +629,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
         _arController.isLoadingHistoricalCards;
     final showHistoricalCardHitTargets =
         _isArMode &&
+        !_arController.isRelocationModeActive &&
         _arController.hasHistoricalCardNodes &&
         !showFloatingHistoricalCards &&
         !_isInfoModalOpen &&
@@ -439,16 +659,26 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
               Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onDoubleTap: () => unawaited(_resetModelPosition()),
-                  onScaleStart: (details) {
-                    _arController.handleScaleStart(details);
-                  },
-                  onScaleUpdate: (details) {
-                    _arController.handleScaleUpdate(details);
-                  },
-                  child: const SizedBox.expand(),
+                child: Listener(
+                  onPointerDown: _startRepositionHold,
+                  onPointerMove: _updateRepositionHold,
+                  onPointerUp: _endRepositionHold,
+                  onPointerCancel: _endRepositionHold,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onDoubleTap: () {
+                      _cancelRepositionHold(clearPendingTarget: true);
+                      _emitGestureHaptic(
+                        HapticFeedback.mediumImpact,
+                        force: true,
+                      );
+                      unawaited(_resetModelPosition());
+                    },
+                    onScaleStart: _handleTransformGestureStart,
+                    onScaleUpdate: _handleTransformGestureUpdate,
+                    onScaleEnd: _handleTransformGestureEnd,
+                    child: const SizedBox.expand(),
+                  ),
                 ),
               ),
               // Estado de carga del modelo
@@ -463,8 +693,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               // Instrucciones contextuales mejoradas
               if (_shouldShowContextualGuide &&
+                  !_arController.isRelocationModeActive &&
                   (!_arController.isLoadingModel ||
-                      !_arController.isPlanDetected))
+                      !_arController.isModelAnchoredToPlane))
                 Positioned(
                   left: 16,
                   right: 16,
@@ -476,6 +707,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                     onDismiss: () =>
                         setState(() => _shouldShowContextualGuide = false),
                   ),
+                ),
+              if (_arController.isRelocationModeActive)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  top: safeArea.top + 132,
+                  child: _buildRelocationBanner(),
                 ),
               // Panel de información histórica (abajo)
               Positioned(
@@ -512,6 +750,13 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                   showYears: true,
                 ),
               ),
+              if (_showArFallbackSafetyNotice)
+                Positioned(
+                  top: safeArea.top + 132,
+                  right: 16,
+                  left: 16,
+                  child: _buildArFallbackSafetyBanner(),
+                ),
             ],
             if (showFloatingHistoricalCards)
               if (_isArMode)

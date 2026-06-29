@@ -207,10 +207,10 @@ class _LoginScreenState extends State<LoginScreen>
                         ],
                       ),
                       child: CircleAvatar(
-                        radius: compact ? 40 : 48,
+                        radius: compact ? 48 : 58,
                         backgroundColor: AppColors.primary,
                         child: Padding(
-                          padding: const EdgeInsets.all(10),
+                          padding: EdgeInsets.all(compact ? 16 : 18),
                           child: Image.asset(
                             'assets/icon/icon.png',
                             fit: BoxFit.contain,

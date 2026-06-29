@@ -149,13 +149,13 @@ class _ArControlHintsState extends State<ArControlHints>
                 _HintRow(
                   icon: Icons.pinch_outlined,
                   label: 'Dos dedos',
-                  description: 'Zoom y giro',
+                  description: 'Escala y desplaza',
                 ),
                 const SizedBox(height: 8),
                 _HintRow(
-                  icon: Icons.refresh_outlined,
-                  label: 'Tap en plano',
-                  description: 'Reposiciona',
+                  icon: Icons.vibration_outlined,
+                  label: 'Mantén + plano',
+                  description: 'Activa y reposiciona',
                 ),
                 const SizedBox(height: 12),
                 Text(
