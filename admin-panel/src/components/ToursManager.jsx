@@ -41,6 +41,7 @@ const TOUR_TYPES = [
 ];
 
 const MONUMENTS_PAGE_SIZE = 100;
+const TOURS_PAGE_SIZE = 100;
 
 function ToursManager() {
   const { tourId } = useParams();
@@ -91,8 +92,12 @@ function ToursManager() {
       await Promise.all(
         institutionsList.map(async (inst) => {
           try {
-            const data = await apiService.getToursByInstitution(inst._id, true);
-            counts[inst._id] = data.items?.length || data.length || 0;
+            const data = await apiService.getToursByInstitution(inst._id, true, {
+              page: 1,
+              limit: 1,
+              populate: false
+            });
+            counts[inst._id] = data.total || data.items?.length || data.length || 0;
           } catch (err) {
             console.error(`Error loading tours for ${inst.name}:`, err);
             counts[inst._id] = 0;
@@ -109,11 +114,11 @@ function ToursManager() {
     try {
       setLoading(true);
       const [toursData, monumentsData] = await Promise.all([
-        apiService.getToursByInstitution(institutionId, true),
+        loadAllToursByInstitution(institutionId),
         loadAllMonumentsForInstitution(institutionId)
       ]);
       
-      setTours(toursData.items || toursData);
+      setTours(toursData);
       setMonuments(monumentsData.items || monumentsData);
     } catch (error) {
       console.error('Error loading tours:', error);
@@ -121,6 +126,37 @@ function ToursManager() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadAllToursByInstitution = async (institutionId) => {
+    const allTours = [];
+    let page = 1;
+    let total = Infinity;
+
+    while (allTours.length < total) {
+      const response = await apiService.getToursByInstitution(institutionId, true, {
+        page,
+        limit: TOURS_PAGE_SIZE,
+        populate: false
+      });
+
+      const items = response.items || response || [];
+      allTours.push(...items);
+
+      if (typeof response.total === 'number') {
+        total = response.total;
+      } else {
+        total = allTours.length;
+      }
+
+      if (!items.length) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    return allTours;
   };
 
   const loadAllMonumentsForInstitution = async (institutionId) => {

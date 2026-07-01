@@ -78,10 +78,15 @@ class SessionsService {
   Future<List<Map<String, dynamic>>> getMySessions({
     required String token,
     int limit = 20,
+    bool activeOnly = false,
   }) async {
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/tours/sessions/me?limit=$limit',
-    );
+    final uri = Uri.parse('${Environment.apiBaseUrl}/api/tours/sessions/me')
+        .replace(
+          queryParameters: {
+            'limit': limit.toString(),
+            if (activeOnly) 'activeOnly': 'true',
+          },
+        );
 
     final response = await http.get(
       uri,

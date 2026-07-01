@@ -1,4 +1,11 @@
 import tourService from '../services/tourService.js';
+import { buildPagination } from '../utils/pagination.js';
+
+function shouldPopulateTours(query) {
+  if (query.populate !== undefined) return query.populate !== 'false';
+  if (query.summary !== undefined) return query.summary !== 'true';
+  return true;
+}
 
 /**
  * Crear nuevo tour
@@ -18,6 +25,7 @@ export async function createTourController(req, res) {
  */
 export async function listToursController(req, res) {
   try {
+    const { skip, limit, page } = buildPagination(req.query);
     const filters = {
       institutionId: req.query.institutionId,
       type: req.query.type,
@@ -25,8 +33,12 @@ export async function listToursController(req, res) {
       isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined
     };
     
-    const tours = await tourService.getAllTours(filters);
-    res.json({ total: tours.length, items: tours });
+    const { items, total } = await tourService.getAllTours(filters, {
+      skip,
+      limit,
+      populate: shouldPopulateTours(req.query)
+    });
+    res.json({ page, total, items });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -82,9 +94,18 @@ export async function deleteTourController(req, res) {
  */
 export async function getToursByInstitutionController(req, res) {
   try {
+    const { skip, limit, page } = buildPagination(req.query);
     const activeOnly = req.query.activeOnly !== 'false';
-    const tours = await tourService.getToursByInstitution(req.params.institutionId, activeOnly);
-    res.json({ total: tours.length, items: tours });
+    const { items, total } = await tourService.getToursByInstitution(
+      req.params.institutionId,
+      {
+        activeOnly,
+        skip,
+        limit,
+        populate: shouldPopulateTours(req.query)
+      }
+    );
+    res.json({ page, total, items });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

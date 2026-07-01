@@ -994,7 +994,8 @@ class _MyTourScreenState extends State<MyTourScreen> {
     try {
       final sessions = await _sessionsService.getMySessions(
         token: token,
-        limit: 50,
+        limit: 1,
+        activeOnly: true,
       );
       final activeSession = sessions.cast<Map<String, dynamic>?>().firstWhere((
         session,

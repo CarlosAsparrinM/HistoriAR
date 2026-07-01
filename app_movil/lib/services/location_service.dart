@@ -19,13 +19,21 @@ bool isRecentLocationTimestamp(
 class LocationService {
   const LocationService();
 
+  static const int _tourContextLimit = 50;
+
   Future<TourContextResponse> getContextForLocation({
     required double latitude,
     required double longitude,
   }) async {
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/location/context?lat=$latitude&lng=$longitude',
-    );
+    final uri = Uri.parse('${Environment.apiBaseUrl}/api/location/context')
+        .replace(
+          queryParameters: {
+            'lat': latitude.toString(),
+            'lng': longitude.toString(),
+            'page': '1',
+            'limit': _tourContextLimit.toString(),
+          },
+        );
 
     final response = await http.get(uri);
     final data = _decodeMapResponse(response, 'Error al obtener el contexto');

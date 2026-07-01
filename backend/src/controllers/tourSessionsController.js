@@ -37,7 +37,12 @@ export async function getUserTourSessionsController(req, res) {
   try {
     const userId = req.user?.id;
     const limit = parseInt(req.query.limit, 10) || 20;
-    const sessions = await tourSessionService.getUserSessions({ userId, limit });
+    const activeOnly = req.query.activeOnly === 'true';
+    const sessions = await tourSessionService.getUserSessions({
+      userId,
+      limit,
+      activeOnly
+    });
     res.json({ total: sessions.length, items: sessions });
   } catch (err) {
     res.status(500).json({ message: err.message });

@@ -8,13 +8,21 @@ import '../models/tour.dart';
 class ToursService {
   const ToursService();
 
+  static const int _pageSize = 50;
+
   Future<TourContextResponse> getContextForLocation({
     required double latitude,
     required double longitude,
   }) async {
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/location/context?lat=$latitude&lng=$longitude',
-    );
+    final uri = Uri.parse('${Environment.apiBaseUrl}/api/location/context')
+        .replace(
+          queryParameters: {
+            'lat': latitude.toString(),
+            'lng': longitude.toString(),
+            'page': '1',
+            'limit': _pageSize.toString(),
+          },
+        );
 
     final response = await http.get(uri);
     final data = _decodeMapResponse(response, 'Error al obtener el contexto');
@@ -23,40 +31,34 @@ class ToursService {
   }
 
   Future<List<TourItem>> getAllTours({bool activeOnly = true}) async {
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/tours${activeOnly ? '?isActive=true' : ''}',
+    return _fetchTourPages(
+      (page) => Uri.parse('${Environment.apiBaseUrl}/api/tours').replace(
+        queryParameters: {
+          if (activeOnly) 'isActive': 'true',
+          'page': page.toString(),
+          'limit': _pageSize.toString(),
+          'populate': 'true',
+        },
+      ),
     );
-
-    final response = await http.get(uri);
-    final data = _decodeMapResponse(response, 'Error al obtener tours');
-
-    final items = data['items'];
-    if (items is! List) return const [];
-
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map((item) => TourItem.fromJson(item))
-        .toList();
   }
 
   Future<List<TourItem>> getToursByInstitution(
     String institutionId, {
     bool activeOnly = true,
   }) async {
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/tours/institution/$institutionId?activeOnly=$activeOnly',
+    return _fetchTourPages(
+      (page) => Uri.parse(
+        '${Environment.apiBaseUrl}/api/tours/institution/$institutionId',
+      ).replace(
+        queryParameters: {
+          'activeOnly': activeOnly.toString(),
+          'page': page.toString(),
+          'limit': _pageSize.toString(),
+          'populate': 'true',
+        },
+      ),
     );
-
-    final response = await http.get(uri);
-    final data = _decodeMapResponse(response, 'Error al obtener tours');
-
-    final items = data['items'];
-    if (items is! List) return const [];
-
-    return items
-        .whereType<Map<String, dynamic>>()
-        .map((item) => TourItem.fromJson(item))
-        .toList();
   }
 
   /// Obtener un tour específico por ID (con detalles completos)
@@ -83,6 +85,34 @@ class ToursService {
     }
 
     throw Exception('Formato inesperado de respuesta del servidor');
+  }
+
+  Future<List<TourItem>> _fetchTourPages(Uri Function(int page) buildUri) async {
+    final tours = <TourItem>[];
+    int page = 1;
+    int? total;
+
+    while (true) {
+      final response = await http.get(buildUri(page));
+      final data = _decodeMapResponse(response, 'Error al obtener tours');
+      total ??= (data['total'] as num?)?.toInt();
+
+      final items = data['items'];
+      if (items is! List || items.isEmpty) break;
+
+      tours.addAll(
+        items
+            .whereType<Map<String, dynamic>>()
+            .map((item) => TourItem.fromJson(item)),
+      );
+
+      final fetchedAllItems = total != null && tours.length >= total!;
+      if (items.length < _pageSize || fetchedAllItems) break;
+
+      page += 1;
+    }
+
+    return tours;
   }
 
   String _extractMessage(String body, String fallbackMessage) {

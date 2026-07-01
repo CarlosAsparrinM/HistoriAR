@@ -1,6 +1,22 @@
 import Tour from '../models/Tour.js';
 import TourSession from '../models/TourSession.js';
 
+const SESSION_TOUR_MONUMENT_FIELDS = [
+  'name',
+  'description',
+  'status',
+  'location',
+  'culture',
+  'period',
+  'discovery',
+  'imageUrl',
+  's3ImageKey',
+  'model3DUrl',
+  's3ModelKey'
+].join(' ');
+
+const SESSION_TOUR_INSTITUTION_FIELDS = 'name description imageUrl status location';
+
 class TourSessionService {
   async startSession({ userId, tourId }) {
     const tour = await Tour.findById(tourId);
@@ -56,18 +72,26 @@ class TourSessionService {
     return session;
   }
 
-  async getUserSessions({ userId, limit = 20 }) {
-    return await TourSession.find({ userId })
+  async getUserSessions({ userId, limit = 20, activeOnly = false }) {
+    const normalizedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+    const filter = { userId };
+    if (activeOnly) filter.completedAt = null;
+
+    return await TourSession.find(filter)
       .populate({
         path: 'tourId',
         populate: [
-          { path: 'monuments.monumentId' },
-          { path: 'institutionId' },
+          { path: 'monuments.monumentId', select: SESSION_TOUR_MONUMENT_FIELDS },
+          { path: 'institutionId', select: SESSION_TOUR_INSTITUTION_FIELDS },
         ],
       })
-      .populate('stopsVisited.monumentId')
+      .populate({
+        path: 'stopsVisited.monumentId',
+        select: SESSION_TOUR_MONUMENT_FIELDS
+      })
       .sort({ createdAt: -1 })
-      .limit(limit);
+      .limit(normalizedLimit)
+      .lean();
   }
 
   _completeSession(session, completedAt = new Date()) {

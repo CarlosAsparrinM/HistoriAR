@@ -52,10 +52,23 @@ describe('tourSessionsController', () => {
     const req = { user: { id: 'u1' }, query: { limit: '2' } };
     const res = mockRes();
     const list = [{ _id: 's1' }, { _id: 's2' }];
-    vi.spyOn(tourSessionService, 'getUserSessions').mockResolvedValue(list);
+    const spy = vi.spyOn(tourSessionService, 'getUserSessions').mockResolvedValue(list);
 
     await controller.getUserTourSessionsController(req, res);
 
+    expect(spy).toHaveBeenCalledWith({ userId: 'u1', limit: 2, activeOnly: false });
+    expect(res.json).toHaveBeenCalledWith({ total: list.length, items: list });
+  });
+
+  it('getUserTourSessionsController soporta activeOnly', async () => {
+    const req = { user: { id: 'u1' }, query: { limit: '1', activeOnly: 'true' } };
+    const res = mockRes();
+    const list = [{ _id: 's1', completedAt: null }];
+    const spy = vi.spyOn(tourSessionService, 'getUserSessions').mockResolvedValue(list);
+
+    await controller.getUserTourSessionsController(req, res);
+
+    expect(spy).toHaveBeenCalledWith({ userId: 'u1', limit: 1, activeOnly: true });
     expect(res.json).toHaveBeenCalledWith({ total: list.length, items: list });
   });
 });

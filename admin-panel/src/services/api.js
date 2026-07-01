@@ -340,8 +340,14 @@ class ApiService {
     });
   }
 
-  async getToursByInstitution(institutionId, activeOnly = true) {
-    return this.request(`/tours/institution/${institutionId}?activeOnly=${activeOnly}`);
+  async getToursByInstitution(institutionId, activeOnly = true, params = {}) {
+    const queryString = this.buildQueryString({
+      activeOnly,
+      ...params
+    });
+    return this.request(
+      `/tours/institution/${institutionId}${queryString ? `?${queryString}` : ''}`
+    );
   }
 
   // S3 signed uploads

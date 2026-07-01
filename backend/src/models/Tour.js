@@ -63,6 +63,10 @@ const TourSchema = new mongoose.Schema({
 
 // Índices compuestos para optimizar queries frecuentes
 TourSchema.index({ institutionId: 1, isActive: 1 });
+TourSchema.index({ institutionId: 1, isActive: 1, createdAt: -1 });
 TourSchema.index({ type: 1, isActive: 1 });
+TourSchema.index({ type: 1, isActive: 1, createdAt: -1 });
+TourSchema.index({ isActive: 1, createdAt: -1 });
+TourSchema.index({ 'monuments.monumentId': 1 });
 
 export default mongoose.model('Tour', TourSchema);

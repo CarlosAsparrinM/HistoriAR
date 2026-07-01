@@ -24,5 +24,6 @@ const TourSessionSchema = new mongoose.Schema(
 TourSessionSchema.index({ userId: 1 });
 TourSessionSchema.index({ tourId: 1 });
 TourSessionSchema.index({ userId: 1, tourId: 1 });
+TourSessionSchema.index({ userId: 1, completedAt: 1, createdAt: -1 });
 
 export default mongoose.model('TourSession', TourSessionSchema);

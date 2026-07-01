@@ -1,4 +1,5 @@
 import locationService from '../services/locationService.js';
+import { buildPagination } from '../utils/pagination.js';
 
 /**
  * Obtener contexto de ubicación (institución y tours disponibles)
@@ -23,7 +24,13 @@ export async function getLocationContextController(req, res) {
       return res.status(400).json({ message: 'Longitude must be between -180 and 180' });
     }
     
-    const context = await locationService.getAvailableToursForLocation(latitude, longitude);
+    const { skip, limit, page } = buildPagination(req.query);
+    const context = await locationService.getAvailableToursForLocation(
+      latitude,
+      longitude,
+      { skip, limit }
+    );
+    context.page = page;
     res.json(context);
   } catch (err) {
     res.status(500).json({ message: err.message });

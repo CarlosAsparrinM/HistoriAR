@@ -1,6 +1,6 @@
 import Monument from '../models/Monument.js';
 import Institution from '../models/Institution.js';
-import Tour from '../models/Tour.js';
+import tourService from './tourService.js';
 
 class LocationService {
   /**
@@ -35,12 +35,14 @@ class LocationService {
    */
   async getNearbyMonuments(userLat, userLng, maxDistance = 20) {
     try {
-      // Obtener monumentos disponibles
-      const monuments = await Monument.find({ status: 'Disponible' });
+      // Obtener solo los campos que usa la app movil para el mapa.
+      const monuments = await Monument.find({ status: 'Disponible' })
+        .select('name description status location culture period discovery imageUrl s3ImageKey model3DUrl s3ModelKey')
+        .lean();
       
       // Filtrar por distancia y agregar campo distance
       const nearbyMonuments = monuments
-        .filter(monument => {
+        .map(monument => {
           if (!monument.location?.lat || !monument.location?.lng) return false;
           
           const distance = this.calculateDistance(
@@ -48,19 +50,14 @@ class LocationService {
             monument.location.lat, monument.location.lng
           );
           
-          return distance <= maxDistance;
-        })
-        .map(monument => {
-          const distance = this.calculateDistance(
-            userLat, userLng,
-            monument.location.lat, monument.location.lng
-          );
-          
+          if (distance > maxDistance) return null;
+
           return {
-            ...monument.toObject(),
+            ...monument,
             distance: Math.round(distance * 100) / 100 // Redondear a 2 decimales
           };
-        });
+        })
+        .filter(Boolean);
 
       // Ordenar por distancia ascendente
       return nearbyMonuments.sort((a, b) => a.distance - b.distance);
@@ -78,7 +75,9 @@ class LocationService {
    */
   async detectCurrentInstitution(userLat, userLng) {
     try {
-      const institutions = await Institution.find();
+      const institutions = await Institution.find()
+        .select('name type description imageUrl status location')
+        .lean();
       
       for (let institution of institutions) {
         if (!institution.location?.lat || !institution.location?.lng) continue;
@@ -92,7 +91,7 @@ class LocationService {
         const radius = institution.location.radius || 100;
         if (distance <= radius) {
           return {
-            ...institution.toObject(),
+            ...institution,
             distance: Math.round(distance * 100) / 100
           };
         }
@@ -111,23 +110,32 @@ class LocationService {
    * @param {number} userLng - Longitud del usuario
    * @returns {Promise<Object>} Objeto con institución y tours
    */
-  async getAvailableToursForLocation(userLat, userLng) {
+  async getAvailableToursForLocation(userLat, userLng, {
+    skip = 0,
+    limit = 10
+  } = {}) {
     try {
       // Detectar institución actual
       const currentInstitution = await this.detectCurrentInstitution(userLat, userLng);
       
       if (!currentInstitution) {
-        return { institution: null, tours: [] };
+        return { institution: null, total: 0, tours: [] };
       }
       
       // Obtener tours activos de la institución
-      const tours = await Tour.find({
-        institutionId: currentInstitution._id,
-        isActive: true
-      }).populate('monuments.monumentId');
+      const { items: tours, total } = await tourService.getToursByInstitution(
+        currentInstitution._id,
+        {
+          activeOnly: true,
+          skip,
+          limit,
+          populate: true
+        }
+      );
       
       return {
         institution: currentInstitution,
+        total,
         tours
       };
     } catch (error) {

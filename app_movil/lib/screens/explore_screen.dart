@@ -85,8 +85,14 @@ class _ExploreScreenState extends State<ExploreScreen>
   void didUpdateWidget(covariant ExploreScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.settingsRevision != widget.settingsRevision) {
-      unawaited(_reloadSettings());
+      unawaited(_refreshExternalState());
     }
+  }
+
+  Future<void> _refreshExternalState() async {
+    await _restoreActiveTourSession();
+    if (!mounted) return;
+    await _reloadSettings();
   }
 
   Future<void> _reloadSettings({bool restartLocation = false}) async {
@@ -511,7 +517,8 @@ class _ExploreScreenState extends State<ExploreScreen>
     try {
       final sessions = await _sessionsService.getMySessions(
         token: token,
-        limit: 50,
+        limit: 1,
+        activeOnly: true,
       );
       final activeSession = sessions.cast<Map<String, dynamic>?>().firstWhere((
         session,
@@ -560,8 +567,21 @@ class _ExploreScreenState extends State<ExploreScreen>
         _activeTourId = activeTourId;
         _visitedMonumentIds = visitedIds;
         _activeTour = tourInfo;
+        _selectedMonument = _selectedMonumentVisibleFor(tourInfo);
       });
     } catch (_) {}
+  }
+
+  Monument? _selectedMonumentVisibleFor(TourItem? tourInfo) {
+    final selected = _selectedMonument;
+    if (selected == null || _activeSessionId == null) return selected;
+    if (tourInfo == null) return null;
+
+    final tourMonumentIds = tourInfo.orderedStops
+        .map((stop) => stop.monument.id)
+        .toSet();
+
+    return tourMonumentIds.contains(selected.id) ? selected : null;
   }
 
   Future<TourItem?> _resolveTourInfo(
@@ -718,6 +738,10 @@ class _ExploreScreenState extends State<ExploreScreen>
     final monumentosAMostrar = _activeSessionId != null
         ? _monuments.where((m) => activeTourMonumentIds.contains(m.id)).toList()
         : _monuments;
+    final markerLayerKey = ValueKey(
+      '${_activeSessionId ?? 'all'}-${_activeTourId ?? 'none'}-'
+      '${_visitedMonumentIds.length}-${monumentosAMostrar.length}',
+    );
 
     // Marcadores de monumentos
     for (final m in monumentosAMostrar) {
@@ -866,7 +890,8 @@ class _ExploreScreenState extends State<ExploreScreen>
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.example.historiar',
                       ),
-                      if (markers.isNotEmpty) MarkerLayer(markers: markers),
+                      if (markers.isNotEmpty)
+                        MarkerLayer(key: markerLayerKey, markers: markers),
                     ],
                   ),
 
