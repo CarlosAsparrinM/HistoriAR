@@ -33,6 +33,7 @@ class ArCameraScreen extends StatefulWidget {
   final String token;
   final String userId;
   final String? tourId; // Nuevo: ID del tour al que pertenece (opcional)
+  final bool initialArMode;
 
   const ArCameraScreen({
     super.key,
@@ -40,6 +41,7 @@ class ArCameraScreen extends StatefulWidget {
     required this.token,
     required this.userId,
     this.tourId,
+    this.initialArMode = true,
   });
 
   @override
@@ -133,6 +135,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   @override
   void initState() {
     super.initState();
+    _isArMode = widget.initialArMode;
     if (!_isArMode) {
       _loadFallbackUrl();
     }
@@ -246,8 +249,10 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
 
   /// Reset la posición del modelo al estado inicial
   Future<void> _resetModelPosition() async {
-    await _arController.resetModelPosition();
-    _showSnackbar('Modelo centrado');
+    final didReset = await _arController.resetModelPosition();
+    if (didReset) {
+      _showSnackbar('Modelo centrado frente a ti');
+    }
   }
 
   /// Captura pantalla de la experiencia AR
@@ -589,6 +594,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                       child: Center(
                         child: ArQualityIndicator(
                           isTrackingActive: _arController.isTrackingActive,
+                          isModelVisible:
+                              _arController.webObjectNode != null &&
+                              !_arController.isLoadingModel,
                           isModelAnchoredToPlane:
                               _arController.isModelAnchoredToPlane,
                           lightIntensity: _arController.ambientLightIntensity,
@@ -659,25 +667,28 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
                 ),
               ),
               Positioned.fill(
-                child: Listener(
-                  onPointerDown: _startRepositionHold,
-                  onPointerMove: _updateRepositionHold,
-                  onPointerUp: _endRepositionHold,
-                  onPointerCancel: _endRepositionHold,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onDoubleTap: () {
-                      _cancelRepositionHold(clearPendingTarget: true);
-                      _emitGestureHaptic(
-                        HapticFeedback.mediumImpact,
-                        force: true,
-                      );
-                      unawaited(_resetModelPosition());
-                    },
-                    onScaleStart: _handleTransformGestureStart,
-                    onScaleUpdate: _handleTransformGestureUpdate,
-                    onScaleEnd: _handleTransformGestureEnd,
-                    child: const SizedBox.expand(),
+                child: IgnorePointer(
+                  ignoring: _arController.isRelocationModeActive,
+                  child: Listener(
+                    onPointerDown: _startRepositionHold,
+                    onPointerMove: _updateRepositionHold,
+                    onPointerUp: _endRepositionHold,
+                    onPointerCancel: _endRepositionHold,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onDoubleTap: () {
+                        _cancelRepositionHold(clearPendingTarget: true);
+                        _emitGestureHaptic(
+                          HapticFeedback.mediumImpact,
+                          force: true,
+                        );
+                        unawaited(_resetModelPosition());
+                      },
+                      onScaleStart: _handleTransformGestureStart,
+                      onScaleUpdate: _handleTransformGestureUpdate,
+                      onScaleEnd: _handleTransformGestureEnd,
+                      child: const SizedBox.expand(),
+                    ),
                   ),
                 ),
               ),

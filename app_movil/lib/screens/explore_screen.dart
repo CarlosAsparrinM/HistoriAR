@@ -46,6 +46,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   final SessionStorageService _sessionStorage = SessionStorageService();
 
   String? _activeSessionId;
+  String? _activeTourId;
   Set<String> _visitedMonumentIds = {};
   TourItem? _activeTour;
 
@@ -138,23 +139,25 @@ class _ExploreScreenState extends State<ExploreScreen>
   Future<void> _initializeScreen() async {
     _settings = await _settingsService.load();
     await _loadMonuments();
+    await _loadCachedLocationContext();
     await _restoreActiveTourSession();
-
-    // Cargar contexto de ubicación/tours guardado localmente si existe
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final saved = prefs.getString(SessionStorageService.lastTourContextKey);
-      if (saved != null && saved.isNotEmpty) {
-        final Map<String, dynamic> decoded = jsonDecode(saved);
-        _locationContext = TourContextResponse.fromJson(decoded);
-      }
-    } catch (_) {}
 
     if (!mounted) return;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startLocationUpdates();
     });
+  }
+
+  Future<void> _loadCachedLocationContext() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(SessionStorageService.lastTourContextKey);
+      if (saved == null || saved.isEmpty) return;
+
+      final Map<String, dynamic> decoded = jsonDecode(saved);
+      _locationContext = TourContextResponse.fromJson(decoded);
+    } catch (_) {}
   }
 
   Future<void> _loadMonuments() async {
@@ -522,6 +525,7 @@ class _ExploreScreenState extends State<ExploreScreen>
         if (mounted) {
           setState(() {
             _activeSessionId = null;
+            _activeTourId = null;
             _visitedMonumentIds.clear();
             _activeTour = null;
           });
@@ -547,22 +551,53 @@ class _ExploreScreenState extends State<ExploreScreen>
 
       TourItem? tourInfo;
       if (activeTourId != null) {
-        try {
-          final tours = await _toursService.getAllTours(activeOnly: true);
-          tourInfo = tours.cast<TourItem?>().firstWhere(
-            (t) => t?.id == activeTourId,
-            orElse: () => null,
-          );
-        } catch (_) {}
+        tourInfo = await _resolveTourInfo(activeTourId, activeSession);
       }
 
       if (!mounted) return;
       setState(() {
         _activeSessionId = activeSessionId;
+        _activeTourId = activeTourId;
         _visitedMonumentIds = visitedIds;
         _activeTour = tourInfo;
       });
     } catch (_) {}
+  }
+
+  Future<TourItem?> _resolveTourInfo(
+    String activeTourId,
+    Map<String, dynamic> activeSession,
+  ) async {
+    final cachedTour = _findTourById(_locationContext?.tours ?? [], activeTourId);
+    if (cachedTour != null) return cachedTour;
+
+    final sessionTour = activeSession['tourId'];
+    if (sessionTour is Map<String, dynamic>) {
+      try {
+        final parsed = TourItem.fromJson(sessionTour);
+        if (parsed.id == activeTourId && parsed.orderedStops.isNotEmpty) {
+          return parsed;
+        }
+      } catch (_) {}
+    }
+
+    try {
+      return await _toursService.getTourById(activeTourId);
+    } catch (_) {}
+
+    try {
+      final tours = await _toursService.getAllTours(activeOnly: true);
+      return _findTourById(tours, activeTourId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  TourItem? _findTourById(Iterable<TourItem> tours, String tourId) {
+    for (final tour in tours) {
+      if (tour.id == tourId) return tour;
+    }
+    return null;
   }
 
   String? _extractTourIdFromSession(Map<String, dynamic> session) {
@@ -583,6 +618,7 @@ class _ExploreScreenState extends State<ExploreScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
+      unawaited(_restoreActiveTourSession());
       unawaited(_reloadSettings(restartLocation: true));
     }
   }
@@ -1021,9 +1057,15 @@ class _ExploreScreenState extends State<ExploreScreen>
                                 monument: _selectedMonument!,
                                 token: token,
                                 userId: userId,
+                                tourId: _activeSessionId != null
+                                    ? _activeTourId
+                                    : null,
+                                initialArMode: true,
                               ),
                             ),
                           );
+
+                          await _restoreActiveTourSession();
 
                           final quizMode =
                               (await _settingsService.load()).quizPostVisitMode;

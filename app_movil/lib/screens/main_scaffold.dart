@@ -27,13 +27,17 @@ class _MainScaffoldState extends State<MainScaffold> {
     PendingVisitsService().sync();
     _screens = [
       ExploreScreen(settingsRevision: _settingsRevision),
-      const MyTourScreen(),
+      MyTourScreen(onTourSessionChanged: _refreshExploreScreen),
       const ProfileScreen(),
       ConfigurationScreen(onSettingsChanged: _onSettingsChanged),
     ];
   }
 
   void _onSettingsChanged() {
+    _refreshExploreScreen();
+  }
+
+  void _refreshExploreScreen() {
     if (!mounted) return;
     setState(() {
       _settingsRevision++;

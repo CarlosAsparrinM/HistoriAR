@@ -6,6 +6,7 @@ import '../styles/app_colors.dart';
 /// Muestra: luz ambiental, anclaje del modelo, y estabilidad del tracking.
 class ArQualityIndicator extends StatefulWidget {
   final bool isTrackingActive;
+  final bool isModelVisible;
   final bool isModelAnchoredToPlane;
   final double lightIntensity; // 0.0 a 1.0
   final bool showDebugInfo;
@@ -13,6 +14,7 @@ class ArQualityIndicator extends StatefulWidget {
   const ArQualityIndicator({
     super.key,
     this.isTrackingActive = true,
+    this.isModelVisible = false,
     this.isModelAnchoredToPlane = false,
     this.lightIntensity = 0.5,
     this.showDebugInfo = false,
@@ -43,13 +45,15 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
 
   Color _getTrackingColor() {
     if (!widget.isTrackingActive) return AppColors.danger;
-    if (!widget.isModelAnchoredToPlane) return AppColors.warning;
+    if (!widget.isModelVisible) return AppColors.warning;
+    if (!widget.isModelAnchoredToPlane) return AppColors.primary;
     return AppColors.success;
   }
 
   String _getTrackingStatus() {
     if (!widget.isTrackingActive) return 'Tracking desactivado';
-    if (!widget.isModelAnchoredToPlane) return 'Modelo sin anclar';
+    if (!widget.isModelVisible) return 'Cargando modelo';
+    if (!widget.isModelAnchoredToPlane) return 'Modelo libre';
     return 'Modelo anclado';
   }
 
@@ -84,8 +88,7 @@ class _ArQualityIndicatorState extends State<ArQualityIndicator>
                       color: trackingColor,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        if (widget.isTrackingActive &&
-                            widget.isModelAnchoredToPlane)
+                        if (widget.isTrackingActive && widget.isModelVisible)
                           BoxShadow(
                             color: trackingColor.withValues(
                               alpha: 0.5 + 0.5 * (1 - _pulseController.value),

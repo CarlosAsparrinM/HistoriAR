@@ -1,6 +1,12 @@
 import TourSession from '../models/TourSession.js';
 import Visit from '../models/Visit.js';
 
+function getIdValue(value) {
+  if (!value) return '';
+  if (value._id) return value._id.toString();
+  return value.toString();
+}
+
 export async function getAllVisits(filter = {}, { skip = 0, limit = 10 } = {}) {
   const [items, total] = await Promise.all([
     Visit.find(filter).skip(skip).limit(limit),
@@ -39,26 +45,36 @@ export async function createVisit(data) {
   // Si la visita pertenece a un tour, intentar registrar la parada en la TourSession activa
   try {
     if (data.tourId && data.userId) {
-      const session = await TourSession.findOne({
+      const sessionQuery = TourSession.findOne({
         userId: data.userId,
         tourId: data.tourId,
         completedAt: null,
       });
+      const session =
+        typeof sessionQuery.sort === 'function'
+          ? await sessionQuery.sort({ startedAt: -1, createdAt: -1 })
+          : await sessionQuery;
 
       if (session) {
-        const stop = {
-          monumentId: data.monumentId,
-          visitedAt: data.date ? new Date(data.date) : new Date(),
-          duration: data.duration,
-        };
+        const alreadyVisited = session.stopsVisited.some(
+          (stop) => getIdValue(stop.monumentId) === data.monumentId.toString(),
+        );
 
-        session.stopsVisited.push(stop);
-        // Actualizar duración total acumulada si duration está presente
-        if (typeof data.duration === 'number') {
-          session.totalDuration = (session.totalDuration || 0) + data.duration;
+        if (!alreadyVisited) {
+          const stop = {
+            monumentId: data.monumentId,
+            visitedAt: data.date ? new Date(data.date) : new Date(),
+            duration: data.duration,
+          };
+
+          session.stopsVisited.push(stop);
+          // Actualizar duración total acumulada si duration está presente
+          if (typeof data.duration === 'number') {
+            session.totalDuration = (session.totalDuration || 0) + data.duration;
+          }
+
+          await session.save();
         }
-
-        await session.save();
       }
     }
   } catch (err) {

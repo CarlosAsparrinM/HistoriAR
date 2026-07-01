@@ -10,6 +10,7 @@ import '../models/tour.dart';
 import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
+import '../services/monuments_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
@@ -20,7 +21,9 @@ import '../widgets/app_shell.dart';
 import '../widgets/app_states.dart';
 
 class MyTourScreen extends StatefulWidget {
-  const MyTourScreen({super.key});
+  final VoidCallback? onTourSessionChanged;
+
+  const MyTourScreen({super.key, this.onTourSessionChanged});
 
   @override
   State<MyTourScreen> createState() => _MyTourScreenState();
@@ -28,6 +31,7 @@ class MyTourScreen extends StatefulWidget {
 
 class _MyTourScreenState extends State<MyTourScreen> {
   final ToursService _toursService = const ToursService();
+  final MonumentsService _monumentsService = MonumentsService();
   final SessionsService _sessionsService = const SessionsService();
   final SessionStorageService _sessionStorage = SessionStorageService();
 
@@ -271,6 +275,22 @@ class _MyTourScreenState extends State<MyTourScreen> {
     }).toList();
   }
 
+  Future<Monument> _resolveFreshMonumentForAr(Monument monument) async {
+    try {
+      final freshMonument = await _monumentsService.fetchMonumentById(
+        monument.id,
+      );
+      if (freshMonument != null) return freshMonument;
+    } catch (_) {}
+
+    return monument;
+  }
+
+  bool _hasModel3D(Monument monument) {
+    return (monument.s3ModelKey ?? '').trim().isNotEmpty ||
+        (monument.model3DUrl ?? '').trim().isNotEmpty;
+  }
+
   Future<void> _openArExperience(Monument monument, {String? tourId}) async {
     final token = authState.token;
     if (token.isEmpty) {
@@ -289,6 +309,17 @@ class _MyTourScreenState extends State<MyTourScreen> {
       return;
     }
 
+    final arMonument = await _resolveFreshMonumentForAr(monument);
+    if (!mounted) return;
+
+    if (!_hasModel3D(arMonument)) {
+      AppFeedback.warning(
+        context,
+        'Este monumento aún no tiene modelo 3D disponible.',
+      );
+      return;
+    }
+
     final quizMode = (await AppSettingsService().load()).quizPostVisitMode;
 
     if (!mounted) return;
@@ -296,10 +327,11 @@ class _MyTourScreenState extends State<MyTourScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ArCameraScreen(
-          monument: monument,
+          monument: arMonument,
           token: token,
           userId: userId,
           tourId: tourId,
+          initialArMode: true,
         ),
       ),
     );
@@ -313,7 +345,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     if (quizMode == QuizPostVisitMode.autoOpen) {
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => QuizScreen(monument: monument, token: token),
+          builder: (_) => QuizScreen(monument: arMonument, token: token),
         ),
       );
       return;
@@ -396,7 +428,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
     if (shouldGoToQuiz == true && mounted) {
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => QuizScreen(monument: monument, token: token),
+          builder: (_) => QuizScreen(monument: arMonument, token: token),
         ),
       );
     }
@@ -420,6 +452,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
         _activeSessionTourId = tourId;
       });
       await _persistActiveTourSession();
+      widget.onTourSessionChanged?.call();
       if (!mounted) return;
       AppFeedback.success(context, 'Tour iniciado');
     } catch (e) {
@@ -444,6 +477,7 @@ class _MyTourScreenState extends State<MyTourScreen> {
         _activeSessionTourId = null;
       });
       await _clearPersistedActiveTourSession();
+      widget.onTourSessionChanged?.call();
       if (!mounted) return;
       AppFeedback.info(context, 'Tour finalizado');
     } catch (e) {
@@ -559,7 +593,9 @@ class _MyTourScreenState extends State<MyTourScreen> {
                                     : null,
                               );
                               if (mounted) {
-                                _loadTours();
+                                await _restoreActiveTourSession();
+                                await _loadTours();
+                                widget.onTourSessionChanged?.call();
                               }
                             },
                             onOpenQuiz: () => _openQuiz(entry.value.monument),

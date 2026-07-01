@@ -38,6 +38,16 @@ class ArRetryLimiter {
   }
 }
 
+class _FreeModelPlacement {
+  const _FreeModelPlacement({
+    required this.baseTranslation,
+    required this.transform,
+  });
+
+  final vmath.Vector3 baseTranslation;
+  final vmath.Matrix4 transform;
+}
+
 class ArCameraArController {
   ArCameraArController({
     required VoidCallback onChanged,
@@ -59,6 +69,7 @@ class ArCameraArController {
   static const double _singleFingerRotationStartDelta = 3.0;
   static const double _twoFingerScaleEpsilon = 0.01;
   static const double _twoFingerRotationEpsilon = 0.01;
+  static const double _freeModelDistanceFromCamera = 1.35;
   static final vmath.Vector2 _defaultFreeOffset = vmath.Vector2(0.0, -0.3);
   static final vmath.Vector2 _defaultAnchoredOffset = vmath.Vector2.zero();
 
@@ -93,6 +104,12 @@ class ArCameraArController {
   Offset baseFocalPoint = Offset.zero;
   vmath.Vector2 offset = vmath.Vector2(0.0, -0.3);
   vmath.Vector2 baseOffset = vmath.Vector2(0.0, 0.0);
+  vmath.Vector3 _freeModelBaseTranslation = vmath.Vector3(
+    0.0,
+    0.0,
+    -_freeModelDistanceFromCamera,
+  );
+  vmath.Vector3? _historicalCardsBasePosition;
 
   bool isLoadingModel = false;
   String? loadError;
@@ -248,15 +265,25 @@ class ArCameraArController {
     return true;
   }
 
-  Future<void> resetModelPosition() async {
+  Future<bool> resetModelPosition() async {
+    if (isAddingNode) {
+      _onShowMessage('El modelo ya se está moviendo');
+      return false;
+    }
+    if (webObjectNode == null || isLoadingModel) {
+      _onShowMessage('Espera a que el modelo termine de cargar');
+      return false;
+    }
+
     scaleFactor = 0.2;
     rotationX = 0.0;
     rotationY = 0.0;
-    offset = _hasPlaneAnchor
-        ? vmath.Vector2(_defaultAnchoredOffset.x, _defaultAnchoredOffset.y)
-        : vmath.Vector2(_defaultFreeOffset.x, _defaultFreeOffset.y);
-    _updateNodeTransform();
-    _onChanged();
+    offset = vmath.Vector2(_defaultFreeOffset.x, _defaultFreeOffset.y);
+    _isRelocationModeActive = false;
+    cancelRepositionHold();
+    _pendingRepositionHits = const [];
+    _pendingRepositionHitAt = null;
+    return _replaceModelWithFreeNodeInFrontOfCamera();
   }
 
   void startRepositionHold() {
@@ -372,22 +399,20 @@ class ArCameraArController {
         }
       }
 
-      final transform = vmath.Matrix4.identity()
-        ..setTranslationRaw(0.0, -0.4, -0.8)
-        ..rotateX(rotationX)
-        ..rotateY(rotationY)
-        ..scaleByDouble(scaleFactor, scaleFactor, scaleFactor, 1.0);
+      final placement = await _buildFreeModelPlacementInFrontOfCamera();
 
       final newNode = ARNode(
         type: NodeType.fileSystemAppFolderGLB,
         uri: cacheInfo.absolutePath,
-        transformation: transform,
+        transformation: placement.transform,
       );
 
       final didAdd = await arObjectManager?.addNode(newNode);
       if (didAdd == true) {
         _retryTimer?.cancel();
         retryLimiter.reset();
+        currentAnchor = null;
+        _freeModelBaseTranslation = placement.baseTranslation;
         webObjectNode = newNode;
         isModelAnchoredToPlane = _hasPlaneAnchor;
         _onShowMessage('Modelo cargado correctamente');
@@ -440,45 +465,167 @@ class ArCameraArController {
     Monument monument,
     String token,
   ) async {
-    final directUrl = monument.model3DUrl;
+    final key = monument.s3ModelKey?.trim();
+    if (key != null && key.isNotEmpty) {
+      final uri = Uri.parse(
+        '${Environment.apiBaseUrl}/api/uploads/signed-get?key=${Uri.encodeComponent(key)}&expiresIn=3600',
+      );
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        try {
+          final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+          final signedUrl = (decoded['url'] as String?)?.trim();
+          if (signedUrl != null && signedUrl.isNotEmpty) {
+            return signedUrl;
+          }
+        } catch (_) {}
+      }
+    }
+
+    final directUrl = monument.model3DUrl?.trim();
     if (directUrl != null && directUrl.isNotEmpty) {
       return directUrl;
     }
 
-    final key = monument.s3ModelKey;
-    if (key == null || key.isEmpty) {
-      return null;
-    }
-
-    final uri = Uri.parse(
-      '${Environment.apiBaseUrl}/api/uploads/signed-get?key=${Uri.encodeComponent(key)}&expiresIn=3600',
-    );
-    final response = await http.get(
-      uri,
-      headers: {'Authorization': 'Bearer $token'},
-    );
-
-    if (response.statusCode != 200) {
-      return null;
-    }
-
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    return decoded['url'] as String?;
+    return null;
   }
 
   void _updateNodeTransform() {
     if (webObjectNode == null) return;
 
-    final zOffset = _hasPlaneAnchor ? 0.0 : -0.8;
-    final transform = vmath.Matrix4.identity()
-      ..setTranslationRaw(offset.x, offset.y, zOffset)
-      ..rotateX(rotationX)
-      ..rotateY(rotationY)
-      ..scaleByDouble(scaleFactor, scaleFactor, scaleFactor, 1.0);
+    final transform = _buildModelTransform();
 
     webObjectNode!.transform = transform;
     _updateHistoricalCardTransforms();
     _onChanged();
+  }
+
+  vmath.Matrix4 _buildModelTransform({
+    vmath.Vector3? freeBaseTranslation,
+    bool usePlaneAnchor = true,
+  }) {
+    final transform = vmath.Matrix4.identity();
+    if (usePlaneAnchor && _hasPlaneAnchor) {
+      transform.setTranslationRaw(offset.x, offset.y, 0.0);
+    } else {
+      final baseTranslation =
+          freeBaseTranslation ?? _freeModelBaseTranslation;
+      transform.setTranslationRaw(
+        baseTranslation.x + offset.x,
+        baseTranslation.y + offset.y,
+        baseTranslation.z,
+      );
+    }
+
+    transform
+      ..rotateX(rotationX)
+      ..rotateY(rotationY)
+      ..scaleByDouble(scaleFactor, scaleFactor, scaleFactor, 1.0);
+    return transform;
+  }
+
+  Future<_FreeModelPlacement> _buildFreeModelPlacementInFrontOfCamera() async {
+    final cameraPose = await arSessionManager?.getCameraPose();
+    final baseTranslation = cameraPose != null
+        ? cameraPose.transform3(
+            vmath.Vector3(0.0, 0.0, -_freeModelDistanceFromCamera),
+          )
+        : vmath.Vector3(0.0, 0.0, -_freeModelDistanceFromCamera);
+
+    return _FreeModelPlacement(
+      baseTranslation: baseTranslation,
+      transform: _buildModelTransform(
+        freeBaseTranslation: baseTranslation,
+        usePlaneAnchor: false,
+      ),
+    );
+  }
+
+  Future<bool> _replaceModelWithFreeNodeInFrontOfCamera() async {
+    isAddingNode = true;
+    try {
+      final monument = _monument;
+      final token = _token;
+      if (monument == null || token == null) {
+        _onShowMessage('No se pudo obtener el modelo');
+        return false;
+      }
+
+      final remoteUrl = await resolveModelUrl(monument, token);
+      if (remoteUrl == null || remoteUrl.isEmpty) {
+        _onShowMessage('No se pudo obtener el modelo');
+        return false;
+      }
+
+      final cacheInfo = await ModelCacheManager.getCachedModel(
+        remoteUrl,
+        monument.id,
+      );
+      if (cacheInfo == null) {
+        _onShowMessage('Error al descargar el modelo local');
+        return false;
+      }
+
+      final previousNode = webObjectNode;
+      final previousAnchor = currentAnchor;
+      final placement = await _buildFreeModelPlacementInFrontOfCamera();
+      final newNode = ARNode(
+        type: NodeType.fileSystemAppFolderGLB,
+        uri: cacheInfo.absolutePath,
+        transformation: placement.transform,
+      );
+
+      final didAdd = await arObjectManager?.addNode(newNode);
+      if (didAdd != true) {
+        _onShowMessage('No se pudo centrar el modelo frente a ti');
+        return false;
+      }
+
+      final didRemovePreviousNode =
+          previousNode == null || await _removeNodeSafely(previousNode);
+      final didRemovePreviousAnchor =
+          previousAnchor == null || await _removeAnchorSafely(previousAnchor);
+
+      if (!didRemovePreviousNode || !didRemovePreviousAnchor) {
+        final didRollbackNewNode = await _removeNodeSafely(newNode);
+        _historicalCardSyncToken++;
+        _historicalCardNodes.clear();
+        _historicalDataByNodeName.clear();
+        _historicalCardSignature = null;
+        _isRelocationModeActive = false;
+        webObjectNode = null;
+        currentAnchor = null;
+        isModelAnchoredToPlane = false;
+        historicalCardsFailed = true;
+        loadError = didRollbackNewNode
+            ? 'No se pudo retirar el modelo anterior. Vuelve a abrir la cámara.'
+            : 'La escena AR quedó en un estado inconsistente. Vuelve a abrir la cámara.';
+        _onChanged();
+        onArSceneFailed?.call();
+        return false;
+      }
+
+      _removeHistoricalCardNodes();
+      currentAnchor = null;
+      _freeModelBaseTranslation = placement.baseTranslation;
+      webObjectNode = newNode;
+      _isRelocationModeActive = false;
+      isModelAnchoredToPlane = false;
+      historicalCardsFailed = false;
+      loadError = null;
+      unawaited(_syncHistoricalCardNodes());
+      _onChanged();
+      return true;
+    } catch (_) {
+      _onShowMessage('Error al centrar el modelo frente a ti');
+      return false;
+    } finally {
+      isAddingNode = false;
+    }
   }
 
   Future<void> _handlePlaneOrPointTap(List<ARHitTestResult> hits) async {
@@ -682,6 +829,7 @@ class ArCameraArController {
     final signature = _historicalData
         .map((item) => '${item.id}:${item.title}:${item.imageUrl ?? ''}')
         .join('|');
+    _historicalCardsBasePosition ??= _currentHistoricalCardBasePosition();
     if (_historicalCardSignature == signature &&
         _historicalCardNodes.length == _historicalData.length) {
       _updateHistoricalCardTransforms();
@@ -694,6 +842,7 @@ class ArCameraArController {
     _onChanged();
 
     _removeHistoricalCardNodes(cancelPending: false);
+    _historicalCardsBasePosition = _currentHistoricalCardBasePosition();
 
     var addedCount = 0;
     try {
@@ -760,6 +909,7 @@ class ArCameraArController {
     _historicalCardNodes.clear();
     _historicalDataByNodeName.clear();
     _historicalCardSignature = null;
+    _historicalCardsBasePosition = null;
   }
 
   Future<bool> _removeNodeSafely(ARNode node) async {
@@ -805,7 +955,7 @@ class ArCameraArController {
 
   vmath.Matrix4 _buildHistoricalCardTransform(int index, int count) {
     final modelPosition =
-        webObjectNode?.position ?? vmath.Vector3(offset.x, offset.y, -0.8);
+        _historicalCardsBasePosition ?? _currentHistoricalCardBasePosition();
     final cardOffset = _historicalCardOffset(index, count);
     final cardScale = (0.55 + scaleFactor * 0.45).clamp(0.52, 0.82).toDouble();
 
@@ -818,10 +968,14 @@ class ArCameraArController {
       ..scaleByDouble(cardScale, cardScale, cardScale, 1.0);
   }
 
+  vmath.Vector3 _currentHistoricalCardBasePosition() {
+    return webObjectNode?.position ?? _buildModelTransform().getTranslation();
+  }
+
   vmath.Vector3 _historicalCardOffset(int index, int count) {
-    final spread = (0.34 + scaleFactor * 0.62).clamp(0.34, 0.62).toDouble();
-    final lift = (0.44 + scaleFactor * 0.72).clamp(0.44, 0.78).toDouble();
-    final forward = currentAnchor == null ? 0.03 : 0.08;
+    final spread = (0.42 + scaleFactor * 0.68).clamp(0.42, 0.74).toDouble();
+    final lift = (0.52 + scaleFactor * 0.78).clamp(0.52, 0.9).toDouble();
+    final forward = currentAnchor == null ? 0.12 : 0.14;
 
     if (count <= 1) {
       return vmath.Vector3(0, lift, forward);
