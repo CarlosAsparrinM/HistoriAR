@@ -17,6 +17,7 @@ import '../services/app_settings_service.dart';
 import '../services/local_notification_service.dart';
 import '../services/location_service.dart';
 import '../services/monuments_service.dart';
+import '../services/quiz_state_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
@@ -1094,7 +1095,12 @@ class _ExploreScreenState extends State<ExploreScreen>
 
                           final quizMode =
                               (await _settingsService.load()).quizPostVisitMode;
+                          if (!context.mounted) return;
+
+                          final hasCompleted = await QuizStateService()
+                              .hasCompletedQuiz(_selectedMonument!.id);
                           if (!context.mounted ||
+                              hasCompleted ||
                               quizMode == QuizPostVisitMode.neverShow) {
                             return;
                           }

@@ -11,6 +11,7 @@ import '../screens/ar_camera_screen.dart';
 import '../screens/quiz_screen.dart';
 import '../services/app_settings_service.dart';
 import '../services/monuments_service.dart';
+import '../services/quiz_state_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/sessions_service.dart';
 import '../services/tours_service.dart';
@@ -338,7 +339,10 @@ class _MyTourScreenState extends State<MyTourScreen> {
 
     if (!mounted) return;
 
-    if (quizMode == QuizPostVisitMode.neverShow) {
+    final hasCompleted = await QuizStateService().hasCompletedQuiz(arMonument.id);
+    if (!mounted) return;
+
+    if (hasCompleted || quizMode == QuizPostVisitMode.neverShow) {
       return;
     }
 

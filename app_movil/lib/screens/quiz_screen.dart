@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/monument.dart';
-import '../services/app_settings_service.dart';
 import '../services/quiz_service.dart';
+import '../services/quiz_state_service.dart';
+import '../services/app_settings_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_motion.dart';
@@ -177,6 +178,9 @@ class _QuizScreenState extends State<QuizScreen> {
         timeSpent: elapsed,
         token: widget.token,
       );
+      
+      await QuizStateService().markQuizAsCompleted(widget.monument.id);
+      
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;

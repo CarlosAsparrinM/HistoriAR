@@ -8,6 +8,7 @@ import '../services/monuments_service.dart';
 import '../services/session_storage_service.dart';
 import '../services/user_service.dart';
 import '../services/visits_service.dart';
+import '../services/quiz_state_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_states.dart';
@@ -340,6 +341,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _confirmReactivateQuizzes() async {
+    final confirmed = await AppFeedback.confirm(
+      context,
+      title: 'Reactivar Quizzes',
+      message:
+          '¿Deseas volver a ver las preguntas de los quizzes al finalizar un recorrido?',
+      confirmText: 'Reactivar',
+      cancelText: 'Cancelar',
+      isDestructive: false,
+      icon: Icons.restore,
+    );
+
+    if (confirmed) {
+      await QuizStateService().reactivateAllQuizzes();
+      if (!mounted) return;
+      AppFeedback.success(context, 'Quizzes reactivados correctamente');
+    }
+  }
+
   void _showFullActivities(
     BuildContext context,
     List<_ProfileActivity> activities,
@@ -644,6 +664,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               child: Column(
                 children: [
+                  _OptionTile(
+                    icon: Icons.restore,
+                    title: 'Reactivar Quizzes',
+                    subtitle: 'Volver a ver quizzes ya completados',
+                    onTap: _confirmReactivateQuizzes,
+                  ),
+                  const Divider(height: 0),
                   _OptionTile(
                     icon: Icons.delete_forever,
                     title: 'Eliminar cuenta',
