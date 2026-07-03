@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/historical_data.dart';
 import '../styles/app_colors.dart';
+import 'tts_play_button.dart';
 
 const double _compactWidthBreakpoint = 380;
 const double _compactCardWidth = 108;
@@ -531,6 +532,10 @@ Future<void> showHistoricalDataDetailSheet(
                             fontWeight: FontWeight.w800,
                           ),
                         ),
+                      ),
+                      TtsPlayButton(
+                        text: '${data.title}. ${data.description ?? ""}',
+                        color: Colors.white,
                       ),
                       IconButton(
                         onPressed: () => Navigator.of(sheetContext).pop(),

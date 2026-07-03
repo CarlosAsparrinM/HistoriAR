@@ -5,6 +5,7 @@ import '../models/monument.dart';
 import '../services/historical_data_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_states.dart';
+import '../widgets/tts_play_button.dart';
 
 class HistoricalDataScreen extends StatefulWidget {
   final Monument monument;
@@ -150,9 +151,20 @@ class _HistoricalDataCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  historicalData.title,
-                  style: Theme.of(context).textTheme.titleLarge,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        historicalData.title,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    TtsPlayButton(
+                      text: '${historicalData.title}. ${historicalData.description ?? ""}',
+                    ),
+                  ],
                 ),
                 if ((historicalData.description ?? '').isNotEmpty) ...[
                   const SizedBox(height: 10),
