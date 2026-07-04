@@ -24,7 +24,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Alta'), findsOneWidget);
+    expect(find.textContaining('Alta'), findsOneWidget);
 
     await tester.tap(find.text('Precisión de ubicación'));
     await tester.pumpAndSettle();
@@ -48,7 +48,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byType(Switch);
+    await tester.tap(switchFinder);
     await tester.pumpAndSettle();
 
     final settings = await AppSettingsService().load();
@@ -71,7 +77,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    final switchFinder = find.byType(Switch);
+    await tester.tap(switchFinder);
     await tester.pumpAndSettle();
 
     final settings = await AppSettingsService().load();

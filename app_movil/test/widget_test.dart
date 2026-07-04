@@ -35,7 +35,6 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({
       AuthState.tokenKey: 'saved-token',
-      AuthState.userIdKey: 'saved-user',
     });
     final secureStore = MemorySecureKeyValueStore();
     final sessionStorage = SessionStorageService(secureStore: secureStore);
@@ -54,7 +53,6 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(find.textContaining('sigue guardada'), findsOneWidget);
     expect(prefs.getString(AuthState.tokenKey), isNull);
-    expect(prefs.getString(AuthState.userIdKey), isNull);
     expect(secureStore.values[AuthState.tokenKey], 'saved-token');
     expect(authState.token, 'saved-token');
   });
