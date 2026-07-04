@@ -427,17 +427,6 @@ flutter build appbundle --release
 
 ---
 
-## 📄 Documentación Adicional
-
-| Documento | Descripción |
-|-----------|-------------|
-| [MANUAL_INSTALACION.md](MANUAL_INSTALACION.md) | Guía paso a paso de instalación completa |
-| [MANUAL_SISTEMA.md](MANUAL_SISTEMA.md) | Manual de usuario del sistema |
-| [REQUERIMIENTOS_SISTEMA.md](REQUERIMIENTOS_SISTEMA.md) | Especificación de requerimientos |
-| [STACK_TECNOLOGICO.md](STACK_TECNOLOGICO.md) | Detalle exhaustivo del stack tecnológico |
-
----
-
 ## 👤 Autor
 
 **Carlos Asparrín**
