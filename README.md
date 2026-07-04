@@ -425,7 +425,10 @@ flutter build apk --release
 flutter build appbundle --release
 ```
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 1c5ef0e5768ef07888fe21c846dc019663357523
 ---
 
 ## 👤 Autor
