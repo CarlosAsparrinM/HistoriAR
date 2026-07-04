@@ -1,18 +1,18 @@
 ---
-id: tes-C24-2026-1-003
+id: tes-C24-2026-1-001
 tipo: tesis
 departamento: "Tecnología Digital"
 carrera: "Diseño y Desarrollo de Software"
 carrera_codigo: "C24"
 semestre: "2026-1"
 ciclo: 6
-grupo: "G1"
+grupo: "G01"
 seccion: "SI-601"
 modalidad: "P"
 sede: "Sur"
 titulo: "HistoriAR: Plataforma de difusión de patrimonio histórico y cultural mediante Realidad Aumentada y gamificación"
-autores: ["Carlos Alfonso Asparrín Martín", "Héctor Henrique Pérez Vengoa"]
-asesor: "Jaime Gómez Marín"
+autores: ["Carlos Alfonso Asparrin Martin", "Hector Henrique Perez Vengoa"]
+asesor: "Jaime Gomez Marin"
 fecha: 2026-07-04
 año: 2026
 palabras_clave: ["realidad aumentada", "patrimonio histórico", "gamificación", "trivias", "monumentos", "geolocalización", "modelos 3D", "ecosistema digital", "Flutter", "React", "Node.js"]

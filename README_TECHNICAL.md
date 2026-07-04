@@ -429,9 +429,9 @@ flutter build appbundle --release
 
 ## 👤 Autores
 
-**Carlos Alfonso Asparrín Martín**
+**Carlos Alfonso Asparrin Martin**
 
-**Héctor Henrique Pérez Vengoa**
+**Hector Henrique Perez Vengoa**
 
 ---
 
