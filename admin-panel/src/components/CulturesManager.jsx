@@ -3,7 +3,7 @@
  *
  * Permite listar, filtrar y administrar culturas.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -59,11 +59,7 @@ function CulturesManager() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
-  useEffect(() => {
-    loadData();
-  }, [currentPage, debouncedSearchTerm]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [data, statsData] = await Promise.all([
@@ -82,7 +78,11 @@ function CulturesManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredCultures = cultures;
 

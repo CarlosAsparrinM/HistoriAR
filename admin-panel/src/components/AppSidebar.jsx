@@ -48,7 +48,7 @@ import {
   Sun,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useTheme } from "../contexts/ThemeContext";
+import { useTheme } from "../contexts/themeContextConfig";
 
 function AppSidebar() {
   const { user, logout, hasPermission } = useAuth();

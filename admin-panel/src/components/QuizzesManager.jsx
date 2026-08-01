@@ -5,7 +5,7 @@
  * 1. Monument List View: Lista de monumentos con contador de quizzes
  * 2. Quiz Editor View: Gestión de quizzes de un monumento específico
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -25,6 +25,20 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import QuizEditor from './QuizEditor';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+
+async function fetchQuizCounts(monuments) {
+  const counts = {};
+  await Promise.all(monuments.map(async (monument) => {
+    try {
+      const data = await apiService.getQuizzes({ monumentId: monument._id });
+      counts[monument._id] = data.items?.length || 0;
+    } catch (error) {
+      console.error(`Error loading count for ${monument.name}:`, error);
+      counts[monument._id] = 0;
+    }
+  }));
+  return counts;
+}
 
 function QuizzesManager() {
   const { monumentId } = useParams();
@@ -56,12 +70,6 @@ function QuizzesManager() {
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
-
-  useEffect(() => {
-    if (!monumentId) {
-      loadMonuments();
-    }
-  }, [currentPage, debouncedSearchTerm]);
 
   // Load monument when monumentId changes
   useEffect(() => {
@@ -95,12 +103,11 @@ function QuizzesManager() {
       queryClient.invalidateQueries({
         queryKey: ['quizzes'],
       });
-      loadMonuments();
     }
-  }, [monumentId]);
+  }, [monumentId, navigate, queryClient]);
 
   // Load monuments
-  const loadMonuments = async () => {
+  const loadMonuments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getMonuments({
@@ -114,38 +121,18 @@ function QuizzesManager() {
       setTotalMonuments(response.total || 0);
       
       // Load quiz counts for each monument
-      await loadQuizCounts(monumentsList);
+      setQuizCounts(await fetchQuizCounts(monumentsList));
     } catch (error) {
       console.error('Error loading monuments:', error);
       showNotification('error', 'Error al cargar monumentos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm]);
 
-  // Load quiz counts
-  const loadQuizCounts = async (monumentsList) => {
-    try {
-      const counts = {};
-      
-      // Load counts for all monuments in parallel
-      await Promise.all(
-        monumentsList.map(async (monument) => {
-          try {
-            const data = await apiService.getQuizzes({ monumentId: monument._id });
-            counts[monument._id] = data.items?.length || 0;
-          } catch (error) {
-            console.error(`Error loading count for ${monument.name}:`, error);
-            counts[monument._id] = 0;
-          }
-        })
-      );
-      
-      setQuizCounts(counts);
-    } catch (error) {
-      console.error('Error loading quiz counts:', error);
-    }
-  };
+  useEffect(() => {
+    if (!monumentId) loadMonuments();
+  }, [loadMonuments, monumentId]);
 
   // Filter monuments based on search term
   const filteredMonuments = monuments;

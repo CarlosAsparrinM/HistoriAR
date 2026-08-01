@@ -151,14 +151,7 @@ function ARExperiencesManager() {
       setWithoutModelsTotal(withoutResponse?.total || 0);
       setWithModelsTotal(withResponse?.total || 0);
     }
-    // Ensure we have the freshest data when opening the list view
-    if (!monumentId) {
-      queryClient.invalidateQueries({ queryKey: ['arExperiences'] });
-      // Also explicitly refetch both paginated queries to mirror other managers behavior
-      if (withoutModelsQuery?.refetch) withoutModelsQuery.refetch();
-      if (withModelsQuery?.refetch) withModelsQuery.refetch();
-    }
-  }, [withoutModelsQuery.data, withModelsQuery.data, withoutModelsQuery.isLoading, withModelsQuery.isLoading]);
+  }, [monumentId, withoutModelsQuery.data, withModelsQuery.data, withoutModelsQuery.isLoading, withModelsQuery.isLoading]);
 
   // Load monument and versions when monumentId changes
   const selectedMonumentQuery = useMonumentById(monumentId);
@@ -183,7 +176,7 @@ function ARExperiencesManager() {
       setVersions([]);
       setShowUpload(false);
     }
-  }, [monumentId, selectedMonumentQuery.data, selectedMonumentQuery.isLoading, selectedMonumentQuery.isError]);
+  }, [monumentId, navigate, selectedMonumentQuery.data, selectedMonumentQuery.isLoading, selectedMonumentQuery.isError]);
 
   // Add event listener for model-viewer load event
   useEffect(() => {

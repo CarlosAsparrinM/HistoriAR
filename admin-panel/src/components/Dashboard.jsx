@@ -5,7 +5,7 @@
  * Usuarios totales, visitas totales, sesiones AR y tiempo promedio de sesión.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { createElement, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -28,14 +28,14 @@ import {
   ArrowRight      // Icono para acción
 } from "lucide-react";
 
-function KpiCard({ title, value, icon: Icon, description, loading }) {
+function KpiCard({ title, value, icon, description, loading }) {
   if (loading) return <KPISkeleton />;
   
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="w-4 h-4 text-muted-foreground" />
+        {createElement(icon, { className: 'w-4 h-4 text-muted-foreground' })}
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
@@ -12,14 +12,7 @@ const AlertsPanel = ({ isOpen, onClose, onUnreadChange }) => {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('unread'); // 'all', 'unread', 'critical'
 
-  useEffect(() => {
-    if (isOpen) {
-      loadAlerts();
-      loadSummary();
-    }
-  }, [isOpen, filter]);
-
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     setLoading(true);
     try {
       const filterParams = {
@@ -45,9 +38,9 @@ const AlertsPanel = ({ isOpen, onClose, onUnreadChange }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const data = await alertsService.getAlertsSummary();
       setSummary(data);
@@ -55,7 +48,14 @@ const AlertsPanel = ({ isOpen, onClose, onUnreadChange }) => {
     } catch (error) {
       console.error('Error loading alerts summary:', error);
     }
-  };
+  }, [onUnreadChange]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadAlerts();
+      loadSummary();
+    }
+  }, [isOpen, loadAlerts, loadSummary]);
 
   const handleMarkAsRead = async (id, isRead) => {
     try {

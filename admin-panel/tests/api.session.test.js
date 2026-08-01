@@ -69,3 +69,32 @@ test('adminLogout acepta 204 y borra el CSRF mantenido en memoria', async () => 
 
   assert.equal(api.csrfToken, null);
 });
+
+test('getAdminSession restaura usuario y renueva el CSRF mantenido en memoria', async () => {
+  let requestOptions;
+  globalThis.fetch = async (_url, options) => {
+    requestOptions = options;
+    return jsonResponse({ user: { id: 'admin-1', role: 'admin' }, csrfToken: 'renewed-csrf' });
+  };
+  const api = new ApiService();
+
+  const session = await api.getAdminSession();
+
+  assert.equal(requestOptions.method, 'GET');
+  assert.equal(requestOptions.credentials, 'include');
+  assert.equal(session.user.role, 'admin');
+  assert.equal(api.csrfToken, 'renewed-csrf');
+});
+
+test('un 401 limpia CSRF y notifica la expiracion sin recargar la pagina', async () => {
+  const events = [];
+  globalThis.window = { dispatchEvent: (event) => events.push(event.type) };
+  globalThis.fetch = async () => jsonResponse({ message: 'expired' }, 401);
+  const api = new ApiService();
+  api.setCsrfToken('stale-csrf');
+
+  await assert.rejects(() => api.request('/monuments/admin'), /Sesi/);
+
+  assert.equal(api.csrfToken, null);
+  assert.deepEqual(events, ['historiar:session-expired']);
+});

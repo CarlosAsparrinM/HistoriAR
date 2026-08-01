@@ -52,7 +52,7 @@ function HistoricalDataEditor({ monumentId, monumentName }) {
   });
 
   // Fetch historical data using React Query
-  const { data: entries = [], isLoading, isError, error } = useHistoricalData(monumentId);
+  const { data: entries = [], isLoading } = useHistoricalData(monumentId);
 
   // Mutations
   const deleteHistoricalDataMutation = useDeleteHistoricalData();

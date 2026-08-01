@@ -1,10 +1,6 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-
-const ThemeContext = createContext({
-  theme: 'light',
-  toggleTheme: () => {},
-});
+import { ThemeContext } from './themeContextConfig';
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
@@ -37,8 +33,10 @@ export function ThemeProvider({ children }) {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
+  const contextValue = useMemo(() => ({ theme, toggleTheme }), [theme]);
+
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
@@ -47,11 +45,3 @@ export function ThemeProvider({ children }) {
 ThemeProvider.propTypes = {
   children: PropTypes.node.isRequired,
 };
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme debe ser usado dentro de un ThemeProvider');
-  }
-  return context;
-}

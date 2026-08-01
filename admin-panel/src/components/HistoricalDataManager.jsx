@@ -5,7 +5,7 @@
  * 1. Monument List View: Lista de monumentos con contador de entradas
  * 2. Historical Data Editor View: Gestión de entradas de información histórica
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -25,6 +25,20 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import HistoricalDataEditor from './HistoricalDataEditor';
 import apiService from '../services/api';
 import PropTypes from 'prop-types';
+
+async function fetchHistoricalDataCounts(monuments) {
+  const counts = {};
+  await Promise.all(monuments.map(async (monument) => {
+    try {
+      const data = await apiService.getHistoricalDataByMonument(monument._id);
+      counts[monument._id] = data.length;
+    } catch (error) {
+      console.error(`Error loading count for ${monument.name}:`, error);
+      counts[monument._id] = 0;
+    }
+  }));
+  return counts;
+}
 
 function HistoricalDataManager() {
   const { monumentId } = useParams();
@@ -56,12 +70,6 @@ function HistoricalDataManager() {
 
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
-
-  useEffect(() => {
-    if (!monumentId) {
-      loadMonuments();
-    }
-  }, [currentPage, debouncedSearchTerm]);
 
   // Load monument when monumentId changes
   useEffect(() => {
@@ -96,12 +104,11 @@ function HistoricalDataManager() {
       queryClient.invalidateQueries({
         queryKey: ['historicalData'],
       });
-      loadMonuments();
     }
-  }, [monumentId]);
+  }, [monumentId, navigate, queryClient]);
 
   // Load monuments
-  const loadMonuments = async () => {
+  const loadMonuments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getMonuments({
@@ -115,38 +122,18 @@ function HistoricalDataManager() {
       setTotalMonuments(response.total || 0);
       
       // Load historical data counts for each monument
-      await loadHistoricalDataCounts(monumentsList);
+      setHistoricalDataCounts(await fetchHistoricalDataCounts(monumentsList));
     } catch (error) {
       console.error('Error loading monuments:', error);
       showNotification('error', 'Error al cargar monumentos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm]);
 
-  // Load historical data counts
-  const loadHistoricalDataCounts = async (monumentsList) => {
-    try {
-      const counts = {};
-      
-      // Load counts for all monuments in parallel
-      await Promise.all(
-        monumentsList.map(async (monument) => {
-          try {
-            const data = await apiService.getHistoricalDataByMonument(monument._id);
-            counts[monument._id] = data.length;
-          } catch (error) {
-            console.error(`Error loading count for ${monument.name}:`, error);
-            counts[monument._id] = 0;
-          }
-        })
-      );
-      
-      setHistoricalDataCounts(counts);
-    } catch (error) {
-      console.error('Error loading historical data counts:', error);
-    }
-  };
+  useEffect(() => {
+    if (!monumentId) loadMonuments();
+  }, [loadMonuments, monumentId]);
 
   // Filter monuments based on search term
   const filteredMonuments = monuments;

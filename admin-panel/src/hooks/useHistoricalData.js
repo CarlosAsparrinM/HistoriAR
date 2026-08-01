@@ -102,7 +102,7 @@ export function useDeleteHistoricalData() {
 
   return useMutation({
     mutationFn: (entryId) => apiService.deleteHistoricalData(entryId),
-    onSuccess: (_, entryId) => {
+    onSuccess: () => {
       // Invalidate all historical data queries to force refetch
       queryClient.invalidateQueries({
         queryKey: ['historicalData'],

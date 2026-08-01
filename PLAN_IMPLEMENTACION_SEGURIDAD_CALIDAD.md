@@ -44,8 +44,8 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] Flutter dejó de calcular respuestas o puntajes con datos públicos y consume la revisión emitida por el backend.
 - [x] Validadores Mongoose activados en las actualizaciones de monumentos, quizzes, instituciones y tours incluidas en este bloque (avance de SEC-11).
 - [x] Suite backend: 26 archivos y 142 pruebas aprobadas con Node 20.20.2.
-- [x] Panel administrativo: 3 pruebas de sesión aprobadas, ESLint sin errores en los archivos modificados y build Vite de producción aprobado.
-- [ ] El lint global del panel conserva 9 errores y 12 advertencias preexistentes fuera de SEC-13; deben resolverse dentro de QA-01 antes del cierre final.
+- [x] Panel administrativo: 5 pruebas de sesión aprobadas, ESLint global sin errores ni advertencias y build Vite de producción aprobado.
+- [x] QA-01 (avance): corregidos exports incompatibles con Fast Refresh, variables sin uso y dependencias inestables de efectos; eliminadas cargas duplicadas en fichas históricas/quizzes y refetches recursivos en experiencias 3D.
 - [x] Suite Flutter: 31 pruebas aprobadas y `flutter analyze --no-pub` sin hallazgos.
 - [ ] Build real de la imagen Docker: pendiente porque Docker Desktop/daemon no está activo en el entorno local; el contrato del Dockerfile tiene pruebas automatizadas.
 - [ ] Revisión y merge de los checkpoints locales.

@@ -4,7 +4,7 @@
  * Permite listar, filtrar y administrar instituciones (museos, universidades, etc.).
  * Incluye gestión de horarios, imágenes, ubicación y estados.
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -148,14 +148,10 @@ function InstitutionsManager() {
   }, [searchTerm]);
 
   useEffect(() => {
-    loadData();
-  }, [currentPage, selectedType, selectedStatus, debouncedSearchTerm]);
-
-  useEffect(() => {
     setCurrentPage(1);
   }, [selectedType, selectedStatus]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const queryParams = {
@@ -184,7 +180,11 @@ function InstitutionsManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm, selectedStatus, selectedType]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredInstitutions = institutions;
 

@@ -4,7 +4,7 @@
  * Gestiona recorridos turísticos organizados por institución.
  * Flujo: Lista de instituciones → Vista detallada con tours → Formulario de creación
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
@@ -43,6 +43,24 @@ const TOUR_TYPES = [
 const MONUMENTS_PAGE_SIZE = 100;
 const TOURS_PAGE_SIZE = 100;
 
+async function fetchTourCounts(institutions) {
+  const counts = {};
+  await Promise.all(institutions.map(async (institution) => {
+    try {
+      const data = await apiService.getToursByInstitution(institution._id, true, {
+        page: 1,
+        limit: 1,
+        populate: false,
+      });
+      counts[institution._id] = data.total || data.items?.length || data.length || 0;
+    } catch (error) {
+      console.error(`Error loading tours for ${institution.name}:`, error);
+      counts[institution._id] = 0;
+    }
+  }));
+  return counts;
+}
+
 function ToursManager() {
   const { tourId } = useParams();
   const queryClient = useQueryClient();
@@ -59,11 +77,7 @@ function ToursManager() {
   const [tourCounts, setTourCounts] = useState({});
   const pageSize = 9;
 
-  useEffect(() => {
-    loadInstitutions();
-  }, [currentPage]);
-
-  const loadInstitutions = async () => {
+  const loadInstitutions = useCallback(async () => {
     try {
       setLoading(true);
       // Solo cargar instituciones disponibles
@@ -77,38 +91,18 @@ function ToursManager() {
       setTotalInstitutions(institutionsData.total || institutionsList.length || 0);
       
       // Cargar conteo de tours para cada institución
-      loadTourCounts(institutionsList);
+      setTourCounts(await fetchTourCounts(institutionsList));
     } catch (error) {
       console.error('Error loading institutions:', error);
       toast.error('Error al cargar instituciones');
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  const loadTourCounts = async (institutionsList) => {
-    try {
-      const counts = {};
-      await Promise.all(
-        institutionsList.map(async (inst) => {
-          try {
-            const data = await apiService.getToursByInstitution(inst._id, true, {
-              page: 1,
-              limit: 1,
-              populate: false
-            });
-            counts[inst._id] = data.total || data.items?.length || data.length || 0;
-          } catch (err) {
-            console.error(`Error loading tours for ${inst.name}:`, err);
-            counts[inst._id] = 0;
-          }
-        })
-      );
-      setTourCounts(counts);
-    } catch (error) {
-      console.error('Error loading tour counts:', error);
-    }
-  };
+  useEffect(() => {
+    loadInstitutions();
+  }, [loadInstitutions]);
 
   const loadToursForInstitution = async (institutionId) => {
     try {

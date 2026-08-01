@@ -21,7 +21,6 @@ import {
   Trash2
 } from 'lucide-react';
 import PropTypes from 'prop-types';
-import apiService from '../services/api';
 import { useCreateTour, useUpdateTour } from '../hooks/useTours';
 
 const TOUR_TYPES = [

@@ -85,12 +85,6 @@ const statusColors = {
   'Suspendido': 'destructive'
 };
 
-// Etiquetas legibles para roles
-const roleLabels = {
-  'user': 'Usuario',
-  'admin': 'Administrador'
-};
-
 function UsersManager() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -416,7 +410,7 @@ function MessageForm({ onClose, selectedUser }) {
         ? `Mensaje enviado a ${selectedUser.name}` 
         : 'Mensaje masivo enviado correctamente');
       onClose();
-    } catch (error) {
+    } catch {
       toast.error('Error al enviar el mensaje');
     } finally {
       setLoading(false);

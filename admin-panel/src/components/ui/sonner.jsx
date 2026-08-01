@@ -1,6 +1,6 @@
 "use client";
 
-import { useTheme } from "../../contexts/ThemeContext";
+import { useTheme } from "../../contexts/themeContextConfig";
 import { Toaster as Sonner } from "sonner";
 
 export default function Toaster(props) {

@@ -3,7 +3,7 @@
  * 
  * Permite listar, filtrar y administrar categorías de monumentos.
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -183,11 +183,7 @@ function CategoriesManager() {
     return () => clearTimeout(timeoutId);
   }, [searchTerm]);
 
-  useEffect(() => {
-    loadData();
-  }, [currentPage, debouncedSearchTerm]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [data, statsData] = await Promise.all([
@@ -207,7 +203,11 @@ function CategoriesManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const filteredCategories = categories;
 

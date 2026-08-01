@@ -4,7 +4,7 @@
  * Permite listar, filtrar y administrar monumentos y sitios históricos.
  * Incluye creación (diálogo), cambio de estado, eliminación y estadísticas rápidas.
  */
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -153,10 +153,6 @@ function MonumentsManager() {
   const queryClient = useQueryClient();
 
   // Cargar lista paginada y estadísticas al cambiar filtros o página
-  useEffect(() => {
-    loadData();
-  }, [currentPage, selectedCategory, selectedStatus, debouncedSearchTerm]);
-
   // Debounce del texto de búsqueda para no consultar en cada tecla
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -188,7 +184,7 @@ function MonumentsManager() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const queryParams = {
@@ -226,7 +222,11 @@ function MonumentsManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, debouncedSearchTerm, selectedCategory, selectedStatus]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Orden local para mantener monumentos con modelo primero
   const filteredMonuments = [...monuments].sort((a, b) => {
