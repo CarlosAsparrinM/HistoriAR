@@ -1,8 +1,13 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
-class ApiService {
+export class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
+    this.csrfToken = null;
+  }
+
+  setCsrfToken(token) {
+    this.csrfToken = typeof token === 'string' ? token : null;
   }
 
   buildQueryString(params = {}) {
@@ -13,46 +18,56 @@ class ApiService {
     return new URLSearchParams(cleanParams).toString();
   }
 
-  getAuthHeaders() {
-    const token = localStorage.getItem('token');
+  getAuthHeaders(method = 'GET') {
+    const unsafeMethod = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
     return {
       'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` })
+      ...(unsafeMethod && this.csrfToken && { 'X-CSRF-Token': this.csrfToken }),
     };
+  }
+
+  getCsrfHeaders() {
+    return this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {};
+  }
+
+  async parseResponse(response) {
+    if (response.status === 204) return null;
+    return response.json();
   }
 
   async handleFetchResponse(response) {
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        window.location.reload();
+      if (response.status === 401) {
+        this.setCsrfToken(null);
+        window.dispatchEvent(new Event('historiar:session-expired'));
         throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
       }
       const error = await response.json().catch(() => ({ message: 'Error de red' }));
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
-    return response.json();
+    return this.parseResponse(response);
   }
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const { headers = {}, ...requestOptions } = options;
+    const method = requestOptions.method || 'GET';
     const config = {
-      headers: this.getAuthHeaders(),
-      ...options,
+      credentials: 'include',
+      ...requestOptions,
+      headers: { ...this.getAuthHeaders(method), ...headers },
     };
 
     const response = await fetch(url, config);
     
     if (!response.ok) {
       // Manejar tokens expirados o inválidos
-      if (response.status === 401 || response.status === 403) {
-        // Limpiar datos de autenticación
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+      if (response.status === 401) {
+        // Limpiar el estado de autenticación en memoria.
+        this.setCsrfToken(null);
         
-        // Recargar la página para forzar el logout
-        window.location.reload();
+        // Notificar al contexto sin recargar toda la página.
+        window.dispatchEvent(new Event('historiar:session-expired'));
         
         throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
       }
@@ -61,7 +76,37 @@ class ApiService {
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    return this.parseResponse(response);
+  }
+
+  async adminLogin(email, password) {
+    const response = await fetch(`${this.baseURL}/auth/admin/login`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await this.handleFetchResponse(response);
+    this.setCsrfToken(data.csrfToken);
+    return data;
+  }
+
+  async getAdminSession() {
+    const response = await fetch(`${this.baseURL}/auth/admin/session`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    const data = await this.handleFetchResponse(response);
+    this.setCsrfToken(data.csrfToken);
+    return data;
+  }
+
+  async adminLogout() {
+    try {
+      await this.request('/auth/admin/logout', { method: 'POST' });
+    } finally {
+      this.setCsrfToken(null);
+    }
   }
 
   async get(endpoint, options = {}) {
@@ -394,17 +439,14 @@ class ApiService {
 
   async uploadModelVersion(monumentId, file) {
     // Upload 3D model version to S3 via backend
-    const token = localStorage.getItem('token');
-
     const formData = new FormData();
     formData.append('model', file);
 
     const url = `${this.baseURL}/monuments/${monumentId}/upload-model`;
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
+      credentials: 'include',
+      headers: this.getCsrfHeaders(),
       body: formData,
     });
 
@@ -453,14 +495,12 @@ class ApiService {
     if (data.sources) formData.append('sources', JSON.stringify(data.sources));
     if (imageFile) formData.append('image', imageFile);
 
-    const token = localStorage.getItem('token');
     const url = `${this.baseURL}/monuments/${monumentId}/historical-data`;
     
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
+      credentials: 'include',
+      headers: this.getCsrfHeaders(),
       body: formData,
     });
 
@@ -477,14 +517,12 @@ class ApiService {
     if (data.sources) formData.append('sources', JSON.stringify(data.sources));
     if (imageFile) formData.append('image', imageFile);
 
-    const token = localStorage.getItem('token');
     const url = `${this.baseURL}/historical-data/${id}`;
     
     const response = await fetch(url, {
       method: 'PUT',
-      headers: {
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
+      credentials: 'include',
+      headers: this.getCsrfHeaders(),
       body: formData,
     });
 

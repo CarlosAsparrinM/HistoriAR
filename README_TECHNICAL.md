@@ -135,6 +135,8 @@ NODE_ENV=development
 MONGODB_URI=mongodb+srv://...
 JWT_SECRET=<secreto_seguro>
 JWT_EXPIRES_IN=7d
+ADMIN_SESSION_EXPIRES_IN=8h
+ADMIN_COOKIE_SAME_SITE=lax
 # Preferir un rol IAM del contenedor. Si no existe, definir ambas credenciales:
 AWS_ACCESS_KEY_ID=<key_opcional>
 AWS_SECRET_ACCESS_KEY=<secret_opcional>
@@ -173,6 +175,8 @@ VITE_NODE_ENV=development
 ```
 
 > ⚠️ Solo usuarios con rol `admin` pueden acceder al panel.
+
+El panel usa una cookie de sesión `HttpOnly` y un token CSRF mantenido solo en memoria. No guarda el JWT administrativo en `localStorage`. Si el panel y la API se alojan en sitios diferentes, configura `ADMIN_COOKIE_SAME_SITE=none`; en producción la cookie siempre se emite con `Secure`. `ALLOWED_ORIGINS` debe contener el origen exacto del panel, sin comodines.
 
 ### 3. App Móvil
 

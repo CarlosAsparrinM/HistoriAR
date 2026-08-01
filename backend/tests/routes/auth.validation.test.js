@@ -3,6 +3,9 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const controllerMocks = vi.hoisted(() => ({
+  adminLogin: vi.fn((req, res) => res.json({ ok: true })),
+  adminLogout: vi.fn((req, res) => res.status(204).send()),
+  adminSession: vi.fn((req, res) => res.json({ ok: true })),
   login: vi.fn((req, res) => res.json({ ok: true })),
   register: vi.fn((req, res) => res.status(201).json({ ok: true })),
   googleLogin: vi.fn((req, res) => res.json({ ok: true })),
@@ -12,6 +15,8 @@ const controllerMocks = vi.hoisted(() => ({
 vi.mock('../../src/controllers/authController.js', () => controllerMocks);
 vi.mock('../../src/middlewares/auth.js', () => ({
   verifyToken: (req, res, next) => next(),
+  requireAdminSession: (req, res, next) => next(),
+  requireRole: () => (req, res, next) => next(),
 }));
 
 const { default: authRouter } = await import('../../src/routes/auth.routes.js');
@@ -53,5 +58,13 @@ describe('auth request validation', () => {
     expect(controllerMocks.login).toHaveBeenCalledOnce();
     const [req] = controllerMocks.login.mock.calls[0];
     expect(req.body.email).toBe('user@example.com');
+  });
+  it('aplica la misma validacion al login administrativo', async () => {
+    const response = await request(app)
+      .post('/api/auth/admin/login')
+      .send({ email: 'invalid', password: 'Password9' });
+
+    expect(response.status).toBe(400);
+    expect(controllerMocks.adminLogin).not.toHaveBeenCalled();
   });
 });

@@ -47,4 +47,60 @@ describe('verifyToken current authorization state', () => {
     });
     expect(next).toHaveBeenCalledOnce();
   });
+
+  it('acepta una cookie administrativa valida en una lectura', async () => {
+    jwt.verify.mockReturnValue({ sub: 'admin-1', tokenUse: 'admin-session', csrf: 'csrf-value' });
+    const currentUser = {
+      _id: { toString: () => 'admin-1' },
+      name: 'Admin',
+      email: 'admin@example.com',
+      role: 'admin',
+      status: 'Activo',
+    };
+    User.findById.mockReturnValue({ select: vi.fn().mockResolvedValue(currentUser) });
+    const req = {
+      method: 'GET',
+      headers: { cookie: 'historiar_admin_session=cookie-token' },
+      get: vi.fn(),
+    };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await verifyToken(req, res, next);
+
+    expect(jwt.verify).toHaveBeenCalledWith('cookie-token', process.env.JWT_SECRET);
+    expect(req.authSource).toBe('admin-cookie');
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('rechaza una mutacion por cookie sin el encabezado CSRF correcto', async () => {
+    jwt.verify.mockReturnValue({ sub: 'admin-1', tokenUse: 'admin-session', csrf: 'expected' });
+    const req = {
+      method: 'POST',
+      headers: { cookie: 'historiar_admin_session=cookie-token' },
+      get: vi.fn().mockReturnValue('incorrect'),
+    };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await verifyToken(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'CSRF_INVALID' }));
+    expect(User.findById).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rechaza un token de sesion administrativa enviado como Bearer', async () => {
+    jwt.verify.mockReturnValue({ sub: 'admin-1', tokenUse: 'admin-session', csrf: 'expected' });
+    const req = { method: 'GET', headers: { authorization: 'Bearer admin-cookie-token' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await verifyToken(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(User.findById).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
 });

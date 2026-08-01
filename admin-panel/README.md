@@ -147,9 +147,10 @@ admin-panel/
 ## 🔒 Seguridad Implementada
 
 ### Autenticación
-- Validación JWT con el backend
+- Sesión administrativa mediante cookie `HttpOnly`, `Secure` en producción y `SameSite`
+- Protección CSRF en operaciones mutables
 - Verificación de rol admin obligatoria
-- Tokens con expiración automática
+- Restauración de sesión contra el backend, sin JWT en `localStorage`
 
 ### Rate Limiting
 - Máximo 5 intentos de login fallidos
@@ -166,7 +167,7 @@ admin-panel/
 ## 🧪 Testing
 
 ```bash
-# Ejecutar tests (cuando estén implementados)
+# Ejecutar pruebas de sesión y cliente API
 npm test
 
 # Linting

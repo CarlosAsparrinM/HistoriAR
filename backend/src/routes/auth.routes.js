@@ -1,6 +1,14 @@
 import { Router } from 'express';
-import { login, register, validateToken, googleLogin } from '../controllers/authController.js';
-import { verifyToken } from '../middlewares/auth.js';
+import {
+  adminLogin,
+  adminLogout,
+  adminSession,
+  googleLogin,
+  login,
+  register,
+  validateToken,
+} from '../controllers/authController.js';
+import { requireAdminSession, requireRole, verifyToken } from '../middlewares/auth.js';
 import { createRateLimiter } from '../middlewares/rateLimit.js';
 import { validateRequest } from '../middlewares/validateRequest.js';
 import { body } from 'express-validator';
@@ -75,6 +83,9 @@ const googleValidators = [
 
 router.post('/register', registerRateLimit, registerValidators, validateRequest, register);
 router.post('/login', loginRateLimit, loginValidators, validateRequest, login);
+router.post('/admin/login', loginRateLimit, loginValidators, validateRequest, adminLogin);
+router.get('/admin/session', verifyToken, requireAdminSession, requireRole('admin'), adminSession);
+router.post('/admin/logout', verifyToken, requireAdminSession, requireRole('admin'), adminLogout);
 router.post('/google', googleRateLimit, googleValidators, validateRequest, googleLogin);
 router.get('/validate', verifyToken, validateToken);
 

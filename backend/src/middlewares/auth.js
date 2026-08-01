@@ -1,12 +1,17 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { ADMIN_SESSION_COOKIE, csrfMatches, readCookie } from '../utils/adminSession.js';
+
+const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * ✅ Verifica el token JWT y adjunta los datos del usuario al request
  */
 export async function verifyToken(req, res, next) {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const cookieToken = bearerToken ? null : readCookie(req, ADMIN_SESSION_COOKIE);
+  const token = bearerToken || cookieToken;
 
   if (!token) {
     return res.status(401).json({ message: 'Token faltante' });
@@ -14,6 +19,17 @@ export async function verifyToken(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (cookieToken && payload.tokenUse !== 'admin-session') {
+      return res.status(401).json({ message: 'Sesión administrativa inválida' });
+    }
+    if (bearerToken && payload.tokenUse === 'admin-session') {
+      return res.status(401).json({ message: 'Token inválido para este canal' });
+    }
+    if (cookieToken && !safeMethods.has(req.method)
+        && !csrfMatches(payload.csrf, req.get('X-CSRF-Token'))) {
+      return res.status(403).json({ code: 'CSRF_INVALID', message: 'Protección CSRF inválida' });
+    }
     
     // Verificar el estado del usuario en la base de datos
     const user = await User.findById(payload.sub).select('name email role status');
@@ -34,10 +50,19 @@ export async function verifyToken(req, res, next) {
       role: user.role,
       email: user.email,
     };
+    req.authSource = cookieToken ? 'admin-cookie' : 'bearer';
+    req.authPayload = payload;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Token inválido o expirado' });
   }
+}
+
+export function requireAdminSession(req, res, next) {
+  if (req.authSource !== 'admin-cookie') {
+    return res.status(401).json({ message: 'Sesión administrativa requerida' });
+  }
+  next();
 }
 
 /**

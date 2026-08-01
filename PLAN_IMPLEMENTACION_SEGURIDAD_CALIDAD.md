@@ -38,10 +38,14 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] Producción exige CORS explícito y acepta rol IAM del contenedor como alternativa preferida a credenciales AWS estáticas.
 - [x] MOB-01: iOS declara el permiso de cámara y obtiene los identificadores OAuth desde `Secrets.xcconfig`, excluido de Git.
 - [x] MOB-02: Android release/profile bloquean cleartext; iOS bloquea cargas arbitrarias y la app exige HTTPS en release.
+- [x] SEC-13: el panel usa una sesión administrativa separada mediante cookie `HttpOnly`; el JWT ya no se guarda ni se expone a JavaScript.
+- [x] SEC-13: las mutaciones autenticadas por cookie exigen un token CSRF ligado al JWT; CORS admite credenciales y `X-CSRF-Token` solo para orígenes configurados.
+- [x] La autenticación Bearer de Flutter se conserva separada y rechaza tokens emitidos para la sesión administrativa.
 - [x] Flutter dejó de calcular respuestas o puntajes con datos públicos y consume la revisión emitida por el backend.
 - [x] Validadores Mongoose activados en las actualizaciones de monumentos, quizzes, instituciones y tours incluidas en este bloque (avance de SEC-11).
-- [x] Suite backend: 24 archivos y 131 pruebas aprobadas con Node 20.20.2.
-- [x] Panel administrativo: ESLint sin errores ni advertencias en los archivos modificados y build Vite de producción aprobado.
+- [x] Suite backend: 26 archivos y 142 pruebas aprobadas con Node 20.20.2.
+- [x] Panel administrativo: 3 pruebas de sesión aprobadas, ESLint sin errores en los archivos modificados y build Vite de producción aprobado.
+- [ ] El lint global del panel conserva 9 errores y 12 advertencias preexistentes fuera de SEC-13; deben resolverse dentro de QA-01 antes del cierre final.
 - [x] Suite Flutter: 31 pruebas aprobadas y `flutter analyze --no-pub` sin hallazgos.
 - [ ] Build real de la imagen Docker: pendiente porque Docker Desktop/daemon no está activo en el entorno local; el contrato del Dockerfile tiene pruebas automatizadas.
 - [ ] Revisión y merge de los checkpoints locales.

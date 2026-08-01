@@ -21,6 +21,8 @@ const optionalEnvVars = {
   NODE_ENV: 'Environment (development/production)',
   ALLOWED_ORIGINS: 'Comma-separated list of allowed CORS origins',
   TRUST_PROXY_HOPS: 'Number of trusted proxy hops in front of the Docker container',
+  ADMIN_SESSION_EXPIRES_IN: 'Admin web session expiration (default: 8h)',
+  ADMIN_COOKIE_SAME_SITE: 'Admin cookie SameSite mode: lax, strict or none (default: lax)',
   API_BASE_URL: 'Base URL of the API',
 };
 
@@ -56,6 +58,11 @@ export function validateEnvironment() {
   const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 0);
   if (!Number.isInteger(trustProxyHops) || trustProxyHops < 0) {
     missing.push('TRUST_PROXY_HOPS: debe ser un entero mayor o igual a cero');
+  }
+
+  const adminCookieSameSite = String(process.env.ADMIN_COOKIE_SAME_SITE || 'lax').toLowerCase();
+  if (!['lax', 'strict', 'none'].includes(adminCookieSameSite)) {
+    missing.push('ADMIN_COOKIE_SAME_SITE: debe ser lax, strict o none');
   }
 
   // Report results
