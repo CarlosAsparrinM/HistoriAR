@@ -147,3 +147,56 @@ Antes de construir la pantalla de ficha, crear y probar una ruta pública de dat
 3. Navegadores objetivo mínimos y tamaño máximo aceptado de modelos.
 4. Política de analítica, cookies y privacidad.
 5. Proveedor de hosting estático, CDN y procedimiento de rollback.
+
+## 7. Seguridad de la versión web
+
+La web aumenta la superficie pública del sistema, por lo que esta sección es
+obligatoria y forma parte de los criterios de salida; no es una fase opcional
+posterior al diseño.
+
+### 7.1 Modelo de amenazas y controles
+
+| Riesgo | Control obligatorio |
+|---|---|
+| Exposición de contenido oculto o administrativo | DTOs públicos explícitos, filtros de publicación aplicados en servidor y pruebas negativas por ID, lista, búsqueda e historial |
+| Robo de sesión administrativa | La web pública no crea ni lee cookies admin, JWTs, `localStorage` de sesión ni rutas `/admin` |
+| XSS desde fichas, fuentes o respuestas API | Renderizado de texto como texto/Markdown con sanitización estricta; prohibido usar HTML sin sanear, `dart:js` arbitrario o `innerHtml` |
+| Carga de modelo o recurso desde un origen malicioso | URL HTTPS entregada por API, clave S3 nunca expuesta, allowlist de hosts y fallback si la URL firmada vence |
+| Abuso de búsqueda/listados públicos | Límites de paginación y longitud de consulta en servidor, rate limit específico para endpoints públicos y caché de solo lectura controlada |
+| CORS permisivo | Añadir solo el origen web final a `ALLOWED_ORIGINS`; sin comodines en producción y sin credenciales en solicitudes públicas |
+| Inyección por parámetros de mapa/filtros | Validar tipos, IDs, límites y campos permitidos en backend; el cliente no construye filtros MongoDB ni URLs S3 |
+| Dependencia o mapa comprometido | Versiones bloqueadas, revisión de dependencias en PR y, si se usa una clave de proveedor de mapas, restricción por dominio y por API permitida |
+| Filtración de secretos | Ningún secreto en `--dart-define`, `.env`, bundle estático, repositorio, logs ni mensajes de error; solo URLs y claves públicas restringidas cuando sean necesarias |
+| Denegación de servicio por modelos grandes | Respetar límite de tamaño en servidor, lazy loading del visor, cancelación al salir de ficha y límite de memoria/tiempo visible en cliente |
+
+### 7.2 Backend y contrato público
+
+1. Mantener Helmet y CORS existentes; revisar antes de publicación las cabeceras efectivas en staging.
+2. Crear el endpoint público de fichas históricas como ruta nueva y aditiva. Debe aplicar publicación en la consulta, no filtrar después de leer todos los documentos.
+3. Usar DTOs de salida con allowlist. Nunca devolver `createdBy`, email, estado interno, claves S3, URL de carga, respuestas correctas, explicaciones privadas o campos no documentados.
+4. Validar y normalizar `id`, `page`, `limit`, texto de búsqueda y filtros antes de consultar. Definir máximos explícitos para página y longitud de búsqueda.
+5. Añadir un rate limiter para lectura pública que no afecte los límites existentes de login. La política exacta se medirá en staging y se documentará.
+6. No convertir rutas públicas en rutas con cookie. Si en el futuro se agregan cuentas web, sus mutaciones usarán un esquema de sesión/CSRF diseñado aparte.
+7. Las URLs firmadas de lectura deben tener expiración corta, ser generadas por el servidor y responderse solo para recursos publicados. No registrar query strings firmadas en logs.
+
+### 7.3 Cabeceras y frontend
+
+1. Configurar en el hosting estático una Content Security Policy probada con Flutter Web y el visor. Como mínimo, limitar `connect-src` a API/orígenes de telemetría aprobados, `img-src` a los orígenes de medios necesarios y los frames/workers exclusivamente a lo requerido por el visor.
+2. Habilitar HTTPS, HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy` restrictiva y `frame-ancestors 'none'` o una allowlist aprobada.
+3. No introducir scripts de terceros sin inventario, propósito, versión y revisión. El mapa y el visor se cargan bajo demanda.
+4. Tratar toda respuesta de API como no confiable: mostrarla codificada, validar URLs antes de abrirlas y no interpolarla como HTML.
+5. Si se guarda preferencia de mapa, tema o consentimiento, usar solo datos no sensibles y documentar retención/borrado. No persistir tokens.
+
+### 7.4 Pruebas de seguridad obligatorias
+
+1. Tests backend que prueben que un recurso `Oculto` devuelve 404/ningún resultado desde cada ruta pública, incluso usando un ID conocido.
+2. Tests de DTO que verifiquen ausencia de campos sensibles y que URLs de medios se hidratan sin revelar claves S3.
+3. Tests de validación para paginación, texto de búsqueda, IDs inválidos y parámetros repetidos o fuera de rango.
+4. Tests Flutter Web para URL no permitida, URL firmada expirada, modelo inexistente y fallback sin ejecutar contenido recibido.
+5. Prueba manual de CSP/CORS en staging: la web funciona desde su origen autorizado y falla desde un origen no autorizado.
+6. Revisión de dependencias y lockfiles en cada PR; cualquier vulnerabilidad crítica o alta explotable bloquea la publicación hasta tener mitigación documentada.
+7. Revisión final de cabeceras con el navegador y prueba de que ninguna variable de build contiene secretos.
+
+### 7.5 Puerta de salida de seguridad
+
+No se publica la web hasta que todas las pruebas anteriores pasen, el origen final esté configurado en CORS, las cabeceras se hayan comprobado en staging y la matriz de no regresión móvil permanezca verde.
