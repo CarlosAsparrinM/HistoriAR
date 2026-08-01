@@ -158,6 +158,8 @@ Scripts disponibles:
 | `npm run deploy:prepare` | Check env + verify + migrate + indexes |
 | `npm run setup:s3` | Configurar bucket S3 |
 
+Las visitas creadas por la app incluyen `experienceType: ar | model3d`. El dashboard considera sesión AR solo una visita marcada `ar`, después de que el modelo se haya mostrado correctamente en el modo de realidad aumentada. Los documentos históricos sin este campo permanecen sin clasificar y no se cuentan retroactivamente como AR.
+
 ### 2. Admin Panel
 
 ```bash

@@ -10,6 +10,7 @@ import 'test_support/memory_secure_store.dart';
 
 class RecordingVisitsService extends VisitsService {
   final List<String> clientVisitIds = [];
+  final List<String?> experienceTypes = [];
 
   @override
   Future<String> registerVisit({
@@ -20,8 +21,10 @@ class RecordingVisitsService extends VisitsService {
     int? durationMinutes,
     String? device,
     String? clientVisitId,
+    String? experienceType,
   }) async {
     clientVisitIds.add(clientVisitId!);
+    experienceTypes.add(experienceType);
     return 'server-visit-id';
   }
 }
@@ -48,6 +51,7 @@ void main() {
       monumentId: 'monument-1',
       tourId: 'tour-1',
       durationMinutes: 2,
+      experienceType: VisitExperienceType.ar,
     );
 
     await service.enqueue(visit);
@@ -63,6 +67,7 @@ void main() {
     await service.sync();
 
     expect(visitsService.clientVisitIds, ['client-visit-1']);
+    expect(visitsService.experienceTypes, ['ar']);
     expect(prefs.getString(SessionStorageService.pendingVisitsKey), isNull);
   });
 
@@ -83,6 +88,7 @@ void main() {
         userId: 'user-1',
         monumentId: 'monument-1',
         durationMinutes: 1,
+        experienceType: VisitExperienceType.model3d,
       ),
     );
     await service.sync();
@@ -90,5 +96,17 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(visitsService.clientVisitIds, isEmpty);
     expect(prefs.getString(SessionStorageService.pendingVisitsKey), isNull);
+  });
+
+  test('legacy pending visits default to model3d without inflating AR metrics', () {
+    final visit = PendingVisit.fromJson({
+      'clientVisitId': 'legacy-visit',
+      'userId': 'user-1',
+      'monumentId': 'monument-1',
+      'durationMinutes': 1,
+    });
+
+    expect(visit.experienceType, VisitExperienceType.model3d);
+    expect(visit.toJson()['experienceType'], 'model3d');
   });
 }

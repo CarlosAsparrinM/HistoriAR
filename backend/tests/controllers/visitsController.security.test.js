@@ -36,6 +36,32 @@ describe('visitsController ownership', () => {
     expect(res.json).toHaveBeenCalledWith(visit);
   });
 
+  it('fuerza el propietario y limita campos al crear una visita', async () => {
+    visitService.createVisit.mockResolvedValue({ _id: 'visit-1' });
+    const req = {
+      user: { id: 'user-1', role: 'user' },
+      body: {
+        userId: 'user-2',
+        monumentId: 'monument-1',
+        duration: 3,
+        experienceType: 'ar',
+        date: '2000-01-01',
+        unexpected: 'discard-me',
+      },
+    };
+    const res = mockRes();
+
+    await controller.createVisitController(req, res);
+
+    expect(visitService.createVisit).toHaveBeenCalledWith({
+      userId: 'user-1',
+      monumentId: 'monument-1',
+      duration: 3,
+      experienceType: 'ar',
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
+
   it('no permite que un usuario cambie propietario ni referencias de la visita', async () => {
     const updated = { _id: 'visit-1', duration: 8, rating: 5 };
     visitService.updateVisitForUser.mockResolvedValue(updated);

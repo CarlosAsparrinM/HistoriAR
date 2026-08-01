@@ -92,7 +92,7 @@ export async function getDashboardStats(req, res) {
     // 3. Sesiones AR en el rango
     const arSessions = await Visit.countDocuments({
       date: { $gte: startDate, $lte: endDate },
-      isAR: true,
+      experienceType: 'ar',
     });
 
     // 4. Tiempo promedio de sesión (en minutos)

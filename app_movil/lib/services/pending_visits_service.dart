@@ -6,18 +6,22 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'session_storage_service.dart';
 import 'visits_service.dart';
 
+enum VisitExperienceType { ar, model3d }
+
 class PendingVisit {
   final String clientVisitId;
   final String userId;
   final String monumentId;
   final String? tourId;
   final int durationMinutes;
+  final VisitExperienceType experienceType;
 
   const PendingVisit({
     required this.clientVisitId,
     required this.userId,
     required this.monumentId,
     required this.durationMinutes,
+    required this.experienceType,
     this.tourId,
   });
 
@@ -25,6 +29,7 @@ class PendingVisit {
     required String userId,
     required String monumentId,
     required int durationMinutes,
+    required VisitExperienceType experienceType,
     String? tourId,
   }) {
     final random = Random.secure().nextInt(1 << 32);
@@ -35,6 +40,7 @@ class PendingVisit {
       monumentId: monumentId,
       tourId: tourId,
       durationMinutes: durationMinutes,
+      experienceType: experienceType,
     );
   }
 
@@ -45,6 +51,10 @@ class PendingVisit {
       monumentId: json['monumentId'] as String,
       tourId: json['tourId'] as String?,
       durationMinutes: (json['durationMinutes'] as num).toInt(),
+      experienceType: VisitExperienceType.values.firstWhere(
+        (value) => value.name == json['experienceType'],
+        orElse: () => VisitExperienceType.model3d,
+      ),
     );
   }
 
@@ -54,6 +64,7 @@ class PendingVisit {
     'monumentId': monumentId,
     'tourId': tourId,
     'durationMinutes': durationMinutes,
+    'experienceType': experienceType.name,
   };
 }
 
@@ -113,6 +124,7 @@ class PendingVisitsService {
           tourId: visit.tourId,
           durationMinutes: visit.durationMinutes,
           clientVisitId: visit.clientVisitId,
+          experienceType: visit.experienceType.name,
         );
       } catch (_) {
         remaining.add(visit);

@@ -57,6 +57,7 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   final HistoricalDataService _historicalDataService = HistoricalDataService();
   DateTime? _experienceReadyAt;
   bool _visitQueued = false;
+  bool _usedArExperience = false;
   bool _isClosing = false;
   bool _allowPop = false;
   List<HistoricalData> _historicalData = [];
@@ -890,6 +891,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
   }
 
   void _markExperienceReady() {
+    if (_isArMode) {
+      _usedArExperience = true;
+    }
     _experienceReadyAt ??= DateTime.now();
   }
 
@@ -924,6 +928,9 @@ class _ArCameraScreenState extends State<ArCameraScreen> {
       monumentId: widget.monument.id,
       tourId: widget.tourId,
       durationMinutes: durationMinutes,
+      experienceType: _usedArExperience
+          ? VisitExperienceType.ar
+          : VisitExperienceType.model3d,
     );
 
     try {

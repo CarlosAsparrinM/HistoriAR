@@ -6,6 +6,7 @@ class Visit {
   final int? duration; // en minutos
   final int? rating; // 1-5
   final String? device;
+  final String? experienceType;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,6 +18,7 @@ class Visit {
     this.duration,
     this.rating,
     this.device,
+    this.experienceType,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -32,6 +34,7 @@ class Visit {
       duration: json['duration'] as int?,
       rating: json['rating'] as int?,
       device: json['device'] as String?,
+      experienceType: json['experienceType'] as String?,
       createdAt: json['createdAt'] != null
           ? DateTime.parse(json['createdAt'] as String)
           : DateTime.now(),

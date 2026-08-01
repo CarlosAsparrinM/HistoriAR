@@ -42,7 +42,21 @@ export async function getVisit(req, res) {
 
 export async function createVisitController(req, res) {
   try {
-    const body = { ...req.body };
+    const allowedUserFields = [
+      'monumentId',
+      'tourId',
+      'duration',
+      'rating',
+      'device',
+      'experienceType',
+      'clientVisitId',
+    ];
+    const allowedFields = req.user?.role === 'admin'
+      ? [...allowedUserFields, 'userId', 'date']
+      : allowedUserFields;
+    const body = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([field]) => allowedFields.includes(field)),
+    );
     if (!body.userId && req.user?.id) body.userId = req.user.id;
 
     if (req.user?.role !== 'admin') {
@@ -63,6 +77,7 @@ export async function updateVisitController(req, res) {
       ...allowedUserFields,
       'date',
       'device',
+      'experienceType',
       'tourId',
       'monumentId',
       'userId',
