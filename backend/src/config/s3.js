@@ -14,20 +14,20 @@ export const initializeS3Client = () => {
     return s3Client;
   }
 
-  const requiredEnvVars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET'];
+  const requiredEnvVars = ['AWS_REGION', 'S3_BUCKET'];
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
   if (missingVars.length > 0) {
     throw new Error(`Missing required AWS environment variables: ${missingVars.join(', ')}`);
   }
 
-  const clientConfig = {
-    region: process.env.AWS_REGION,
-    credentials: {
+  const clientConfig = { region: process.env.AWS_REGION };
+  if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
+    clientConfig.credentials = {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-  };
+    };
+  }
 
   s3Client = new S3Client(clientConfig);
   console.log(`✅ S3 client initialized for region: ${process.env.AWS_REGION}`);

@@ -10,25 +10,36 @@
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import { verifyS3Connection } from '../src/config/s3.js';
+import { validateEnvironment } from '../src/config/validateEnv.js';
 
 dotenv.config();
 
 const requiredEnvVars = [
   'MONGODB_URI',
   'JWT_SECRET',
-  'PORT',
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
   'AWS_REGION',
   'S3_BUCKET'
 ];
 
 const optionalEnvVars = [
-  'NODE_ENV'
+  'NODE_ENV',
+  'PORT',
+  'ALLOWED_ORIGINS',
+  'TRUST_PROXY_HOPS',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY'
 ];
 
 async function verifyConfig() {
   console.log('\n🔍 Verifying environment configuration...\n');
+
+  try {
+    validateEnvironment();
+  } catch (error) {
+    console.error(`Configuration validation failed: ${error.message}`);
+    process.exitCode = 1;
+    return;
+  }
   
   let hasErrors = false;
   let hasWarnings = false;

@@ -22,7 +22,7 @@ HistoriAR es un ecosistema digital compuesto por tres componentes interconectado
              ▼                                ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     🖥️ BACKEND API                              │
-│              Node.js + Express (Vercel Serverless)              │
+│                Node.js + Express (contenedor Docker)             │
 │                                                                 │
 │   Auth · Monuments · Tours · Quizzes · Visits · Uploads · ...   │
 └──────────────┬──────────────────────────┬───────────────────────┘
@@ -46,7 +46,7 @@ HistoriAR es un ecosistema digital compuesto por tres componentes interconectado
 | **App Móvil** | Flutter (Dart ≥3.9), ar_flutter_plugin_plus, flutter_map, geolocator, google_sign_in, model_viewer_plus, flutter_tts |
 | **Base de datos** | MongoDB Atlas (NoSQL) |
 | **Storage** | AWS S3 (imágenes, modelos 3D GLB/GLTF) |
-| **Despliegue** | Vercel (backend serverless + admin panel) |
+| **Despliegue** | Backend en contenedor Docker; proveedor del panel no documentado |
 | **Testing** | Vitest, Supertest |
 
 ---
@@ -69,7 +69,8 @@ HistoriAR/
 │   │   └── utils/              # CRUD Factory, paginación, S3 helpers
 │   ├── tests/                  # Tests unitarios e integración
 │   ├── scripts/                # Scripts utilitarios (S3, CORS, indexes)
-│   └── api/                    # Vercel serverless handler
+│   ├── Dockerfile              # Imagen de producción del backend
+│   └── .dockerignore           # Exclusiones del contexto de imagen
 │
 ├── admin-panel/                # Panel web de administración (React + Vite)
 │   └── src/
@@ -122,7 +123,7 @@ HistoriAR/
 ```bash
 cd backend
 cp .env.example .env           # Configurar variables de entorno
-npm install
+npm ci
 npm run dev                    # Inicia en http://localhost:4000
 ```
 
@@ -134,8 +135,9 @@ NODE_ENV=development
 MONGODB_URI=mongodb+srv://...
 JWT_SECRET=<secreto_seguro>
 JWT_EXPIRES_IN=7d
-AWS_ACCESS_KEY_ID=<key>
-AWS_SECRET_ACCESS_KEY=<secret>
+# Preferir un rol IAM del contenedor. Si no existe, definir ambas credenciales:
+AWS_ACCESS_KEY_ID=<key_opcional>
+AWS_SECRET_ACCESS_KEY=<secret_opcional>
 AWS_REGION=us-east-1
 S3_BUCKET=historiar-storage
 ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
@@ -396,25 +398,27 @@ npm run test:s3             # Test de conexión S3
 
 ## 🚢 Despliegue
 
-### Backend (Vercel Serverless)
+### Backend (contenedor Docker)
 
 ```bash
-cd backend
-npm run deploy:prepare      # check:env + verify + migrate + indexes
-# Deploy automático via Git push a Vercel
+docker build -t historiar-backend ./backend
+docker run --rm --env-file backend/.env -p 4000:4000 historiar-backend
 ```
 
-El archivo `api/` contiene el handler serverless. En producción, la conexión a DB se inicializa en el primer request.
+La imagen escucha en el puerto `4000`, ejecuta como usuario no-root e incluye
+`HEALTHCHECK` sobre `/health`. El proveedor donde se aloja el contenedor no se
+asume en este repositorio. Las migraciones se ejecutan como una tarea separada y
+controlada; no forman parte automática del arranque.
 
-### Admin Panel (Vercel)
+### Admin Panel
 
 ```bash
 cd admin-panel
 npm run build               # Genera dist/
-# Deploy automático via Git push a Vercel
 ```
 
-Configuración en `vercel.json` con rewrites para SPA routing.
+El artefacto `dist/` puede publicarse en el hosting estático elegido por el
+equipo. Este repositorio no presupone Vercel ni otro proveedor concreto.
 
 ### App Móvil (Android)
 

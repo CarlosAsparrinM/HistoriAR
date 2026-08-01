@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from 'dotenv';
-import { connectDB } from './config/db.js';
 
 import authRoutes from './routes/auth.routes.js';
 import userRoutes from './routes/users.routes.js';
@@ -32,9 +31,6 @@ const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
 if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
   app.set('trust proxy', trustProxyHops);
 }
-
-// Initialize DB connection
-connectDB().catch(err => console.error('Initial DB connection failed:', err.message));
 
 // CORS configuration
 // Get allowed origins from environment variable or use defaults for development

@@ -19,10 +19,13 @@ export async function connectDB(uri) {
     console.log('✅ MongoDB Atlas conectado');
   } catch (err) {
     console.error('❌ Error conectando a MongoDB:', err.message);
-    // Only exit if not in a serverless environment or if explicitly required
-    if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
-      process.exit(1);
-    }
     throw err;
   }
+}
+
+export async function disconnectDB() {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+  isConnected = false;
 }
