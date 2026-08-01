@@ -3,8 +3,10 @@ import {
   createTourController,
   deleteTourController,
   getTourController,
+  getTourAdminController,
   getToursByInstitutionController,
   listToursController,
+  listToursAdminController,
   updateTourController,
 } from '../controllers/toursController.js';
 import {
@@ -20,6 +22,8 @@ const router = Router();
 // Public routes
 router.get('/', listToursController);
 router.get('/institution/:institutionId', getToursByInstitutionController);
+router.get('/admin', verifyToken, requireRole('admin'), listToursAdminController);
+router.get('/admin/:id', verifyToken, requireRole('admin'), getTourAdminController);
 // Session endpoints: start/stop/rate/get user sessions
 router.post('/:id/start', verifyToken, startTourSessionController);
 router.post('/sessions/:sessionId/stop', verifyToken, stopTourSessionController);

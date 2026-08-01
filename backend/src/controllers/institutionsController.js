@@ -49,15 +49,47 @@ const crudController = createCrudController({
   entityName: 'Institución',
   entityNamePlural: 'Instituciones',
   hydrateMedia: hydrateInstitutionMedia,
+  beforeDelete: beforeDeleteInstitution,
+  listOptions: { lockedFilters: { availableOnly: true, status: 'all' } }
+});
+
+const adminCrudController = createCrudController({
+  service: {
+    getAll: institutionService.getAllInstitutions,
+    getById: institutionService.getInstitutionById,
+    create: institutionService.createInstitution,
+    update: institutionService.updateInstitution,
+    delete: institutionService.deleteInstitution,
+    getStats: institutionService.getInstitutionStats
+  },
+  entityName: 'Institución',
+  entityNamePlural: 'Instituciones',
+  hydrateMedia: hydrateInstitutionMedia,
   beforeDelete: beforeDeleteInstitution
 });
 
 // Exportar métodos con nombres específicos del dominio
 export const {
   list: listInstitution,
-  getById: getInstitution,
   create: createInstitutionController,
   update: updateInstitutionController,
   deleteItem: deleteInstitutionController,
-  getStats: getInstitutionStatsController
 } = crudController;
+
+export const {
+  list: listInstitutionAdmin,
+  getById: getInstitutionAdmin,
+  getStats: getInstitutionStatsController
+} = adminCrudController;
+
+export async function getInstitution(req, res) {
+  try {
+    const doc = await institutionService.getInstitutionById(req.params.id);
+    if (!doc || doc.status !== 'Disponible') {
+      return res.status(404).json({ message: 'Institución no encontrada' });
+    }
+    res.json(await hydrateInstitutionMedia(doc));
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}

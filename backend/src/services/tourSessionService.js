@@ -19,7 +19,7 @@ const SESSION_TOUR_INSTITUTION_FIELDS = 'name description imageUrl status locati
 
 class TourSessionService {
   async startSession({ userId, tourId }) {
-    const tour = await Tour.findById(tourId);
+    const tour = await Tour.findOne({ _id: tourId, isActive: true });
     if (!tour) throw new Error('Tour not found');
 
     const activeSessions = await TourSession.find({

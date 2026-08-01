@@ -1,7 +1,6 @@
 import {
   createQuiz,
   deleteQuiz,
-  evaluateQuiz,
   getAllQuizzes,
   getAllUserAttempts,
   getQuizAttempts,
@@ -12,11 +11,48 @@ import {
 } from '../services/quizService.js';
 import { buildPagination } from '../utils/pagination.js';
 
+export function toPublicQuiz(source) {
+  const quiz = typeof source?.toObject === 'function' ? source.toObject() : source;
+  if (!quiz) return quiz;
+
+  return {
+    _id: quiz._id,
+    monumentId: quiz.monumentId,
+    title: quiz.title,
+    description: quiz.description,
+    questions: (quiz.questions || []).map((question) => ({
+      questionText: question.questionText,
+      options: (question.options || []).map((option) => ({ text: option.text }))
+    }))
+  };
+}
+
 export async function listQuiz(req, res) {
+  try {
+    const { skip, limit, page } = buildPagination(req.query);
+    const filter = { isActive: true };
+    if (req.query.monumentId) filter.monumentId = req.query.monumentId;
+    const { items, total } = await getAllQuizzes(filter, { skip, limit });
+    res.json({ page, total, items: items.map(toPublicQuiz) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function getQuiz(req, res) {
+  const doc = await getQuizById(req.params.id);
+  if (!doc || doc.isActive !== true) return res.status(404).json({ message: 'No encontrado' });
+  res.json(toPublicQuiz(doc));
+}
+
+export async function listQuizAdmin(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const filter = {};
     if (req.query.monumentId) filter.monumentId = req.query.monumentId;
+    if (req.query.isActive === 'true' || req.query.isActive === 'false') {
+      filter.isActive = req.query.isActive === 'true';
+    }
     const { items, total } = await getAllQuizzes(filter, { skip, limit });
     res.json({ page, total, items });
   } catch (err) {
@@ -24,7 +60,7 @@ export async function listQuiz(req, res) {
   }
 }
 
-export async function getQuiz(req, res) {
+export async function getQuizAdmin(req, res) {
   const doc = await getQuizById(req.params.id);
   if (!doc) return res.status(404).json({ message: 'No encontrado' });
   res.json(doc);
@@ -53,16 +89,6 @@ export async function deleteQuizController(req, res) {
   const doc = await deleteQuiz(req.params.id);
   if (!doc) return res.status(404).json({ message: 'No encontrado' });
   res.json({ message: 'Eliminado' });
-}
-
-export async function evaluateQuizController(req, res) {
-  try {
-    const { answers } = req.body; // array de índices
-    const result = await evaluateQuiz(req.params.id, answers || []);
-    res.json(result);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
 }
 
 /**

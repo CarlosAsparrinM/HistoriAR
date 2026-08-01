@@ -112,7 +112,7 @@ class ApiService {
   // Monuments
   async getMonuments(params = {}) {
     const queryString = this.buildQueryString(params);
-    return this.request(`/monuments${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/monuments/admin${queryString ? `?${queryString}` : ''}`);
   }
 
   async searchMonuments(params = {}) {
@@ -121,7 +121,7 @@ class ApiService {
   }
 
   async getMonument(id) {
-    return this.request(`/monuments/${id}`);
+    return this.request(`/monuments/admin/${id}`);
   }
 
   async createMonument(data) {
@@ -152,11 +152,11 @@ class ApiService {
   // Institutions
   async getInstitutions(params = {}) {
     const queryString = this.buildQueryString(params);
-    return this.request(`/institutions${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/institutions/admin${queryString ? `?${queryString}` : ''}`);
   }
 
   async getInstitution(id) {
-    return this.request(`/institutions/${id}`);
+    return this.request(`/institutions/admin/${id}`);
   }
 
   async createInstitution(data) {
@@ -283,11 +283,11 @@ class ApiService {
   // Quizzes
   async getQuizzes(params = {}) {
     const queryString = this.buildQueryString(params);
-    return this.request(`/quizzes${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/quizzes/admin${queryString ? `?${queryString}` : ''}`);
   }
 
   async getQuiz(id) {
-    return this.request(`/quizzes/${id}`);
+    return this.request(`/quizzes/admin/${id}`);
   }
 
   async createQuiz(data) {
@@ -313,11 +313,11 @@ class ApiService {
   // Tours
   async getTours(params = {}) {
     const queryString = this.buildQueryString(params);
-    return this.request(`/tours${queryString ? `?${queryString}` : ''}`);
+    return this.request(`/tours/admin${queryString ? `?${queryString}` : ''}`);
   }
 
   async getTour(id) {
-    return this.request(`/tours/${id}`);
+    return this.request(`/tours/admin/${id}`);
   }
 
   async createTour(data) {

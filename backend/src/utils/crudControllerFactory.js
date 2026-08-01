@@ -99,6 +99,10 @@ export function createCrudController(config) {
         });
       }
 
+      // Los filtros bloqueados se aplican al final para que el cliente no pueda
+      // ampliar el alcance público mediante parámetros de consulta.
+      Object.assign(queryOptions, listOptions.lockedFilters || {});
+
       const { items, total } = await service.getAll(queryOptions);
 
       // Hidratar medios si es necesario

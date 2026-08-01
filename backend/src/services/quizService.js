@@ -18,28 +18,68 @@ export async function createQuiz(data) {
 }
 
 export async function updateQuiz(id, data) {
-  return await Quiz.findByIdAndUpdate(id, data, { new: true });
+  return await Quiz.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteQuiz(id) {
   return await Quiz.findByIdAndDelete(id);
 }
 
-export async function evaluateQuiz(quizId, userAnswers = []) {
-  const quiz = await Quiz.findById(quizId);
-  if (!quiz) throw new Error('Quiz no encontrado');
-  let correct = 0;
-  
-  // Soporte para formato antiguo (compatibilidad)
-  quiz.questions.forEach((q, i) => { 
-    if (q.correctAnswer === userAnswers[i]) correct++; 
-  });
-  
-  return {
-    totalQuestions: quiz.questions.length,
-    correct,
-    score: Math.round((correct / quiz.questions.length) * 100)
-  };
+export function processQuizAnswers(quiz, answers) {
+  if (!Array.isArray(answers)) {
+    throw new Error('Answers array is required');
+  }
+
+  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  if (questions.length === 0 || answers.length !== questions.length) {
+    throw new Error('Debe responder todas las preguntas exactamente una vez');
+  }
+
+  const seenQuestions = new Set();
+  let correctAnswers = 0;
+  const processedAnswers = [];
+  const review = [];
+
+  for (const answer of answers) {
+    const questionIndex = answer?.questionIndex;
+    const selectedOptionIndex = answer?.selectedOptionIndex;
+
+    if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= questions.length) {
+      throw new Error('Índice de pregunta inválido');
+    }
+    if (seenQuestions.has(questionIndex)) {
+      throw new Error('Cada pregunta solo puede responderse una vez');
+    }
+
+    const question = questions[questionIndex];
+    const options = Array.isArray(question.options) ? question.options : [];
+    if (!Number.isInteger(selectedOptionIndex)
+        || selectedOptionIndex < 0
+        || selectedOptionIndex >= options.length) {
+      throw new Error('Índice de opción inválido');
+    }
+
+    const correctOptionIndex = options.findIndex((option) => option.isCorrect === true);
+    if (correctOptionIndex < 0) {
+      throw new Error('El quiz contiene una pregunta sin respuesta correcta');
+    }
+
+    const isCorrect = selectedOptionIndex === correctOptionIndex;
+    if (isCorrect) correctAnswers += 1;
+    seenQuestions.add(questionIndex);
+    processedAnswers.push({ questionIndex, selectedOptionIndex, isCorrect });
+    review.push({
+      questionIndex,
+      selectedOptionIndex,
+      correctOptionIndex,
+      isCorrect,
+      explanation: question.explanation || ''
+    });
+  }
+
+  processedAnswers.sort((a, b) => a.questionIndex - b.questionIndex);
+  review.sort((a, b) => a.questionIndex - b.questionIndex);
+  return { correctAnswers, processedAnswers, review };
 }
 
 /**
@@ -51,41 +91,39 @@ export async function evaluateQuiz(quizId, userAnswers = []) {
  * @returns {Promise<Object>} QuizAttempt creado
  */
 export async function submitQuizAttempt(userId, quizId, answers, timeSpent) {
-  try {
-    const quiz = await Quiz.findById(quizId);
-    if (!quiz) throw new Error('Quiz not found');
-    
-    // Calcular respuestas correctas
-    let correctAnswers = 0;
-    const processedAnswers = answers.map((answer) => {
-      const question = quiz.questions[answer.questionIndex];
-      const isCorrect = question.options[answer.selectedOptionIndex].isCorrect;
-      if (isCorrect) correctAnswers++;
-      
-      return {
-        questionIndex: answer.questionIndex,
-        selectedOptionIndex: answer.selectedOptionIndex,
-        isCorrect
-      };
-    });
-    
-    // Crear registro de intento
-    const attempt = new QuizAttempt({
-      userId,
-      quizId,
-      monumentId: quiz.monumentId,
-      answers: processedAnswers,
-      correctAnswers,
-      totalQuestions: quiz.questions.length,
-      percentageScore: Math.round((correctAnswers / quiz.questions.length) * 100),
-      timeSpent
-    });
-    
-    return await attempt.save();
-  } catch (error) {
-    console.error('Error submitting quiz attempt:', error);
-    throw new Error(`Failed to submit quiz attempt: ${error.message}`);
-  }
+  const quiz = await Quiz.findOne({ _id: quizId, isActive: true });
+  if (!quiz) throw new Error('Quiz no encontrado o inactivo');
+
+  const normalizedTimeSpent = Number.isFinite(timeSpent) && timeSpent >= 0
+    ? Math.round(timeSpent)
+    : undefined;
+  const { correctAnswers, processedAnswers, review } = processQuizAnswers(quiz, answers);
+  const totalQuestions = quiz.questions.length;
+  const percentageScore = Math.round((correctAnswers / totalQuestions) * 100);
+  const attempt = new QuizAttempt({
+    userId,
+    quizId,
+    monumentId: quiz.monumentId,
+    answers: processedAnswers,
+    correctAnswers,
+    totalQuestions,
+    percentageScore,
+    timeSpent: normalizedTimeSpent
+  });
+  const savedAttempt = await attempt.save();
+
+  return {
+    _id: savedAttempt._id,
+    score: correctAnswers,
+    maxScore: totalQuestions,
+    percentage: percentageScore,
+    correctAnswers,
+    totalQuestions,
+    percentageScore,
+    timeSpent: savedAttempt.timeSpent,
+    completedAt: savedAttempt.completedAt,
+    review
+  };
 }
 
 /**

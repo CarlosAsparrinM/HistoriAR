@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import Tour from '../../src/models/Tour.js';
 import TourSession from '../../src/models/TourSession.js';
 import tourSessionService from '../../src/services/tourSessionService.js';
 
@@ -38,5 +39,18 @@ describe('tourSessionService ownership', () => {
     });
 
     expect(findOne).toHaveBeenCalledWith({ _id: 'session-1' });
+  });
+
+  it('no inicia sesiones para tours inactivos', async () => {
+    const findOne = vi.spyOn(Tour, 'findOne').mockResolvedValue(null);
+    const findSessions = vi.spyOn(TourSession, 'find');
+
+    await expect(tourSessionService.startSession({
+      userId: 'user-1',
+      tourId: 'tour-1',
+    })).rejects.toThrow('Tour not found');
+
+    expect(findOne).toHaveBeenCalledWith({ _id: 'tour-1', isActive: true });
+    expect(findSessions).not.toHaveBeenCalled();
   });
 });

@@ -40,7 +40,7 @@ export async function createInstitution(data) {
 }
 
 export async function updateInstitution(id, data) {
-  return await Institution.findByIdAndUpdate(id, data, { new: true });
+  return await Institution.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteInstitution(id) {

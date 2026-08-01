@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { 
-  listQuiz, 
-  getQuiz, 
+import {
+  listQuiz,
+  getQuiz,
+  listQuizAdmin,
+  getQuizAdmin,
   createQuizController, 
   updateQuizController, 
   deleteQuizController, 
-  evaluateQuizController,
   submitQuizAttemptController,
   getQuizAttemptsController
 } from '../controllers/quizzesController.js';
@@ -13,14 +14,13 @@ import { verifyToken, requireRole } from '../middlewares/auth.js';
 
 const router = Router();
 
+router.get('/admin', verifyToken, requireRole('admin'), listQuizAdmin);
+router.get('/admin/:id', verifyToken, requireRole('admin'), getQuizAdmin);
 router.get('/', listQuiz);
 router.get('/:id', getQuiz);
 router.post('/', verifyToken, requireRole('admin'), createQuizController);
 router.put('/:id', verifyToken, requireRole('admin'), updateQuizController);
 router.delete('/:id', verifyToken, requireRole('admin'), deleteQuizController);
-
-// evaluar respuestas del usuario (público con login)
-router.post('/:id/evaluate', verifyToken, evaluateQuizController);
 
 // Quiz attempts endpoints
 router.post('/:id/submit', verifyToken, submitQuizAttemptController);

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/monument.dart';
 import '../services/quiz_service.dart';
 import '../services/quiz_state_service.dart';
-import '../services/app_settings_service.dart';
 import '../styles/app_colors.dart';
 import '../widgets/app_feedback.dart';
 import '../widgets/app_motion.dart';
@@ -24,31 +23,18 @@ class _QuizScreenState extends State<QuizScreen> {
   Map<String, dynamic>? _quiz;
   int _currentQuestionIndex = 0;
   int? _selectedOptionIndex;
-  int _score = 0;
   bool _isLoading = true;
   bool _isSubmitting = false;
-  bool _showFeedback = false;
-  bool _canContinueAfterFeedback = false;
   String? _loadError;
   final List<Map<String, dynamic>> _answers = [];
   Map<String, dynamic>? _finalResult; // datos de resultado general
   late final DateTime _startTime;
-  Duration _feedbackDelay = const Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
     _startTime = DateTime.now();
-    _loadQuizFeedbackPreset();
     _loadQuiz();
-  }
-
-  Future<void> _loadQuizFeedbackPreset() async {
-    final settings = await AppSettingsService().load();
-    if (!mounted) return;
-    setState(() {
-      _feedbackDelay = Duration(seconds: settings.quizFeedbackPreset.seconds);
-    });
   }
 
   Future<void> _loadQuiz() async {
@@ -102,7 +88,7 @@ class _QuizScreenState extends State<QuizScreen> {
   }
 
   void _onSelectOption(int index) {
-    if (_showFeedback || _isSubmitting) return;
+    if (_isSubmitting) return;
     setState(() {
       _selectedOptionIndex = index;
     });
@@ -113,51 +99,17 @@ class _QuizScreenState extends State<QuizScreen> {
       return;
     }
 
-    if (!_showFeedback) {
-      if (_selectedOptionIndex == null) return;
+    if (_selectedOptionIndex == null) return;
 
-      _answers.add({
-        'questionIndex': _currentQuestionIndex,
-        'selectedOptionIndex': _selectedOptionIndex,
-      });
-
-      final options =
-          _currentQuestion?['options'] as List<dynamic>? ?? const [];
-      int? correctIndex;
-      for (int i = 0; i < options.length; i++) {
-        final opt = options[i];
-        if (opt is Map<String, dynamic> && (opt['isCorrect'] == true)) {
-          correctIndex = i;
-          break;
-        }
-      }
-
-      if (correctIndex != null && correctIndex == _selectedOptionIndex) {
-        final pts = _currentQuestion?['points'] as int? ?? 1;
-        _score += pts;
-      }
-
-      setState(() {
-        _showFeedback = true;
-        _canContinueAfterFeedback = false;
-      });
-
-      await Future.delayed(_feedbackDelay);
-      if (!mounted) return;
-      setState(() {
-        _canContinueAfterFeedback = true;
-      });
-      return;
-    }
-
-    if (!_canContinueAfterFeedback) return;
+    _answers.add({
+      'questionIndex': _currentQuestionIndex,
+      'selectedOptionIndex': _selectedOptionIndex,
+    });
 
     if (_currentQuestionIndex < _questions.length - 1) {
       setState(() {
         _currentQuestionIndex++;
         _selectedOptionIndex = null;
-        _showFeedback = false;
-        _canContinueAfterFeedback = false;
       });
       return;
     }
@@ -178,9 +130,9 @@ class _QuizScreenState extends State<QuizScreen> {
         timeSpent: elapsed,
         token: widget.token,
       );
-      
+
       await QuizStateService().markQuizAsCompleted(widget.monument.id);
-      
+
       if (!mounted) return;
       setState(() {
         _isSubmitting = false;
@@ -199,11 +151,12 @@ class _QuizScreenState extends State<QuizScreen> {
   Widget build(BuildContext context) {
     // Si ya tenemos resultado final, mostramos la pantalla de resumen
     if (_finalResult != null) {
-      final int score = (_finalResult!['score'] as int?) ?? _score;
+      final int score = (_finalResult!['score'] as int?) ?? 0;
       final int maxScore = (_finalResult!['maxScore'] as int?) ?? _maxScore;
       final double percentage =
           (_finalResult!['percentage'] as num?)?.toDouble() ??
           (maxScore > 0 ? (score * 100 / maxScore) : 0);
+      final review = _finalResult!['review'] as List<dynamic>? ?? const [];
       String gradeText = 'Necesita Mejorar';
       Color gradeColor = Colors.red.shade600;
       IconData gradeIcon = Icons.close;
@@ -292,23 +245,20 @@ class _QuizScreenState extends State<QuizScreen> {
                     final question = qRaw;
                     final options =
                         (question['options'] as List<dynamic>? ?? const []);
-                    int? correctIndex;
-                    for (int i = 0; i < options.length; i++) {
-                      final opt = options[i];
-                      if (opt is Map<String, dynamic> &&
-                          opt['isCorrect'] == true) {
-                        correctIndex = i;
+                    Map<String, dynamic>? reviewEntry;
+                    for (final entry in review) {
+                      if (entry is Map<String, dynamic> &&
+                          entry['questionIndex'] == index) {
+                        reviewEntry = entry;
                         break;
                       }
                     }
-                    final userAnswer = _answers.firstWhere(
-                      (ans) => ans['questionIndex'] == index,
-                      orElse: () => {'selectedOptionIndex': -1},
-                    );
                     final int selectedIndex =
-                        (userAnswer['selectedOptionIndex'] as int?) ?? -1;
+                        (reviewEntry?['selectedOptionIndex'] as int?) ?? -1;
+                    final int correctIndex =
+                        (reviewEntry?['correctOptionIndex'] as int?) ?? -1;
                     final bool isCorrectAnswer =
-                        correctIndex != null && selectedIndex == correctIndex;
+                        reviewEntry?['isCorrect'] == true;
                     final int pts = question['points'] as int? ?? 1;
 
                     return Container(
@@ -375,17 +325,15 @@ class _QuizScreenState extends State<QuizScreen> {
                           ...List.generate(options.length, (optIndex) {
                             final opt = options[optIndex];
                             String optText = '';
-                            bool optCorrect = false;
                             if (opt is Map<String, dynamic>) {
                               optText = (opt['text'] as String?) ?? '';
-                              optCorrect = opt['isCorrect'] == true;
                             } else if (opt is String) {
                               optText = opt;
                             }
                             Color bg = Colors.grey.shade50;
                             Color txt = Colors.grey.shade800;
                             BorderSide border = BorderSide.none;
-                            if (optCorrect) {
+                            if (optIndex == correctIndex) {
                               bg = const Color(0xFFE8F5E9);
                               txt = Colors.green.shade800;
                               border = BorderSide(color: Colors.green.shade400);
@@ -420,7 +368,7 @@ class _QuizScreenState extends State<QuizScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              (question['explanation'] as String?) ??
+                              (reviewEntry?['explanation'] as String?) ??
                                   'Esta es la respuesta correcta.',
                               style: const TextStyle(
                                 fontSize: 12,
@@ -549,7 +497,7 @@ class _QuizScreenState extends State<QuizScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Puntuación: $_score',
+                  'Respondidas: ${_answers.length} de $totalQuestions',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 Text(
@@ -630,86 +578,18 @@ class _QuizScreenState extends State<QuizScreen> {
                             ? options[index]
                             : null;
                         String text = '';
-                        bool isCorrect = false;
                         if (opt is Map<String, dynamic>) {
                           text = (opt['text'] as String?) ?? '';
-                          isCorrect = opt['isCorrect'] == true;
                         } else if (opt is String) {
                           text = opt;
                         }
                         return _QuizOption(
                           text: text,
                           isSelected: _selectedOptionIndex == index,
-                          showFeedback: _showFeedback,
-                          isCorrect: isCorrect,
-                          isUserChoice: _selectedOptionIndex == index,
                           onTap: () => _onSelectOption(index),
                         );
                       },
                     ),
-                  ),
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: _showFeedback && currentQuestion != null
-                        ? 1.0
-                        : 0.0,
-                    child: _showFeedback && currentQuestion != null
-                        ? Container(
-                            margin: const EdgeInsets.only(bottom: 16, top: 4),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFE3F2FD),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: const BoxDecoration(
-                                    color: Color(0xFF1976D2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: const Text(
-                                    'i',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Explicación',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF0D47A1),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        (currentQuestion['explanation']
-                                                as String?) ??
-                                            'Esta es la respuesta correcta.',
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF0D47A1),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        : const SizedBox.shrink(),
                   ),
                 ],
               ),
@@ -720,8 +600,7 @@ class _QuizScreenState extends State<QuizScreen> {
                 onPressed:
                     _isSubmitting ||
                         currentQuestion == null ||
-                        (!_showFeedback && _selectedOptionIndex == null) ||
-                        (_showFeedback && !_canContinueAfterFeedback)
+                        _selectedOptionIndex == null
                     ? null
                     : _onNext,
                 style: ElevatedButton.styleFrom(
@@ -731,7 +610,7 @@ class _QuizScreenState extends State<QuizScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: _showFeedback && !_canContinueAfterFeedback
+                child: _isSubmitting
                     ? const SizedBox(
                         width: 22,
                         height: 22,
@@ -741,11 +620,9 @@ class _QuizScreenState extends State<QuizScreen> {
                         ),
                       )
                     : Text(
-                        !_showFeedback
-                            ? 'Comprobar respuesta'
-                            : (_currentQuestionIndex < _questions.length - 1
-                                  ? 'Siguiente pregunta'
-                                  : 'Ver resultados'),
+                        _currentQuestionIndex < _questions.length - 1
+                            ? 'Siguiente pregunta'
+                            : 'Finalizar y ver resultados',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -764,53 +641,24 @@ class _QuizScreenState extends State<QuizScreen> {
 class _QuizOption extends StatelessWidget {
   final String text;
   final bool isSelected;
-  final bool showFeedback;
-  final bool isCorrect;
-  final bool isUserChoice;
   final VoidCallback onTap;
 
   const _QuizOption({
     required this.text,
     this.isSelected = false,
-    this.showFeedback = false,
-    this.isCorrect = false,
-    this.isUserChoice = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    Color borderColor = Colors.grey.shade200;
-    Color backgroundColor = Colors.white;
-    Color textColor = Colors.black87;
+    final borderColor = isSelected ? AppColors.primary : Colors.grey.shade200;
+    final backgroundColor = isSelected ? AppColors.highlight : Colors.white;
+    const Color textColor = Colors.black87;
 
-    if (showFeedback) {
-      if (isCorrect) {
-        borderColor = Colors.green;
-        backgroundColor = const Color(0xFFE8F5E9);
-        textColor = Colors.green.shade800;
-      } else if (isUserChoice && !isCorrect) {
-        borderColor = Colors.red;
-        backgroundColor = const Color(0xFFFFEBEE);
-        textColor = Colors.red.shade800;
-      }
-    } else {
-      borderColor = isSelected ? AppColors.primary : Colors.grey.shade200;
-      backgroundColor = isSelected ? AppColors.highlight : Colors.white;
-    }
-
-    final feedbackIcon = showFeedback
-        ? (isCorrect
-              ? Icons.check_circle
-              : (isUserChoice ? Icons.cancel : Icons.radio_button_unchecked))
-        : (isSelected
-              ? Icons.radio_button_checked
-              : Icons.radio_button_unchecked);
-    final iconColor = showFeedback
-        ? (isCorrect
-              ? Colors.green
-              : (isUserChoice ? Colors.red : AppColors.textMuted))
-        : (isSelected ? AppColors.primary : AppColors.textMuted);
+    final optionIcon = isSelected
+        ? Icons.radio_button_checked
+        : Icons.radio_button_unchecked;
+    final iconColor = isSelected ? AppColors.primary : AppColors.textMuted;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -823,7 +671,7 @@ class _QuizOption extends StatelessWidget {
           color: backgroundColor,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            onTap: showFeedback ? null : onTap,
+            onTap: onTap,
             borderRadius: BorderRadius.circular(12),
             child: Container(
               constraints: const BoxConstraints(minHeight: 52),
@@ -834,7 +682,7 @@ class _QuizOption extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(feedbackIcon, color: iconColor, size: 22),
+                  Icon(optionIcon, color: iconColor, size: 22),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(

@@ -1,7 +1,9 @@
 import { Router } from 'express';
-import { 
-  listMonument, 
-  getMonument, 
+import {
+  listMonument,
+  getMonument,
+  listMonumentAdmin,
+  getMonumentAdmin,
   createMonumentController, 
   updateMonumentController, 
   deleteMonumentController, 
@@ -28,10 +30,12 @@ const upload = multer({
   }
 });
 
-router.get('/', listMonument);
 router.get('/search', searchMonumentsController);
 router.get('/filter-options', getFilterOptionsController);
-router.get('/stats', getMonumentStatsController);
+router.get('/stats', verifyToken, requireRole('admin'), getMonumentStatsController);
+router.get('/admin', verifyToken, requireRole('admin'), listMonumentAdmin);
+router.get('/admin/:id', verifyToken, requireRole('admin'), getMonumentAdmin);
+router.get('/', listMonument);
 router.get('/:id', getMonument);
 
 router.post('/',

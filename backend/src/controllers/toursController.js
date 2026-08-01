@@ -23,14 +23,16 @@ export async function createTourController(req, res) {
 /**
  * Listar todos los tours con filtros opcionales
  */
-export async function listToursController(req, res) {
+async function listTours(req, res, { publicOnly }) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const filters = {
       institutionId: req.query.institutionId,
       type: req.query.type,
       district: req.query.district,
-      isActive: req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined
+      isActive: publicOnly
+        ? true
+        : (req.query.isActive !== undefined ? req.query.isActive === 'true' : undefined)
     };
     
     const { items, total } = await tourService.getAllTours(filters, {
@@ -44,15 +46,33 @@ export async function listToursController(req, res) {
   }
 }
 
+export function listToursController(req, res) {
+  return listTours(req, res, { publicOnly: true });
+}
+
+export function listToursAdminController(req, res) {
+  return listTours(req, res, { publicOnly: false });
+}
+
 /**
  * Obtener tour por ID
  */
 export async function getTourController(req, res) {
   try {
     const tour = await tourService.getTourById(req.params.id);
-    if (!tour) {
+    if (!tour || tour.isActive !== true) {
       return res.status(404).json({ message: 'Tour not found' });
     }
+    res.json(tour);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function getTourAdminController(req, res) {
+  try {
+    const tour = await tourService.getTourById(req.params.id);
+    if (!tour) return res.status(404).json({ message: 'Tour not found' });
     res.json(tour);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -95,11 +115,10 @@ export async function deleteTourController(req, res) {
 export async function getToursByInstitutionController(req, res) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
-    const activeOnly = req.query.activeOnly !== 'false';
     const { items, total } = await tourService.getToursByInstitution(
       req.params.institutionId,
       {
-        activeOnly,
+        activeOnly: true,
         skip,
         limit,
         populate: shouldPopulateTours(req.query)

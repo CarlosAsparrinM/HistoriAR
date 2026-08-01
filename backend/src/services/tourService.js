@@ -231,7 +231,7 @@ class TourService {
       }
       
       return await applyTourPopulation(
-        Tour.findByIdAndUpdate(tourId, updateData, { new: true }),
+        Tour.findByIdAndUpdate(tourId, updateData, { new: true, runValidators: true }),
         { populate: true }
       );
     } catch (error) {
@@ -251,7 +251,7 @@ class TourService {
       return await Tour.findByIdAndUpdate(
         tourId,
         { monuments: newMonumentsOrder },
-        { new: true }
+        { new: true, runValidators: true }
       ).populate({
         path: 'monuments.monumentId',
         select: TOUR_MONUMENT_FIELDS

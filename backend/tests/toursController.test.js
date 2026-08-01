@@ -46,7 +46,7 @@ describe('toursController', () => {
     expect(res.json).toHaveBeenCalledWith({ page: 3, total: 21, items });
   });
 
-  it('getToursByInstitutionController aplica activeOnly y paginacion', async () => {
+  it('getToursByInstitutionController fuerza tours activos y aplica paginacion', async () => {
     const req = {
       params: { institutionId: 'inst1' },
       query: {
@@ -65,11 +65,49 @@ describe('toursController', () => {
     await controller.getToursByInstitutionController(req, res);
 
     expect(spy).toHaveBeenCalledWith('inst1', {
-      activeOnly: false,
+      activeOnly: true,
       skip: 10,
       limit: 10,
       populate: false
     });
     expect(res.json).toHaveBeenCalledWith({ page: 2, total: 11, items });
+  });
+
+  it('no permite desactivar el filtro de publicación desde la ruta pública', async () => {
+    const req = { query: { isActive: 'false' } };
+    const res = mockRes();
+    const spy = vi
+      .spyOn(tourService, 'getAllTours')
+      .mockResolvedValue({ items: [], total: 0 });
+
+    await controller.listToursController(req, res);
+
+    expect(spy.mock.calls[0][0].isActive).toBe(true);
+  });
+
+  it('permite al controlador admin consultar tours inactivos', async () => {
+    const req = { query: { isActive: 'false' } };
+    const res = mockRes();
+    const spy = vi
+      .spyOn(tourService, 'getAllTours')
+      .mockResolvedValue({ items: [], total: 0 });
+
+    await controller.listToursAdminController(req, res);
+
+    expect(spy.mock.calls[0][0].isActive).toBe(false);
+  });
+
+  it('oculta un tour inactivo aunque se consulte directamente por ID', async () => {
+    const req = { params: { id: 'tour1' } };
+    const res = mockRes();
+    vi.spyOn(tourService, 'getTourById').mockResolvedValue({
+      _id: 'tour1',
+      isActive: false,
+    });
+
+    await controller.getTourController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Tour not found' });
   });
 });

@@ -26,8 +26,15 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] SEC-10: las rutas de autenticación consumen y responden los resultados de `express-validator`.
 - [x] El hash de contraseña se excluye por defecto del modelo de usuario.
 - [x] `backend/package-lock.json` validado contra `package.json` y habilitado para seguimiento en Git.
-- [x] Suite backend: 14 archivos y 86 pruebas aprobadas con Node 20.20.2.
-- [ ] Revisión y merge de este primer bloque.
+- [x] Checkpoint P0 creado: `98b5a69 fix(security): close critical auth and ownership gaps`.
+- [x] SEC-06: los DTO públicos de trivia ya no incluyen `isCorrect` ni explicaciones; el panel usa rutas administrativas protegidas.
+- [x] SEC-07: retirado el evaluador antiguo; el envío valida integridad del intento, calcula en servidor y devuelve revisión solo al finalizar.
+- [x] SEC-08: monumentos, instituciones, tours y quizzes públicos filtran contenido publicado tanto en listas como por ID.
+- [x] Flutter dejó de calcular respuestas o puntajes con datos públicos y consume la revisión emitida por el backend.
+- [x] Validadores Mongoose activados en las actualizaciones de monumentos, quizzes, instituciones y tours incluidas en este bloque (avance de SEC-11).
+- [x] Suite backend: 17 archivos y 102 pruebas aprobadas con Node 20.20.2.
+- [ ] `flutter analyze` del archivo modificado: pendiente por timeout del SDK local tras más de 3 minutos; revisión de diff completada sin referencias al contrato inseguro.
+- [ ] Revisión y merge de los checkpoints locales.
 - [ ] Hallazgos P1 y P2 restantes.
 
 ## 2. Objetivos

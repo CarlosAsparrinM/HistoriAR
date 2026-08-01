@@ -161,13 +161,13 @@ async function hydrateMonumentMedia(monument) {
   ]);
 }
 
-export async function listMonument(req, res) {
+async function listMonuments(req, res, { publicOnly }) {
   try {
     const { skip, limit, page } = buildPagination(req.query);
     const filter = {};
     if (req.query.categoryId) filter.categoryId = req.query.categoryId;
     if (req.query.category) filter.categoryId = req.query.category;
-    if (req.query.status)   filter.status   = req.query.status;
+    if (!publicOnly && req.query.status) filter.status = req.query.status;
 
     if (req.query.hasModel === 'true') {
       filter.model3DUrl = { $nin: [null, ''] };
@@ -176,7 +176,7 @@ export async function listMonument(req, res) {
     }
     
     // Support availableOnly filter
-    if (req.query.availableOnly === 'true') {
+    if (publicOnly || req.query.availableOnly === 'true') {
       filter.status = 'Disponible';
     }
     
@@ -189,6 +189,14 @@ export async function listMonument(req, res) {
     const hydratedItems = await Promise.all(items.map(hydrateMonumentMedia));
     res.json({ page, total, items: hydratedItems });
   } catch (err) { res.status(500).json({ message: err.message }); }
+}
+
+export function listMonument(req, res) {
+  return listMonuments(req, res, { publicOnly: true });
+}
+
+export function listMonumentAdmin(req, res) {
+  return listMonuments(req, res, { publicOnly: false });
 }
 
 export async function getMonumentStatsController(req, res) {
@@ -206,13 +214,19 @@ export async function getMonumentStatsController(req, res) {
 
 export async function getMonument(req, res) {
   const doc = await getMonumentById(req.params.id, req.query.populate === 'true');
+  if (!doc || doc.status !== 'Disponible') return res.status(404).json({ message: 'No encontrado' });
+  res.json(await hydrateMonumentMedia(doc));
+}
+
+export async function getMonumentAdmin(req, res) {
+  const doc = await getMonumentById(req.params.id, req.query.populate === 'true');
   if (!doc) return res.status(404).json({ message: 'No encontrado' });
   res.json(await hydrateMonumentMedia(doc));
 }
 
 export async function createMonumentController(req, res) {
   try {
-    const payload = normalizeMonumentPayload({ ...req.body, createdBy: req.user?.sub });
+    const payload = normalizeMonumentPayload({ ...req.body, createdBy: req.user?.id });
     
     // Note: Image and model uploads should be done through /api/uploads endpoints
     // This controller only handles monument data creation

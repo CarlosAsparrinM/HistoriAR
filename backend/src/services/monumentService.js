@@ -39,7 +39,7 @@ export async function createMonument(data) {
 }
 
 export async function updateMonument(id, data) {
-  return await Monument.findByIdAndUpdate(id, data, { new: true });
+  return await Monument.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteMonument(id) {
