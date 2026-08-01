@@ -62,6 +62,7 @@ import { toast } from 'sonner';
 import apiService from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
+import { buildMonumentPayload } from '../utils/monumentFormPayload';
 
 // Esta función se actualizará dinámicamente con las categorías de la base de datos
 
@@ -877,44 +878,7 @@ function MonumentForm({ onClose, monument = null, institutions = [], categories 
     setIsSubmitting(true);
     
     try {
-      const payload = {
-        ...formData,
-        culture: formData.cultures[0] || null,
-        cultures: formData.cultures,
-        period: {
-          ...formData.period,
-          isIdentified: Boolean(formData.period.isIdentified),
-          startYear: formData.period.isIdentified ? sanitizeYearInput(formData.period.startYear) : null,
-          endYear: formData.period.isIdentified ? sanitizeYearInput(formData.period.endYear) : null
-        },
-        discovery: {
-          ...formData.discovery,
-          isDateKnown: formData.discovery.datePrecision !== 'unknown',
-          datePrecision: formData.discovery.datePrecision,
-          discoveredAt:
-            formData.discovery.datePrecision === 'exact'
-              ? formData.discovery.discoveredAt
-              : formData.discovery.datePrecision === 'month'
-                ? `${String(formData.discovery.discoveredYear).padStart(4, '0')}-${String(formData.discovery.discoveredMonth).padStart(2, '0')}-01`
-                : formData.discovery.datePrecision === 'year'
-                  ? `${String(formData.discovery.discoveredYear).padStart(4, '0')}-01-01`
-                  : null,
-          discoveredYear:
-            formData.discovery.datePrecision === 'unknown'
-              ? null
-              : (formData.discovery.discoveredYear === '' || formData.discovery.discoveredYear === null || formData.discovery.discoveredYear === undefined
-                ? null
-                : Number(formData.discovery.discoveredYear)),
-          discoveredMonth:
-            formData.discovery.datePrecision === 'month'
-              ? (formData.discovery.discoveredMonth === '' || formData.discovery.discoveredMonth === null || formData.discovery.discoveredMonth === undefined
-                ? null
-                : Number(formData.discovery.discoveredMonth))
-              : null,
-          isDiscovererKnown: Boolean(formData.discovery.isDiscovererKnown),
-          discovererName: formData.discovery.isDiscovererKnown ? formData.discovery.discovererName.trim() : null
-        }
-      };
+      const payload = buildMonumentPayload(formData, sanitizeYearInput);
 
       if (monument) {
         // Actualizar monumento existente
