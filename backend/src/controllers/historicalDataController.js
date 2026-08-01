@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia } from '../utils/s3-helpers.js';
-import { sanitizeStorageFileName, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
+import { buildManagedUploadKey, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
@@ -88,10 +88,11 @@ export async function createHistoricalData(req, res) {
           fileSize: req.file.size,
         });
         validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
-        const timestamp = Date.now();
-        const filename = `historical_${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
-        
-        s3ImageKey = `images/monuments/${monumentId}/historical/${filename}`;
+        s3ImageKey = buildManagedUploadKey({
+          resourceType: 'monument-image', resourceId: monumentId, fileName: req.file.originalname,
+          contentType: req.file.mimetype, fileSize: req.file.size,
+        });
+        const filename = s3ImageKey.split('/').pop();
         imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
           s3ImageKey,
@@ -179,10 +180,11 @@ export async function updateHistoricalData(req, res) {
           fileSize: req.file.size,
         });
         validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
-        const timestamp = Date.now();
-        const filename = `historical_${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
-        
-        const s3ImageKey = `images/monuments/${historicalData.monumentId}/historical/${filename}`;
+        const s3ImageKey = buildManagedUploadKey({
+          resourceType: 'monument-image', resourceId: historicalData.monumentId.toString(), fileName: req.file.originalname,
+          contentType: req.file.mimetype, fileSize: req.file.size,
+        });
+        const filename = s3ImageKey.split('/').pop();
         const imageUrl = await s3Service.uploadFileToS3(
           req.file.buffer,
           s3ImageKey,

@@ -36,6 +36,10 @@ export const resolveS3Key = (value) => {
   }
 };
 
+// La clave es la referencia canónica en base de datos. La URL solo se usa como
+// compatibilidad con registros históricos que todavía no guardan la clave.
+export const resolveStoredMediaKey = ({ key, url } = {}) => resolveS3Key(key) || resolveS3Key(url);
+
 export const generatePresignedGetUrl = async ({ key, expiresIn = PUBLIC_URL_EXPIRES_IN }) => {
   assertManagedStorageKey(key);
   const s3Client = getS3Client();

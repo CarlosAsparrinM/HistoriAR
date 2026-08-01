@@ -47,12 +47,14 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] Panel administrativo: 6 pruebas de sesión y operaciones críticas aprobadas, ESLint global sin errores ni advertencias y build Vite de producción aprobado.
 - [x] QA-01: corregidos exports incompatibles con Fast Refresh, variables sin uso y dependencias inestables de efectos; eliminadas cargas duplicadas en fichas históricas/quizzes y refetches recursivos en experiencias 3D; cubiertas las operaciones administrativas críticas de editar monumento, eliminar institución, actualizar usuario, activar modelo y reordenar historia.
 - [x] DATA-01: las visitas registran `experienceType` (`ar` o `model3d`) y el dashboard cuenta únicamente sesiones AR confirmadas; los registros históricos sin clasificación no inflan la métrica.
+- [x] DATA-02: las cargas de medios nuevas construyen claves S3 gestionadas de forma centralizada; la clave persistida es canónica y la URL queda como compatibilidad para registros anteriores.
 - [x] La creación de visitas usa listas permitidas y fuerza el propietario autenticado; un usuario normal no puede inyectar fecha, propietario ni campos desconocidos.
 - [x] QA-02: workflow CI con permisos de solo lectura para backend, panel y Flutter; ejecuta instalaciones bloqueadas, pruebas, lint/análisis y build del panel sin pasos de despliegue.
 - [x] Suite Flutter: 32 pruebas aprobadas y `flutter analyze --no-pub` sin hallazgos.
 - [ ] Build real de la imagen Docker: pendiente porque Docker Desktop/daemon no está activo en el entorno local; el contrato del Dockerfile tiene pruebas automatizadas.
 - [ ] Revisión y merge de los checkpoints locales.
-- [ ] Hallazgos P2 restantes.
+- [x] DOC-01: documentación técnica enlazada a una guía de operación Docker independiente del proveedor, con build local, variables, verificación, actualización y rollback.
+- [ ] MAINT-01: normalización de monumentos extraída del controlador y tarjetas de métricas extraídas de la pantalla; queda pendiente separar el formulario de monumentos, que aún concentra la mayor parte de la complejidad.
 
 ## 2. Objetivos
 

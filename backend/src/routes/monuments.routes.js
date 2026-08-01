@@ -18,7 +18,7 @@ import {
 } from '../controllers/monumentsController.js';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
 import { uploadImageToS3 } from '../services/s3Service.js';
-import { sanitizeStorageFileName, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
+import { buildManagedUploadKey, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
 import { uploadImage, uploadModel } from '../utils/uploader.js';
 
 const router = Router();
@@ -78,8 +78,11 @@ router.post('/:id/upload-image', verifyToken, requireRole('admin'), uploadImage.
       fileSize: req.file.size,
     });
     validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
-    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
-    const key = `images/monuments/${monumentId}/${filename}`;
+    const key = buildManagedUploadKey({
+      resourceType: 'monument-image', resourceId: monumentId, fileName: req.file.originalname,
+      contentType: req.file.mimetype, fileSize: req.file.size,
+    });
+    const filename = key.split('/').pop();
     
     // Upload to S3 in images/monuments/ folder
     const imageUrl = await uploadImageToS3(
@@ -143,8 +146,11 @@ router.post('/upload-model', verifyToken, requireRole('admin'), uploadModel.sing
       fileSize: req.file.size,
     });
     validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
-    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
-    const key = `models/monuments/${monumentId}/${filename}`;
+    const key = buildManagedUploadKey({
+      resourceType: 'monument-model', resourceId: monumentId, fileName: req.file.originalname,
+      contentType: req.file.mimetype, fileSize: req.file.size,
+    });
+    const filename = key.split('/').pop();
 
     // Upload to S3
     const modelUrl = await s3Service.uploadModelToS3(
@@ -158,6 +164,7 @@ router.post('/upload-model', verifyToken, requireRole('admin'), uploadModel.sing
     await Monument.findByIdAndUpdate(monumentId, {
       model3DUrl: modelUrl,
       s3ModelKey: key,
+      key,
       s3ModelFileName: filename
     }, { runValidators: true });
 

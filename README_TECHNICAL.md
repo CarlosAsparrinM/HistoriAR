@@ -430,6 +430,9 @@ La imagen escucha en el puerto `4000`, ejecuta como usuario no-root e incluye
 asume en este repositorio. Las migraciones se ejecutan como una tarea separada y
 controlada; no forman parte automática del arranque.
 
+El procedimiento de variables, verificación local, actualización y rollback se
+detalla en [backend/docs/DEPLOYMENT_DOCKER.md](backend/docs/DEPLOYMENT_DOCKER.md).
+
 ### Admin Panel
 
 ```bash

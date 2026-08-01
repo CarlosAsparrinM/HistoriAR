@@ -32,6 +32,15 @@ describe('s3Service managed storage boundaries', () => {
     expect(s3Service.resolveS3Key('backups/database.dump')).toBeNull();
   });
 
+  it('prioriza la clave persistida y usa la URL solo para registros legados', () => {
+    const legacyUrl = `https://historiar-test.s3.us-east-1.amazonaws.com/${modelKey}`;
+    expect(s3Service.resolveStoredMediaKey({ key: modelKey, url: 'https://evil.example/file' }))
+      .toBe(modelKey);
+    expect(s3Service.resolveStoredMediaKey({ url: legacyUrl })).toBe(modelKey);
+    expect(s3Service.resolveStoredMediaKey({ key: 'backups/database.dump', url: 'https://evil.example/file' }))
+      .toBeNull();
+  });
+
   it('incluye MIME y tamaño validados en el comando de upload firmado', async () => {
     mocks.getSignedUrl.mockResolvedValue('https://signed.example');
 

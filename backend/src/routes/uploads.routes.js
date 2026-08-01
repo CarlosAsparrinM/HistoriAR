@@ -119,6 +119,7 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
 
     res.json({
       imageUrl,
+      key,
       s3Key: key,
       filename,
       message: 'Image uploaded successfully to S3'
@@ -163,6 +164,7 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
 
     res.json({
       modelUrl,
+      key,
       s3Key: key,
       filename,
       message: '3D model uploaded successfully to S3'

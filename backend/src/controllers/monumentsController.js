@@ -2,32 +2,18 @@ import { buildPagination } from '../utils/pagination.js';
 import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions, getMonumentStats } from '../services/monumentService.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia, signIfNeeded } from '../utils/s3-helpers.js';
+import { normalizeMonumentPayload } from '../utils/monumentPayload.js';
 import {
   assertResourceStorageKey,
-  sanitizeStorageFileName,
+  buildManagedUploadKey,
   validateUploadMetadata,
   validateUploadedFileSignature,
 } from '../utils/storageSecurity.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
-function parseBooleanFlag(value, defaultValue = false) {
-  if (value === undefined || value === null || value === '') return defaultValue;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') return value.toLowerCase() === 'true';
-  return Boolean(value);
-}
-
-function toNullableInteger(value) {
-  if (value === undefined || value === null || value === '') return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) {
-    throw new Error('Los anios del periodo deben ser numericos.');
-  }
-  return Math.trunc(parsed);
-}
-
-function normalizeMonumentPayload(payload) {
+function normalizeMonumentPayloadLegacy(payload) {
+  /* legacy implementation retained temporarily for compatibility review
   const normalized = { ...payload };
 
   const shouldNormalizeCultures = Object.prototype.hasOwnProperty.call(normalized, 'cultures')
@@ -157,6 +143,7 @@ function normalizeMonumentPayload(payload) {
   }
 
   return normalized;
+  */
 }
 
 async function hydrateMonumentMedia(monument) {
@@ -195,6 +182,14 @@ async function listMonuments(req, res, { publicOnly }) {
     const hydratedItems = await Promise.all(items.map(hydrateMonumentMedia));
     res.json({ page, total, items: hydratedItems });
   } catch (err) { res.status(500).json({ message: err.message }); }
+}
+
+function toCanonicalMediaReference(key, url) {
+  const resolvedKey = s3Service.resolveStoredMediaKey({ key, url });
+  return {
+    key: resolvedKey,
+    url: resolvedKey ? s3Service.buildPublicS3Url(resolvedKey) : (url || null),
+  };
 }
 
 export function listMonument(req, res) {
@@ -401,11 +396,13 @@ export async function activateModelVersionController(req, res) {
     await versionToActivate.save();
 
     // Update monument with this version's URL
+    const model = toCanonicalMediaReference(versionToActivate.s3Key, versionToActivate.url);
+    const tiles = toCanonicalMediaReference(null, versionToActivate.tilesUrl);
     await updateMonument(monumentId, {
-      model3DUrl: versionToActivate.url,
-      s3ModelKey: versionToActivate.s3Key || s3Service.resolveS3Key(versionToActivate.url),
-      model3DTilesUrl: versionToActivate.tilesUrl || null,
-      s3ModelTilesKey: s3Service.resolveS3Key(versionToActivate.tilesUrl),
+      model3DUrl: model.url,
+      s3ModelKey: model.key,
+      model3DTilesUrl: tiles.url,
+      s3ModelTilesKey: tiles.key,
       s3ModelFileName: versionToActivate.filename
     });
 
@@ -463,7 +460,8 @@ export async function deleteModelVersionController(req, res) {
 
     // Delete file from S3
     try {
-      await s3Service.deleteFileFromS3(versionToDelete.url);
+      const key = s3Service.resolveStoredMediaKey({ key: versionToDelete.s3Key, url: versionToDelete.url });
+      if (key) await s3Service.deleteFileFromS3(key);
       
       // Delete tiles if they exist
       if (versionToDelete.tilesUrl) {
@@ -489,11 +487,13 @@ export async function deleteModelVersionController(req, res) {
         await latestVersion.save();
         
         // Update monument with the new active version
+        const model = toCanonicalMediaReference(latestVersion.s3Key, latestVersion.url);
+        const tiles = toCanonicalMediaReference(null, latestVersion.tilesUrl);
         await updateMonument(monumentId, {
-          model3DUrl: latestVersion.url,
-          s3ModelKey: latestVersion.s3Key || s3Service.resolveS3Key(latestVersion.url),
-          model3DTilesUrl: latestVersion.tilesUrl || null,
-          s3ModelTilesKey: s3Service.resolveS3Key(latestVersion.tilesUrl),
+          model3DUrl: model.url,
+          s3ModelKey: model.key,
+          model3DTilesUrl: tiles.url,
+          s3ModelTilesKey: tiles.key,
           s3ModelFileName: latestVersion.filename
         });
       } else {
@@ -553,11 +553,13 @@ export async function uploadModelVersionController(req, res) {
     }
 
     // Generate unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
+    const modelKey = buildManagedUploadKey({
+      resourceType: 'monument-model', resourceId: monumentId, fileName: req.file.originalname,
+      contentType: req.file.mimetype, fileSize: req.file.size,
+    });
+    const filename = modelKey.split('/').pop();
 
     // Upload to S3
-    const modelKey = `models/monuments/${monumentId}/${filename}`;
     const modelUrl = await s3Service.uploadModelToS3(
       req.file.buffer,
       filename,

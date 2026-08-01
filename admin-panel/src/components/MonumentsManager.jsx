@@ -57,6 +57,7 @@ import {
 } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import ImageUpload from './ImageUpload';
+import MonumentStatCard from './MonumentStatCard';
 import { toast } from 'sonner';
 import apiService from '../services/api';
 import { useQueryClient } from '@tanstack/react-query';
@@ -408,67 +409,13 @@ function MonumentsManager() {
 
       {/* Estadísticas rápidas */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <MapPin className="w-4 h-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Total Monumentos</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <MonumentStatCard label="Total Monumentos" value={stats.total} icon={MapPin} iconContainerClassName="bg-blue-100" iconClassName="text-blue-600" />
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                <Eye className="w-4 h-4 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Disponibles</p>
-                <p className="text-2xl font-bold">
-                  {stats.available}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <MonumentStatCard label="Disponibles" value={stats.available} icon={Eye} iconContainerClassName="bg-green-100" iconClassName="text-green-600" />
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                <Edit className="w-4 h-4 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Ocultos</p>
-                <p className="text-2xl font-bold">
-                  {stats.hidden}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <MonumentStatCard label="Ocultos" value={stats.hidden} icon={Edit} iconContainerClassName="bg-orange-100" iconClassName="text-orange-600" />
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Box className="w-4 h-4 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Con Modelo 3D</p>
-                <p className="text-2xl font-bold">
-                  {stats.withModel3D}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <MonumentStatCard label="Con Modelo 3D" value={stats.withModel3D} icon={Box} iconContainerClassName="bg-purple-100" iconClassName="text-purple-600" />
       </div>
 
       {/* Tabla de monumentos */}
