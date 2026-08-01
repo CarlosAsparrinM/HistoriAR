@@ -2,6 +2,12 @@ import { buildPagination } from '../utils/pagination.js';
 import { getAllMonuments, getMonumentById, createMonument, updateMonument, deleteMonument, searchMonuments, getFilterOptions, getMonumentStats } from '../services/monumentService.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia, signIfNeeded } from '../utils/s3-helpers.js';
+import {
+  assertResourceStorageKey,
+  sanitizeStorageFileName,
+  validateUploadMetadata,
+  validateUploadedFileSignature,
+} from '../utils/storageSecurity.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
@@ -523,16 +529,20 @@ export async function uploadModelVersionController(req, res) {
       return res.status(400).json({ message: 'No model file provided' });
     }
 
-    // Validate file type
-    const allowedTypes = ['model/gltf-binary', 'application/octet-stream', 'model/gltf+json'];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ message: 'Only GLB and GLTF model files are allowed' });
-    }
-
-    // Validate file size (50MB max)
-    const maxSize = 50 * 1024 * 1024;
-    if (req.file.size > maxSize) {
-      return res.status(400).json({ message: 'Model size must be less than 50MB' });
+    try {
+      validateUploadMetadata({
+        resourceType: 'monument-model',
+        resourceId: monumentId,
+        fileName: req.file.originalname,
+        contentType: req.file.mimetype,
+        fileSize: req.file.size,
+      });
+      validateUploadedFileSignature({
+        buffer: req.file.buffer,
+        contentType: req.file.mimetype,
+      });
+    } catch (validationError) {
+      return res.status(400).json({ message: validationError.message });
     }
 
     // Get monument to verify it exists
@@ -543,7 +553,7 @@ export async function uploadModelVersionController(req, res) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const filename = `${timestamp}_${req.file.originalname}`;
+    const filename = `${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
 
     // Upload to S3
     const modelKey = `models/monuments/${monumentId}/${filename}`;
@@ -606,22 +616,45 @@ export async function uploadModelVersionController(req, res) {
  * Confirm a direct-to-S3 upload for a new 3D model version
  */
 export async function confirmModelVersionUploadController(req, res) {
+  const { id: monumentId } = req.params;
+  const userId = req.user?.id;
+  const { key, filename, fileSize, contentType, tilesUrl = null } = req.body;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'User authentication failed' });
+  }
+
   try {
-    const { id: monumentId } = req.params;
-    const userId = req.user?.sub || req.user?.id || req.user?._id;
-    const { key, filename, fileSize, tilesUrl = null } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({ message: 'User authentication failed' });
+    if (!key || !filename || !fileSize || !contentType) {
+      throw new Error('key, filename, fileSize and contentType are required');
     }
-
-    if (!key || !filename || !fileSize) {
-      return res.status(400).json({ message: 'key, filename and fileSize are required' });
+    assertResourceStorageKey({ key, resourceType: 'monument-model', resourceId: monumentId });
+    validateUploadMetadata({
+      resourceType: 'monument-model',
+      resourceId: monumentId,
+      fileName: filename,
+      contentType,
+      fileSize,
+    });
+    if (tilesUrl && !s3Service.resolveS3Key(tilesUrl)) {
+      throw new Error('tilesUrl no pertenece al almacenamiento administrado');
     }
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
 
+  try {
     const monument = await getMonumentById(monumentId);
     if (!monument) {
       return res.status(404).json({ message: 'Monument not found' });
+    }
+
+    const storedObject = await s3Service.headStoredObject(key);
+    if (storedObject.contentLength !== Number(fileSize)
+        || storedObject.contentType !== contentType) {
+      return res.status(400).json({
+        message: 'El objeto almacenado no coincide con el tamaño o tipo declarado'
+      });
     }
 
     const ModelVersion = (await import('../models/ModelVersion.js')).default;
@@ -669,6 +702,6 @@ export async function confirmModelVersionUploadController(req, res) {
     });
   } catch (err) {
     console.error('Error confirming model version upload:', err);
-    res.status(500).json({ message: err.message || 'Internal server error' });
+    res.status(500).json({ message: 'Failed to verify or register model upload' });
   }
 }

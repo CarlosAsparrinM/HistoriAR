@@ -30,9 +30,13 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] SEC-06: los DTO públicos de trivia ya no incluyen `isCorrect` ni explicaciones; el panel usa rutas administrativas protegidas.
 - [x] SEC-07: retirado el evaluador antiguo; el envío valida integridad del intento, calcula en servidor y devuelve revisión solo al finalizar.
 - [x] SEC-08: monumentos, instituciones, tours y quizzes públicos filtran contenido publicado tanto en listas como por ID.
+- [x] SEC-12: las claves de uploads firmados se generan en servidor; se validan recurso, ID, extensión, MIME, tamaño, firma binaria, expiración y prefijos administrados.
+- [x] SEC-12: la confirmación de modelos consulta `HeadObject` y compara tamaño/MIME antes de registrar o activar una versión.
+- [x] DATA-02: la ruta guardada para imágenes de monumentos coincide con la clave realmente usada por el servicio S3.
 - [x] Flutter dejó de calcular respuestas o puntajes con datos públicos y consume la revisión emitida por el backend.
 - [x] Validadores Mongoose activados en las actualizaciones de monumentos, quizzes, instituciones y tours incluidas en este bloque (avance de SEC-11).
-- [x] Suite backend: 17 archivos y 102 pruebas aprobadas con Node 20.20.2.
+- [x] Suite backend: 20 archivos y 119 pruebas aprobadas con Node 20.20.2.
+- [x] Panel administrativo: ESLint sin errores ni advertencias en los archivos modificados y build Vite de producción aprobado.
 - [ ] `flutter analyze` del archivo modificado: pendiente por timeout del SDK local tras más de 3 minutos; revisión de diff completada sin referencias al contrato inseguro.
 - [ ] Revisión y merge de los checkpoints locales.
 - [ ] Hallazgos P1 y P2 restantes.

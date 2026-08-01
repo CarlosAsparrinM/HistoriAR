@@ -130,11 +130,12 @@ function ModelUpload({
     setUploadProgress(0);
     
     try {
-      const safeName = selectedFile.name.replace(/\s+/g, '_');
-      const key = `models/monuments/${monumentId}/${Date.now()}_${safeName}`;
-      const { url: presignedUrl, publicUrl } = await apiService.getPresignedUploadUrl({
-        key,
+      const { url: presignedUrl, publicUrl, key } = await apiService.getPresignedUploadUrl({
+        resourceType: 'monument-model',
+        resourceId: monumentId,
+        fileName: selectedFile.name,
         contentType: selectedFile.type || 'application/octet-stream',
+        fileSize: selectedFile.size,
         expiresIn: 900,
       });
 

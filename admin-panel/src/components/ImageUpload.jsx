@@ -21,7 +21,7 @@ import PropTypes from 'prop-types';
 import Api from '../services/api';
 
 const ACCEPTED_FORMATS = ['.jpg', '.jpeg', '.png', '.webp'];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
 function ImageUpload({ 
   onUploadComplete, 
@@ -125,15 +125,15 @@ function ImageUpload({
     
     try {
       const entityId = monumentId || entityType;
-      const safeName = selectedFile.name.replace(/\s+/g, '_');
-      const keyPrefix = entityType === 'institutions'
-        ? `images/institutions/${entityId}`
-        : `images/monuments/${entityId}`;
-      const key = `${keyPrefix}/${Date.now()}_${safeName}`;
 
-      const { url: presignedUrl, publicUrl } = await Api.getPresignedUploadUrl({
-        key,
+      const { url: presignedUrl, publicUrl, key } = await Api.getPresignedUploadUrl({
+        resourceType: entityType === 'institutions'
+          ? 'institution-image'
+          : 'monument-image',
+        resourceId: entityId,
+        fileName: selectedFile.name,
         contentType: selectedFile.type || 'application/octet-stream',
+        fileSize: selectedFile.size,
         expiresIn: 900,
       });
 
@@ -167,7 +167,11 @@ function ImageUpload({
       }
 
       setTimeout(() => {
-        clearSelection();
+        setSelectedFile(null);
+        setUploadStatus('idle');
+        setUploadProgress(0);
+        setErrorMessage('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }, 2000);
 
     } catch (error) {

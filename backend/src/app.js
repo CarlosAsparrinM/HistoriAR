@@ -51,7 +51,7 @@ console.log('CORS allowed origins:', allowedOrigins);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Debug: log the origin to help diagnose CORS issues (visible in Vercel logs)
+    // Debug: visible en los logs del contenedor Docker.
     // Allow requests with no origin (mobile apps, Postman, etc.)
     console.log('CORS origin received:', origin);
     if (!origin) return callback(null, true);
@@ -96,6 +96,29 @@ app.use('/api/tours', tourRoutes);
 app.use('/api/location', locationRoutes);
 app.use('/api/alerts', alertsRoutes);
 app.use('/api/stats', statsRoutes);
+
+app.use((err, _req, res, next) => {
+  if (res.headersSent) return next(err);
+
+  if (err?.name === 'MulterError') {
+    const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+    return res.status(status).json({
+      message: status === 413 ? 'El archivo excede el tamaño permitido' : 'Upload inválido'
+    });
+  }
+
+  if (err?.message?.startsWith('Invalid image format')
+      || err?.message?.startsWith('Invalid file format')) {
+    return res.status(400).json({ message: err.message });
+  }
+
+  if (err?.message === 'Not allowed by CORS') {
+    return res.status(403).json({ message: 'Origen no permitido' });
+  }
+
+  console.error('Unhandled request error:', err);
+  return res.status(500).json({ message: 'Error interno del servidor' });
+});
 
 app.use((req, res) => res.status(404).json({ message: 'Ruta no encontrada' }));
 

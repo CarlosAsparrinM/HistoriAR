@@ -1,12 +1,14 @@
 import { 
   PutObjectCommand, 
   GetObjectCommand,
+  HeadObjectCommand,
   DeleteObjectCommand, 
   DeleteObjectsCommand, 
   ListObjectsV2Command
 } from '@aws-sdk/client-s3';
 import { getS3Client, getBucketName, getRegion } from '../config/s3.js';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { assertManagedStorageKey, isManagedStorageKey } from '../utils/storageSecurity.js';
 
 const PUBLIC_URL_EXPIRES_IN = 60 * 60;
 
@@ -19,19 +21,23 @@ export const buildPublicS3Url = (key) => {
 export const resolveS3Key = (value) => {
   if (!value) return null;
 
-  if (value.startsWith('images/') || value.startsWith('models/') || value.startsWith('historical/')) {
-    return value;
-  }
+  if (isManagedStorageKey(value)) return value;
 
   const bucketName = getBucketName();
   const region = getRegion();
-  const urlPattern = new RegExp(`https://${bucketName}\\.s3\\.${region}\\.amazonaws\\.com/(.+)`);
-  const match = value.match(urlPattern);
-  if (!match) return null;
-  return decodeURIComponent(match[1].split('?')[0]);
+  try {
+    const parsedUrl = new URL(value);
+    const expectedHost = `${bucketName}.s3.${region}.amazonaws.com`;
+    if (parsedUrl.protocol !== 'https:' || parsedUrl.hostname !== expectedHost) return null;
+    const key = decodeURIComponent(parsedUrl.pathname.replace(/^\/+/, ''));
+    return isManagedStorageKey(key) ? key : null;
+  } catch {
+    return null;
+  }
 };
 
 export const generatePresignedGetUrl = async ({ key, expiresIn = PUBLIC_URL_EXPIRES_IN }) => {
+  assertManagedStorageKey(key);
   const s3Client = getS3Client();
   const bucketName = getBucketName();
   const command = new GetObjectCommand({
@@ -49,29 +55,35 @@ export const generatePresignedGetUrl = async ({ key, expiresIn = PUBLIC_URL_EXPI
  * @param {number} options.expiresIn - Expiration in seconds
  * @returns {Promise<string>} Presigned URL
  */
-export const generatePresignedPutUrl = async ({ key, contentType, expiresIn = 3600 }) => {
+export const generatePresignedPutUrl = async ({
+  key,
+  contentType,
+  contentLength,
+  expiresIn = 3600,
+}) => {
+  assertManagedStorageKey(key);
   const s3Client = getS3Client();
   const bucketName = getBucketName();
   const command = new PutObjectCommand({
     Bucket: bucketName,
     Key: key,
     ContentType: contentType,
+    ContentLength: contentLength,
   });
   const url = await getSignedUrl(s3Client, command, { expiresIn });
   return url;
 };
 
-/**
- * Extract S3 key from URL
- * @param {string} url - S3 URL
- * @returns {string|null} S3 key or null if invalid URL
- */
-const extractKeyFromUrl = (url) => {
-  const bucketName = getBucketName();
-  const region = getRegion();
-  const urlPattern = new RegExp(`https://${bucketName}\\.s3\\.${region}\\.amazonaws\\.com/(.+)`);
-  const match = url.match(urlPattern);
-  return match ? decodeURIComponent(match[1]) : null;
+export const headStoredObject = async (key) => {
+  assertManagedStorageKey(key);
+  const response = await getS3Client().send(new HeadObjectCommand({
+    Bucket: getBucketName(),
+    Key: key,
+  }));
+  return {
+    contentLength: response.ContentLength,
+    contentType: response.ContentType,
+  };
 };
 
 /**
@@ -112,18 +124,6 @@ const handleS3Error = (error) => {
  */
 export const uploadImageToS3 = async (fileBuffer, fileName, monumentId, contentType = 'image/jpeg') => {
   const key = `images/monuments/${monumentId}/${fileName}`;
-  return uploadFileToS3(fileBuffer, key, contentType);
-};
-
-/**
- * Upload monument image to S3 in monuments folder
- * @param {Buffer} fileBuffer - File buffer
- * @param {string} fileName - File name
- * @param {string} contentType - MIME type (default: image/jpeg)
- * @returns {Promise<string>} Public URL of uploaded file
- */
-export const uploadMonumentImageToS3 = async (fileBuffer, fileName, contentType = 'image/jpeg') => {
-  const key = `images/monuments/${fileName}`;
   return uploadFileToS3(fileBuffer, key, contentType);
 };
 
@@ -259,6 +259,7 @@ export const deleteMonumentFiles = async (monumentId) => {
  */
 export const uploadFileToS3 = async (fileBuffer, key, contentType) => {
   try {
+    assertManagedStorageKey(key);
     const s3Client = getS3Client();
     const bucketName = getBucketName();
 

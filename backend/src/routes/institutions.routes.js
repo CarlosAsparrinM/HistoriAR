@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { listInstitution, getInstitution, listInstitutionAdmin, getInstitutionAdmin, createInstitutionController, updateInstitutionController, deleteInstitutionController, getInstitutionStatsController } from '../controllers/institutionsController.js';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
-import multer from 'multer';
+import { uploadImage } from '../utils/uploader.js';
+import { sanitizeStorageFileName, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
 // Upload endpoint for institution images - MUST be before /:id route
-router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/upload-image', verifyToken, requireRole('admin'), uploadImage.single('image'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file provided' });
@@ -21,16 +21,14 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
     const s3Service = await import('../services/s3Service.js');
     const Institution = (await import('../models/Institution.js')).default;
     
-    // Validate image file
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: 'Only JPG and PNG images are allowed' });
-    }
-
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (req.file.size > maxSize) {
-      return res.status(400).json({ error: 'Image size must be less than 5MB' });
-    }
+    validateUploadMetadata({
+      resourceType: 'institution-image',
+      resourceId: monumentId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+    validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
 
     // Obtener la institución actual para verificar si tiene imagen previa
     const institution = await Institution.findById(monumentId);
@@ -51,9 +49,9 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
 
     // Crear nombre de archivo único: institution_{institutionId}_{timestamp}.ext
     const timestamp = Date.now();
-    const extension = req.file.originalname.split('.').pop();
-    const filename = `institution_${monumentId}_${timestamp}.${extension}`;
-    const key = `images/institutions/${filename}`;
+    const safeFileName = sanitizeStorageFileName(req.file.originalname);
+    const filename = `institution_${monumentId}_${timestamp}_${safeFileName}`;
+    const key = `images/institutions/${monumentId}/${filename}`;
     
     // Upload file to S3 using institutions folder
     const publicUrl = await s3Service.uploadFileToS3(
@@ -76,9 +74,9 @@ router.post('/upload-image', verifyToken, requireRole('admin'), upload.single('i
 
   } catch (error) {
     console.error('Error uploading institution image:', error);
-    res.status(500).json({ 
-      error: 'Failed to upload image to S3',
-      details: error.message 
+    const status = error instanceof StorageValidationError ? 400 : 500;
+    res.status(status).json({
+      error: status === 400 ? error.message : 'Failed to upload image to S3'
     });
   }
 });

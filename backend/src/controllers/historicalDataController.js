@@ -1,6 +1,7 @@
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia } from '../utils/s3-helpers.js';
+import { sanitizeStorageFileName, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
 
 const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
 
@@ -78,10 +79,16 @@ export async function createHistoricalData(req, res) {
     // Handle image upload if provided
     if (req.file) {
       try {
-        // TODO: Implement S3 upload for historical data images
-        // For now, use basic S3 upload
+        validateUploadMetadata({
+          resourceType: 'monument-image',
+          resourceId: monumentId,
+          fileName: req.file.originalname,
+          contentType: req.file.mimetype,
+          fileSize: req.file.size,
+        });
+        validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
         const timestamp = Date.now();
-        const filename = `historical_${timestamp}_${req.file.originalname}`;
+        const filename = `historical_${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
         
         s3ImageKey = `images/monuments/${monumentId}/historical/${filename}`;
         imageUrl = await s3Service.uploadFileToS3(
@@ -92,7 +99,10 @@ export async function createHistoricalData(req, res) {
         s3ImageFileName = filename;
       } catch (uploadError) {
         console.error('Error uploading image:', uploadError);
-        return res.status(500).json({ message: 'Failed to upload image to S3' });
+        const status = uploadError instanceof StorageValidationError ? 400 : 500;
+        return res.status(status).json({
+          message: status === 400 ? uploadError.message : 'Failed to upload image to S3'
+        });
       }
     }
 
@@ -160,8 +170,16 @@ export async function updateHistoricalData(req, res) {
         }
 
         // Upload new image to S3
+        validateUploadMetadata({
+          resourceType: 'monument-image',
+          resourceId: historicalData.monumentId.toString(),
+          fileName: req.file.originalname,
+          contentType: req.file.mimetype,
+          fileSize: req.file.size,
+        });
+        validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
         const timestamp = Date.now();
-        const filename = `historical_${timestamp}_${req.file.originalname}`;
+        const filename = `historical_${timestamp}_${sanitizeStorageFileName(req.file.originalname)}`;
         
         const s3ImageKey = `images/monuments/${historicalData.monumentId}/historical/${filename}`;
         const imageUrl = await s3Service.uploadFileToS3(
@@ -175,7 +193,10 @@ export async function updateHistoricalData(req, res) {
         historicalData.s3ImageFileName = filename;
       } catch (uploadError) {
         console.error('Error uploading image:', uploadError);
-        return res.status(500).json({ message: 'Failed to upload image to S3' });
+        const status = uploadError instanceof StorageValidationError ? 400 : 500;
+        return res.status(status).json({
+          message: status === 400 ? uploadError.message : 'Failed to upload image to S3'
+        });
       }
     }
 

@@ -5,6 +5,8 @@ import express from 'express';
 const mockS3Service = vi.hoisted(() => ({
   generatePresignedPutUrl: vi.fn(),
   generatePresignedGetUrl: vi.fn(),
+  buildPublicS3Url: vi.fn(),
+  resolveS3Key: vi.fn(),
   uploadImageToS3: vi.fn(),
   uploadModelToS3: vi.fn(),
   deleteFileFromS3: vi.fn()
@@ -23,7 +25,7 @@ vi.mock('../../src/utils/uploader.js', () => ({
     single: () => (req, res, next) => {
       if (req.headers['x-test-file'] === '1') {
         req.file = {
-          buffer: Buffer.from('fake image'),
+          buffer: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
           originalname: 'test.jpg',
           mimetype: 'image/jpeg',
           size: 1024
@@ -36,7 +38,7 @@ vi.mock('../../src/utils/uploader.js', () => ({
     single: () => (req, res, next) => {
       if (req.headers['x-test-file'] === '1') {
         req.file = {
-          buffer: Buffer.from('fake model'),
+          buffer: Buffer.from('glTFfake model'),
           originalname: 'test.glb',
           mimetype: 'model/gltf-binary',
           size: 1024
@@ -54,8 +56,14 @@ app.use(express.json());
 app.use('/api/uploads', uploadsRouter);
 
 describe('Upload Routes', () => {
+  const monumentId = '507f1f77bcf86cd799439011';
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockS3Service.buildPublicS3Url.mockImplementation((key) => `https://bucket.example/${key}`);
+    mockS3Service.resolveS3Key.mockImplementation((value) => (
+      value?.startsWith(`models/monuments/${monumentId}/`) ? value : null
+    ));
   });
 
   describe('POST /api/uploads/signed-url', () => {
@@ -67,15 +75,23 @@ describe('Upload Routes', () => {
       const response = await request(app)
         .post('/api/uploads/signed-url')
         .send({
-          key: 'models/monument-id/model.glb',
+          resourceType: 'monument-model',
+          resourceId: monumentId,
+          fileName: 'model.glb',
           contentType: 'model/gltf-binary',
-          expiresIn: 900
+          fileSize: 1024,
+          expiresIn: 3600
         });
 
       expect(response.status).toBe(200);
       expect(response.body.url).toContain('https://');
-      expect(response.body.publicUrl).toContain('amazonaws.com');
-      expect(response.body.key).toBe('models/monument-id/model.glb');
+      expect(response.body.publicUrl).toContain('https://bucket.example/');
+      expect(response.body.key).toMatch(
+        new RegExp(`^models/monuments/${monumentId}/\\d+_model\\.glb$`)
+      );
+      expect(mockS3Service.generatePresignedPutUrl).toHaveBeenCalledWith(
+        expect.objectContaining({ expiresIn: 900, contentLength: 1024 })
+      );
     });
 
     it('should return 400 when key is missing', async () => {
@@ -85,6 +101,22 @@ describe('Upload Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toContain('required');
+    });
+
+    it('rechaza traversal y claves construidas por el cliente', async () => {
+      const response = await request(app)
+        .post('/api/uploads/signed-url')
+        .send({
+          resourceType: 'monument-model',
+          resourceId: monumentId,
+          fileName: '../secret.glb',
+          contentType: 'model/gltf-binary',
+          fileSize: 1024,
+          key: 'private/secret.glb'
+        });
+
+      expect(response.status).toBe(400);
+      expect(mockS3Service.generatePresignedPutUrl).not.toHaveBeenCalled();
     });
   });
 
@@ -96,11 +128,11 @@ describe('Upload Routes', () => {
 
       const response = await request(app)
         .get('/api/uploads/signed-get')
-        .query({ key: 'models/monument-id/model.glb' });
+        .query({ key: `models/monuments/${monumentId}/123_model.glb` });
 
       expect(response.status).toBe(200);
       expect(response.body.url).toContain('https://');
-      expect(response.body.key).toBe('models/monument-id/model.glb');
+      expect(response.body.key).toBe(`models/monuments/${monumentId}/123_model.glb`);
     });
 
     it('should return 400 when key is missing', async () => {
@@ -109,6 +141,15 @@ describe('Upload Routes', () => {
 
       expect(response.status).toBe(400);
       expect(response.body.error).toContain('required');
+    });
+
+    it('rechaza claves fuera de los prefijos administrados', async () => {
+      const response = await request(app)
+        .get('/api/uploads/signed-get')
+        .query({ key: 'backups/database.dump' });
+
+      expect(response.status).toBe(400);
+      expect(mockS3Service.generatePresignedGetUrl).not.toHaveBeenCalled();
     });
   });
 
@@ -121,18 +162,18 @@ describe('Upload Routes', () => {
       const response = await request(app)
         .post('/api/uploads/image')
         .set('x-test-file', '1')
-        .send({ monumentId: 'monument-id' });
+        .send({ monumentId });
 
       expect(response.status).toBe(200);
       expect(response.body.imageUrl).toContain('https://');
-      expect(response.body.s3Key).toContain('images/monuments/monument-id/');
+      expect(response.body.s3Key).toContain(`images/monuments/${monumentId}/`);
       expect(response.body.message).toContain('successfully');
     });
 
     it('should return 400 when no file is provided', async () => {
       const response = await request(app)
         .post('/api/uploads/image')
-        .send({ monumentId: 'monument-id' });
+        .send({ monumentId });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('No image file provided');
@@ -144,10 +185,10 @@ describe('Upload Routes', () => {
       const response = await request(app)
         .post('/api/uploads/image')
         .set('x-test-file', '1')
-        .send({ monumentId: 'monument-id' });
+        .send({ monumentId });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Upload failed');
+      expect(response.body.error).toBe('Failed to upload image to S3');
     });
   });
 
@@ -160,18 +201,18 @@ describe('Upload Routes', () => {
       const response = await request(app)
         .post('/api/uploads/model')
         .set('x-test-file', '1')
-        .send({ monumentId: 'monument-id' });
+        .send({ monumentId });
 
       expect(response.status).toBe(200);
       expect(response.body.modelUrl).toContain('https://');
-      expect(response.body.s3Key).toContain('models/monuments/monument-id/');
+      expect(response.body.s3Key).toContain(`models/monuments/${monumentId}/`);
       expect(response.body.message).toContain('successfully');
     });
 
     it('should return 400 when no file is provided', async () => {
       const response = await request(app)
         .post('/api/uploads/model')
-        .send({ monumentId: 'monument-id' });
+        .send({ monumentId });
 
       expect(response.status).toBe(400);
       expect(response.body.error).toBe('No 3D model file provided');
@@ -184,12 +225,14 @@ describe('Upload Routes', () => {
 
       const response = await request(app)
         .delete('/api/uploads/file')
-        .send({ fileUrl: 'models/test.glb' });
+        .send({ fileUrl: `models/monuments/${monumentId}/123_model.glb` });
 
       expect(response.status).toBe(200);
       expect(response.body.message).toContain('deleted successfully');
-      expect(response.body.fileUrl).toBe('models/test.glb');
-      expect(mockS3Service.deleteFileFromS3).toHaveBeenCalledWith('models/test.glb');
+      expect(response.body.fileUrl).toBe(`models/monuments/${monumentId}/123_model.glb`);
+      expect(mockS3Service.deleteFileFromS3).toHaveBeenCalledWith(
+        `models/monuments/${monumentId}/123_model.glb`
+      );
     });
 
     it('should return 400 when fileUrl is missing', async () => {
@@ -206,10 +249,10 @@ describe('Upload Routes', () => {
 
       const response = await request(app)
         .delete('/api/uploads/file')
-        .send({ fileUrl: 'models/test.glb' });
+        .send({ fileUrl: `models/monuments/${monumentId}/123_model.glb` });
 
       expect(response.status).toBe(500);
-      expect(response.body.error).toBe('Delete failed');
+      expect(response.body.error).toBe('Failed to delete file from S3');
     });
   });
 });

@@ -2,53 +2,84 @@ import { Router } from 'express';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
 import { uploadImage, uploadModel } from '../utils/uploader.js';
 import * as s3Service from '../services/s3Service.js';
+import {
+  assertManagedStorageKey,
+  buildManagedUploadKey,
+  normalizeSignedExpiry,
+  sanitizeStorageFileName,
+  StorageValidationError,
+  validateUploadMetadata,
+  validateUploadedFileSignature,
+} from '../utils/storageSecurity.js';
 const { generatePresignedGetUrl } = s3Service;
 
 const router = Router();
 
 // Endpoint para obtener una URL firmada de subida a S3
 // POST /api/uploads/signed-url
-// Body: { key, contentType, expiresIn }
+// Body: { resourceType, resourceId, fileName, contentType, fileSize, expiresIn }
 router.post('/signed-url', verifyToken, requireRole('admin'), async (req, res) => {
+  let key;
+  let expiresIn;
   try {
-    const { key, contentType, expiresIn } = req.body;
-
-    if (!key || !contentType) {
-      return res.status(400).json({ error: 'key and contentType are required' });
+    const { resourceType, resourceId, fileName, contentType, fileSize } = req.body;
+    if (!resourceType || !resourceId || !fileName || !contentType || !fileSize) {
+      throw new StorageValidationError(
+        'resourceType, resourceId, fileName, contentType and fileSize are required'
+      );
     }
+    key = buildManagedUploadKey({
+      resourceType,
+      resourceId,
+      fileName,
+      contentType,
+      fileSize,
+    });
+    expiresIn = normalizeSignedExpiry(req.body.expiresIn);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  try {
+    const { contentType } = req.body;
 
     const url = await s3Service.generatePresignedPutUrl({
       key,
       contentType,
-      expiresIn: expiresIn || 3600,
+      contentLength: Number(req.body.fileSize),
+      expiresIn,
     });
 
-    const publicUrl = `https://${process.env.S3_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    const publicUrl = s3Service.buildPublicS3Url(key);
     res.json({ url, publicUrl, key });
   } catch (error) {
     console.error('Error generating presigned URL:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate presigned URL' });
+    res.status(500).json({ error: 'Failed to generate presigned URL' });
   }
 });
 
 // Endpoint para obtener una URL firmada de descarga desde S3
 router.get('/signed-get', verifyToken, async (req, res) => {
+  let key;
+  let expiresIn;
   try {
-    const { key, expiresIn } = req.query;
+    if (!req.query.key) throw new StorageValidationError('key is required');
+    key = assertManagedStorageKey(req.query.key);
+    expiresIn = normalizeSignedExpiry(req.query.expiresIn);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 
-    if (!key) {
-      return res.status(400).json({ error: 'key is required' });
-    }
-
+  try {
     const url = await generatePresignedGetUrl({
       key,
-      expiresIn: Number(expiresIn) || 3600,
+      expiresIn,
     });
 
     res.json({ url, key });
   } catch (error) {
     console.error('Error generating presigned GET URL:', error);
-    res.status(500).json({ error: error.message || 'Failed to generate presigned GET URL' });
+    res.status(500).json({ error: 'Failed to generate presigned GET URL' });
   }
 });
 
@@ -67,20 +98,15 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
       return res.status(400).json({ error: 'monumentId is required' });
     }
 
-    // Validate image file
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: 'Only JPG and PNG images are allowed' });
-    }
-
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (req.file.size > maxSize) {
-      return res.status(400).json({ error: 'Image size must be less than 5MB' });
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${req.file.originalname}`;
+    validateUploadMetadata({
+      resourceType: 'monument-image',
+      resourceId: monumentId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+    validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
+    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
     const key = `images/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
@@ -99,9 +125,8 @@ router.post('/image', verifyToken, requireRole('admin'), uploadImage.single('ima
     });
   } catch (error) {
     console.error('Image upload error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to upload image to S3' 
-    });
+    const status = error instanceof StorageValidationError ? 400 : 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to upload image to S3' : error.message });
   }
 });
 
@@ -117,20 +142,15 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
       return res.status(400).json({ error: 'monumentId is required' });
     }
 
-    // Validate 3D model file
-    const allowedTypes = ['model/gltf-binary', 'application/octet-stream', 'model/gltf+json'];
-    if (!allowedTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({ error: 'Only GLB and GLTF model files are allowed' });
-    }
-
-    const maxSize = 50 * 1024 * 1024; // 50MB
-    if (req.file.size > maxSize) {
-      return res.status(400).json({ error: 'Model size must be less than 50MB' });
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${req.file.originalname}`;
+    validateUploadMetadata({
+      resourceType: 'monument-model',
+      resourceId: monumentId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+    validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
+    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
     const key = `models/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
@@ -149,9 +169,8 @@ router.post('/model', verifyToken, requireRole('admin'), uploadModel.single('mod
     });
   } catch (error) {
     console.error('3D model upload error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to upload 3D model to S3' 
-    });
+    const status = error instanceof StorageValidationError ? 400 : 500;
+    res.status(status).json({ error: status === 500 ? 'Failed to upload 3D model to S3' : error.message });
   }
 });
 
@@ -164,7 +183,9 @@ router.delete('/file', verifyToken, requireRole('admin'), async (req, res) => {
       return res.status(400).json({ error: 'fileUrl is required' });
     }
 
-    await s3Service.deleteFileFromS3(fileUrl);
+    const key = s3Service.resolveS3Key(fileUrl);
+    if (!key) return res.status(400).json({ error: 'fileUrl is not managed by HistoriAR' });
+    await s3Service.deleteFileFromS3(key);
     
     res.json({ 
       message: 'File deleted successfully from S3',
@@ -172,9 +193,7 @@ router.delete('/file', verifyToken, requireRole('admin'), async (req, res) => {
     });
   } catch (error) {
     console.error('File deletion error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to delete file from S3' 
-    });
+    res.status(500).json({ error: 'Failed to delete file from S3' });
   }
 });
 

@@ -7,7 +7,7 @@ const storage = multer.memoryStorage();
 export const uploadImage = multer({
   storage: storage,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for images
+    fileSize: 5 * 1024 * 1024, // 5MB limit for images
   },
   fileFilter: (req, file, cb) => {
     // Check if file is an image

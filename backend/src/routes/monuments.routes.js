@@ -17,18 +17,11 @@ import {
   confirmModelVersionUploadController
 } from '../controllers/monumentsController.js';
 import { verifyToken, requireRole } from '../middlewares/auth.js';
-import { uploadMonumentImageToS3 } from '../services/s3Service.js';
-import multer from 'multer';
+import { uploadImageToS3 } from '../services/s3Service.js';
+import { sanitizeStorageFileName, StorageValidationError, validateUploadMetadata, validateUploadedFileSignature } from '../utils/storageSecurity.js';
+import { uploadImage, uploadModel } from '../utils/uploader.js';
 
 const router = Router();
-
-// Configure multer for monument file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit (optimized for mobile AR)
-  }
-});
 
 router.get('/search', searchMonumentsController);
 router.get('/filter-options', getFilterOptionsController);
@@ -40,19 +33,11 @@ router.get('/:id', getMonument);
 
 router.post('/',
   verifyToken, requireRole('admin'),
-  upload.fields([
-    { name: 'image', maxCount: 1 },
-    { name: 'model3d', maxCount: 1 }
-  ]),
   createMonumentController
 );
 
 router.put('/:id',
   verifyToken, requireRole('admin'),
-  upload.fields([
-    { name: 'image', maxCount: 1 },
-    { name: 'model3d', maxCount: 1 }
-  ]),
   updateMonumentController
 );
 
@@ -60,13 +45,13 @@ router.delete('/:id', verifyToken, requireRole('admin'), deleteMonumentControlle
 
 // Model versioning endpoints
 router.get('/:id/model-versions', verifyToken, requireRole('admin'), getModelVersionsController);
-router.post('/:id/upload-model', verifyToken, requireRole('admin'), upload.single('model'), uploadModelVersionController);
+router.post('/:id/upload-model', verifyToken, requireRole('admin'), uploadModel.single('model'), uploadModelVersionController);
 router.post('/:id/model-versions/complete', verifyToken, requireRole('admin'), confirmModelVersionUploadController);
 router.post('/:id/model-versions/:versionId/activate', verifyToken, requireRole('admin'), activateModelVersionController);
 router.delete('/:id/model-versions/:versionId', verifyToken, requireRole('admin'), deleteModelVersionController);
 
 // Upload endpoints specifically for monuments
-router.post('/:id/upload-image', verifyToken, requireRole('admin'), upload.single('image'), async (req, res) => {
+router.post('/:id/upload-image', verifyToken, requireRole('admin'), uploadImage.single('image'), async (req, res) => {
   try {
     const { id: monumentId } = req.params;
     
@@ -85,15 +70,22 @@ router.post('/:id/upload-image', verifyToken, requireRole('admin'), upload.singl
       return res.status(400).json({ error: 'Image size must be less than 5MB' });
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${req.file.originalname}`;
+    validateUploadMetadata({
+      resourceType: 'monument-image',
+      resourceId: monumentId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+    validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
+    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
     const key = `images/monuments/${monumentId}/${filename}`;
     
     // Upload to S3 in images/monuments/ folder
-    const imageUrl = await uploadMonumentImageToS3(
+    const imageUrl = await uploadImageToS3(
       req.file.buffer,
       filename,
+      monumentId,
       req.file.mimetype
     );
 
@@ -112,13 +104,14 @@ router.post('/:id/upload-image', verifyToken, requireRole('admin'), upload.singl
     });
   } catch (error) {
     console.error('Image upload error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to upload image to S3' 
+    const status = error instanceof StorageValidationError ? 400 : 500;
+    res.status(status).json({
+      error: status === 400 ? error.message : 'Failed to upload image to S3'
     });
   }
 });
 
-router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('model'), async (req, res) => {
+router.post('/upload-model', verifyToken, requireRole('admin'), uploadModel.single('model'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No 3D model file provided' });
@@ -142,9 +135,15 @@ router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('m
       return res.status(400).json({ error: 'Model size must be less than 50MB' });
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const filename = `${timestamp}_${req.file.originalname}`;
+    validateUploadMetadata({
+      resourceType: 'monument-model',
+      resourceId: monumentId,
+      fileName: req.file.originalname,
+      contentType: req.file.mimetype,
+      fileSize: req.file.size,
+    });
+    validateUploadedFileSignature({ buffer: req.file.buffer, contentType: req.file.mimetype });
+    const filename = `${Date.now()}_${sanitizeStorageFileName(req.file.originalname)}`;
     const key = `models/monuments/${monumentId}/${filename}`;
 
     // Upload to S3
@@ -170,8 +169,9 @@ router.post('/upload-model', verifyToken, requireRole('admin'), upload.single('m
     });
   } catch (error) {
     console.error('3D model upload error:', error);
-    res.status(500).json({ 
-      error: error.message || 'Failed to upload 3D model' 
+    const status = error instanceof StorageValidationError ? 400 : 500;
+    res.status(status).json({
+      error: status === 400 ? error.message : 'Failed to upload 3D model'
     });
   }
 });

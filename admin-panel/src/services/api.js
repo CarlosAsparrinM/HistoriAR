@@ -357,10 +357,10 @@ class ApiService {
     return `${normalizedFolder}${entityType}/${entityId}/${Date.now()}_${safeFileName}`;
   }
 
-  async getPresignedUploadUrl({ key, contentType, expiresIn = 3600 }) {
+  async getPresignedUploadUrl({ resourceType, resourceId, fileName, contentType, fileSize, expiresIn = 900 }) {
     return this.request('/uploads/signed-url', {
       method: 'POST',
-      body: JSON.stringify({ key, contentType, expiresIn }),
+      body: JSON.stringify({ resourceType, resourceId, fileName, contentType, fileSize, expiresIn }),
     });
   }
 

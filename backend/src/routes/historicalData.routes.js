@@ -1,5 +1,4 @@
 import express from 'express';
-import multer from 'multer';
 import {
   createHistoricalData,
   deleteHistoricalData,
@@ -9,16 +8,9 @@ import {
   updateHistoricalData,
 } from '../controllers/historicalDataController.js';
 import { requireRole, verifyToken } from '../middlewares/auth.js';
+import { uploadImage } from '../utils/uploader.js';
 
 const router = express.Router();
-
-// Configure multer for memory storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit for images
-  },
-});
 
 // Get all historical data for a monument
 router.get('/monuments/:monumentId/historical-data', verifyToken, getHistoricalDataByMonument);
@@ -31,7 +23,7 @@ router.post(
   '/monuments/:monumentId/historical-data',
   verifyToken,
   requireRole('admin'),
-  upload.single('image'),
+  uploadImage.single('image'),
   createHistoricalData,
 );
 
@@ -40,7 +32,7 @@ router.put(
   '/historical-data/:id',
   verifyToken,
   requireRole('admin'),
-  upload.single('image'),
+  uploadImage.single('image'),
   updateHistoricalData,
 );
 
