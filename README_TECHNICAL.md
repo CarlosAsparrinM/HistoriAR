@@ -398,7 +398,21 @@ npm run check:env           # Verificar variables de entorno
 npm run verify              # Verificar configuración general
 npm run test:health         # Test del endpoint de salud
 npm run test:s3             # Test de conexión S3
+
+# Panel administrativo
+cd ../admin-panel
+npm test
+npm run lint
+npm run build
+
+# Aplicación Flutter
+cd ../app_movil
+flutter pub get --enforce-lockfile
+flutter analyze --no-pub
+flutter test --no-pub
 ```
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) ejecuta estas verificaciones en pull requests y en cambios a `main`, con Node 20.20.2 y Flutter 3.44.0. Tiene permisos de solo lectura y no contiene despliegues, migraciones ni acceso a secretos.
 
 ---
 

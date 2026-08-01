@@ -43,11 +43,12 @@ Actualizado el 2026-08-01 en la rama `hardening/security-quality`:
 - [x] La autenticación Bearer de Flutter se conserva separada y rechaza tokens emitidos para la sesión administrativa.
 - [x] Flutter dejó de calcular respuestas o puntajes con datos públicos y consume la revisión emitida por el backend.
 - [x] Validadores Mongoose activados en las actualizaciones de monumentos, quizzes, instituciones y tours incluidas en este bloque (avance de SEC-11).
-- [x] Suite backend: 27 archivos y 144 pruebas aprobadas con Node 20.20.2.
+- [x] Suite backend: 28 archivos y 146 pruebas aprobadas con Node 20.20.2.
 - [x] Panel administrativo: 5 pruebas de sesión aprobadas, ESLint global sin errores ni advertencias y build Vite de producción aprobado.
 - [x] QA-01 (avance): corregidos exports incompatibles con Fast Refresh, variables sin uso y dependencias inestables de efectos; eliminadas cargas duplicadas en fichas históricas/quizzes y refetches recursivos en experiencias 3D.
 - [x] DATA-01: las visitas registran `experienceType` (`ar` o `model3d`) y el dashboard cuenta únicamente sesiones AR confirmadas; los registros históricos sin clasificación no inflan la métrica.
 - [x] La creación de visitas usa listas permitidas y fuerza el propietario autenticado; un usuario normal no puede inyectar fecha, propietario ni campos desconocidos.
+- [x] QA-02: workflow CI con permisos de solo lectura para backend, panel y Flutter; ejecuta instalaciones bloqueadas, pruebas, lint/análisis y build del panel sin pasos de despliegue.
 - [x] Suite Flutter: 32 pruebas aprobadas y `flutter analyze --no-pub` sin hallazgos.
 - [ ] Build real de la imagen Docker: pendiente porque Docker Desktop/daemon no está activo en el entorno local; el contrato del Dockerfile tiene pruebas automatizadas.
 - [ ] Revisión y merge de los checkpoints locales.
