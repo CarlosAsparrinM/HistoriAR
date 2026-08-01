@@ -50,6 +50,7 @@ const crudController = createCrudController({
   entityNamePlural: 'Instituciones',
   hydrateMedia: hydrateInstitutionMedia,
   beforeDelete: beforeDeleteInstitution,
+  allowedCreateFields: ['name', 'type', 'description', 'contactEmail', 'phone', 'website', 'imageUrl', 's3ImageKey', 'status', 'location', 'schedule'],
   listOptions: { lockedFilters: { availableOnly: true, status: 'all' } }
 });
 

@@ -16,6 +16,7 @@ const crudController = createCrudController({
     getStats: categoryService.getCategoryStats
   },
   entityName: 'Categoría',
+  allowedCreateFields: ['name', 'description', 'color', 'icon', 'isActive'],
   entityNamePlural: 'Categorías'
 });
 

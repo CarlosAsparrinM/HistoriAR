@@ -14,6 +14,20 @@ function toUserResponse(userDoc) {
   return user;
 }
 
+const ADMIN_USER_FIELDS = ['name', 'email', 'password', 'role', 'avatarUrl', 'district', 'status'];
+
+function pickAdminUserFields(body = {}) {
+  const payload = Object.fromEntries(
+    ADMIN_USER_FIELDS
+      .filter((field) => body[field] !== undefined)
+      .map((field) => [field, body[field]]),
+  );
+  if (typeof body.profileImage === 'string' && payload.avatarUrl === undefined) {
+    payload.avatarUrl = body.profileImage;
+  }
+  return payload;
+}
+
 /**
  * 📄 Listar usuarios con paginación y filtros (solo admin)
  */
@@ -125,7 +139,7 @@ export async function deleteMyAccount(req, res) {
  */
 export async function createUserController(req, res) {
   try {
-    const doc = await createUser(req.body);
+    const doc = await createUser(pickAdminUserFields(req.body));
     res.status(201).json({ id: doc._id });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -137,11 +151,7 @@ export async function createUserController(req, res) {
  */
 export async function updateUserController(req, res) {
   try {
-    const payload = { ...req.body };
-    if (payload.profileImage && !payload.avatarUrl) {
-      payload.avatarUrl = payload.profileImage;
-    }
-    const doc = await updateUser(req.params.id, payload);
+    const doc = await updateUser(req.params.id, pickAdminUserFields(req.body));
     if (!doc) return res.status(404).json({ message: 'No encontrado' });
     res.json(toUserResponse(doc));
   } catch (err) {

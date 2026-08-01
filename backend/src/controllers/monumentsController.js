@@ -392,7 +392,8 @@ export async function activateModelVersionController(req, res) {
     // Deactivate all other versions
     await ModelVersion.updateMany(
       { monumentId, isActive: true },
-      { isActive: false }
+      { isActive: false },
+      { runValidators: true },
     );
 
     // Activate the selected version
@@ -570,7 +571,8 @@ export async function uploadModelVersionController(req, res) {
     // Deactivate all previous versions for this monument
     await ModelVersion.updateMany(
       { monumentId, isActive: true },
-      { isActive: false }
+      { isActive: false },
+      { runValidators: true },
     );
 
     // Create new model version
@@ -661,7 +663,8 @@ export async function confirmModelVersionUploadController(req, res) {
 
     await ModelVersion.updateMany(
       { monumentId, isActive: true },
-      { isActive: false }
+      { isActive: false },
+      { runValidators: true },
     );
 
     const modelUrl = s3Service.buildPublicS3Url(key);

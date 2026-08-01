@@ -12,7 +12,12 @@ const HistoricalDataSchema = new mongoose.Schema({
   activities:   [{ type: String }],
   sources:      [{ type: String }],
   createdBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  order:        { type: Number, default: 0 } // Para ordenar las entradas de información
+  order:        {
+    type: Number,
+    default: 0,
+    min: 0,
+    validate: { validator: Number.isInteger, message: 'Order must be an integer' }
+  } // Para ordenar las entradas de información
 }, { timestamps: { createdAt: true, updatedAt: true } });
 
 // Index for efficient queries

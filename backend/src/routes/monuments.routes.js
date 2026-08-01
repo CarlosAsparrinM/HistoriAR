@@ -94,7 +94,7 @@ router.post('/:id/upload-image', verifyToken, requireRole('admin'), uploadImage.
       imageUrl,
       s3ImageKey: key,
       s3ImageFileName: filename
-    });
+    }, { runValidators: true });
 
     res.json({
       imageUrl,
@@ -159,7 +159,7 @@ router.post('/upload-model', verifyToken, requireRole('admin'), uploadModel.sing
       model3DUrl: modelUrl,
       s3ModelKey: key,
       s3ModelFileName: filename
-    });
+    }, { runValidators: true });
 
     res.json({
       modelUrl,

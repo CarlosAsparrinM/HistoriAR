@@ -32,7 +32,7 @@ export async function createCategory(data) {
 }
 
 export async function updateCategory(id, data) {
-  return await Category.findByIdAndUpdate(id, data, { new: true });
+  return await Category.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteCategory(id) {

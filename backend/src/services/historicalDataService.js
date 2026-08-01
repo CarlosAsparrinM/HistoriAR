@@ -17,7 +17,7 @@ export async function createHistoricalData(data) {
 }
 
 export async function updateHistoricalData(id, data) {
-  return await HistoricalData.findByIdAndUpdate(id, data, { new: true });
+  return await HistoricalData.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteHistoricalData(id) {

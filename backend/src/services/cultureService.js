@@ -31,7 +31,7 @@ export async function createCulture(data) {
 }
 
 export async function updateCulture(id, data) {
-  return await Culture.findByIdAndUpdate(id, data, { new: true });
+  return await Culture.findByIdAndUpdate(id, data, { new: true, runValidators: true });
 }
 
 export async function deleteCulture(id) {

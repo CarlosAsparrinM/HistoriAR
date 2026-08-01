@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import HistoricalData from '../models/HistoricalData.js';
 import * as s3Service from '../services/s3Service.js';
 import { hydrateMedia } from '../utils/s3-helpers.js';
@@ -256,9 +257,31 @@ export async function reorderHistoricalData(req, res) {
       return res.status(400).json({ message: 'Items must be an array' });
     }
 
+    const itemIds = items.map((item) => item?.id);
+    const hasInvalidItem = items.some((item) =>
+      !mongoose.isValidObjectId(item?.id)
+      || !Number.isInteger(item?.order)
+      || item.order < 0,
+    );
+    if (hasInvalidItem || new Set(itemIds).size !== itemIds.length) {
+      return res.status(400).json({ message: 'Each item requires a unique ID and a non-negative integer order' });
+    }
+
+    const entries = await HistoricalData.find({
+      _id: { $in: itemIds },
+      monumentId,
+    }).select('_id');
+    if (entries.length !== itemIds.length) {
+      return res.status(400).json({ message: 'All items must belong to the requested monument' });
+    }
+
     // Update order for each item
     const updatePromises = items.map(item =>
-      HistoricalData.findByIdAndUpdate(item.id, { order: item.order })
+      HistoricalData.findOneAndUpdate(
+        { _id: item.id, monumentId },
+        { order: item.order },
+        { runValidators: true },
+      )
     );
 
     await Promise.all(updatePromises);

@@ -48,7 +48,7 @@ class UserPreferencesService {
       const updatedPreferences = await UserPreferences.findOneAndUpdate(
         { userId },
         updateData,
-        { new: true, upsert: true }
+        { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
       );
       
       return updatedPreferences;

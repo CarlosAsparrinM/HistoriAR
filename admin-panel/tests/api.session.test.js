@@ -98,3 +98,31 @@ test('un 401 limpia CSRF y notifica la expiracion sin recargar la pagina', async
   assert.equal(api.csrfToken, null);
   assert.deepEqual(events, ['historiar:session-expired']);
 });
+
+test('operaciones administrativas críticas usan ruta, método, cookie y CSRF esperados', async () => {
+  const calls = [];
+  globalThis.fetch = async (...args) => {
+    calls.push(args);
+    return jsonResponse({ ok: true });
+  };
+  const api = new ApiService();
+  api.setCsrfToken('csrf-value');
+
+  await api.updateMonument('monument-1', { name: 'Nuevo nombre' });
+  await api.deleteInstitution('institution-1');
+  await api.updateUser('user-1', { status: 'Suspendido' });
+  await api.activateModelVersion('monument-1', 'version-1');
+  await api.reorderHistoricalData('monument-1', [{ id: 'entry-1', order: 0 }]);
+
+  assert.deepEqual(calls.map(([, options]) => options.method), ['PUT', 'DELETE', 'PUT', 'POST', 'PUT']);
+  assert.match(calls[0][0], /\/monuments\/monument-1$/);
+  assert.match(calls[1][0], /\/institutions\/institution-1$/);
+  assert.match(calls[2][0], /\/users\/user-1$/);
+  assert.match(calls[3][0], /\/monuments\/monument-1\/model-versions\/version-1\/activate$/);
+  assert.match(calls[4][0], /\/monuments\/monument-1\/historical-data\/reorder$/);
+  for (const [, options] of calls) {
+    assert.equal(options.credentials, 'include');
+    assert.equal(options.headers['X-CSRF-Token'], 'csrf-value');
+  }
+  assert.equal(calls[4][1].body, JSON.stringify({ items: [{ id: 'entry-1', order: 0 }] }));
+});

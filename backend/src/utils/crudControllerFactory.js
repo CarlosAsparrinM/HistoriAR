@@ -45,8 +45,19 @@ export function createCrudController(config) {
     entityNamePlural = `${entityName}s`,
     hydrateMedia = null,
     beforeDelete = null,
-    listOptions = {}
+    listOptions = {},
+    allowedCreateFields = null,
+    allowedUpdateFields = allowedCreateFields,
   } = config;
+
+  const pickAllowedFields = (body, allowedFields) => {
+    if (!allowedFields) return body;
+    return Object.fromEntries(
+      allowedFields
+        .filter((field) => body?.[field] !== undefined)
+        .map((field) => [field, body[field]]),
+    );
+  };
 
   // Validar que el servicio tiene los métodos requeridos
   const requiredMethods = ['getAll', 'getById', 'create', 'update', 'delete'];
@@ -166,7 +177,7 @@ export function createCrudController(config) {
    */
   async function create(req, res) {
     try {
-      const doc = await service.create(req.body);
+      const doc = await service.create(pickAllowedFields(req.body, allowedCreateFields));
       res.status(201).json({ id: doc._id });
     } catch (err) {
       console.error(`Error creating ${entityName}:`, err);
@@ -179,7 +190,7 @@ export function createCrudController(config) {
    */
   async function update(req, res) {
     try {
-      const doc = await service.update(req.params.id, req.body);
+      const doc = await service.update(req.params.id, pickAllowedFields(req.body, allowedUpdateFields));
       
       if (!doc) {
         return res.status(404).json({ 

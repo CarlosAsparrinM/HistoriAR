@@ -23,11 +23,14 @@ export async function createUser(data) {
 }
 
 export async function updateUser(id, data) {
-  if (data.password) {
+  if (data.password !== undefined) {
+    if (typeof data.password !== 'string') {
+      throw new Error('Password must be a string');
+    }
     validatePasswordStrength(data.password);
     data.password = await bcrypt.hash(data.password, 10);
   }
-  return await User.findByIdAndUpdate(id, data, { new: true }).select('-password');
+  return await User.findByIdAndUpdate(id, data, { new: true, runValidators: true }).select('-password');
 }
 
 export async function softDeleteUser(id) {
@@ -42,6 +45,6 @@ export async function softDeleteUser(id) {
       avatarUrl: null,
       district: null,
     },
-    { new: true },
+    { new: true, runValidators: true },
   );
 }

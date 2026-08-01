@@ -16,6 +16,7 @@ const crudController = createCrudController({
     getStats: cultureService.getCultureStats
   },
   entityName: 'Cultura',
+  allowedCreateFields: ['name', 'description', 'isActive'],
   entityNamePlural: 'Culturas'
 });
 

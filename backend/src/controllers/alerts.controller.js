@@ -89,7 +89,7 @@ export const markAsRead = async (req, res) => {
         read: true,
         readAt: new Date()
       },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
@@ -111,7 +111,7 @@ export const markAsUnread = async (req, res) => {
         read: false,
         readAt: null
       },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
@@ -133,7 +133,7 @@ export const dismissAlert = async (req, res) => {
         dismissed: true,
         dismissedAt: new Date()
       },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!alert) return res.status(404).json({ error: 'Alert not found' });
@@ -154,7 +154,8 @@ export const markAllAsRead = async (req, res) => {
       {
         read: true,
         readAt: new Date()
-      }
+      },
+      { runValidators: true }
     );
 
     const total = await Alert.countDocuments({ read: true });
