@@ -6,6 +6,19 @@ import User from '../models/User.js';
 // Será inicializado después de que dotenv cargue las variables
 let client;
 
+export class AuthError extends Error {
+  constructor(message, statusCode = 400, code = 'AUTH_ERROR') {
+    super(message);
+    this.name = 'AuthError';
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
+
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
 function validatePasswordStrength(password) {
   if (typeof password != 'string' || password.length == 0) {
     throw new Error('La contraseña es obligatoria');
@@ -36,30 +49,56 @@ export function initializeGoogleAuth() {
 }
 
 export async function registerUser(data) {
-  const { name, email, password, role, district, status } = data;
+  const { name, password, district } = data;
+  const email = normalizeEmail(data.email);
   const exists = await User.findOne({ email });
-  if (exists) throw new Error('El correo ya está registrado');
-  validatePasswordStrength(password);
+  if (exists) {
+    throw new AuthError('El correo ya está registrado', 409, 'EMAIL_ALREADY_EXISTS');
+  }
+  try {
+    validatePasswordStrength(password);
+  } catch (error) {
+    throw new AuthError(error.message, 400, 'WEAK_PASSWORD');
+  }
   const hash = password ? await bcrypt.hash(password, 10) : undefined;
-  return await User.create({ name, email, password: hash, role, district, status });
+
+  try {
+    return await User.create({
+      name: String(name).trim(),
+      email,
+      password: hash,
+      district,
+      role: 'user',
+      status: 'Activo',
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      throw new AuthError('El correo ya está registrado', 409, 'EMAIL_ALREADY_EXISTS');
+    }
+    throw error;
+  }
 }
 
 export { validatePasswordStrength };
 
 export async function loginUser(email, password) {
-  const user = await User.findOne({ email });
-  if (!user || !user.password) throw new Error('Credenciales inválidas');
+  const user = await User.findOne({ email: normalizeEmail(email) }).select('+password');
+  if (!user || !user.password) {
+    throw new AuthError('Credenciales inválidas', 401, 'INVALID_CREDENTIALS');
+  }
 
   // Validar estado
   if (user.status === 'Eliminado') {
-    throw new Error('Esta cuenta ha sido eliminada.');
+    throw new AuthError('Credenciales inválidas', 401, 'INVALID_CREDENTIALS');
   }
   if (user.status === 'Suspendido') {
-    throw new Error('Esta cuenta está suspendida.');
+    throw new AuthError('Esta cuenta está suspendida.', 403, 'ACCOUNT_SUSPENDED');
   }
 
   const ok = await bcrypt.compare(password, user.password);
-  if (!ok) throw new Error('Credenciales inválidas');
+  if (!ok) {
+    throw new AuthError('Credenciales inválidas', 401, 'INVALID_CREDENTIALS');
+  }
 
   const token = jwt.sign(
     { sub: user._id, name: user.name, role: user.role, email: user.email },
@@ -110,7 +149,9 @@ export async function loginWithGoogle(idToken, isRegister = false) {
 
   const { email, name, picture } = payload;
 
-  let user = await User.findOne({ email });
+  // Se solicita el hash solo para conservar el comportamiento que distingue
+  // cuentas locales de cuentas creadas exclusivamente con Google.
+  let user = await User.findOne({ email }).select('+password');
 
   if (isRegister && user) {
     throw new Error('El correo ya está registrado');

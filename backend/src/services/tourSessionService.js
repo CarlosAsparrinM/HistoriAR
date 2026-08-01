@@ -53,8 +53,10 @@ class TourSessionService {
     return session;
   }
 
-  async stopSession({ sessionId }) {
-    const session = await TourSession.findById(sessionId);
+  async stopSession({ sessionId, userId, isAdmin = false }) {
+    const filter = { _id: sessionId };
+    if (!isAdmin) filter.userId = userId;
+    const session = await TourSession.findOne(filter);
     if (!session) throw new Error('Session not found');
     if (session.completedAt) return session;
 
@@ -63,8 +65,10 @@ class TourSessionService {
     return session;
   }
 
-  async rateSession({ sessionId, rating }) {
-    const session = await TourSession.findById(sessionId);
+  async rateSession({ sessionId, rating, userId, isAdmin = false }) {
+    const filter = { _id: sessionId };
+    if (!isAdmin) filter.userId = userId;
+    const session = await TourSession.findOne(filter);
     if (!session) throw new Error('Session not found');
 
     session.rating = rating;

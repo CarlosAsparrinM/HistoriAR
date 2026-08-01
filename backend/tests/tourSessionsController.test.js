@@ -27,25 +27,51 @@ describe('tourSessionsController', () => {
   });
 
   it('stopTourSessionController responde session', async () => {
-    const req = { params: { sessionId: 's1' } };
+    const req = { params: { sessionId: 's1' }, user: { id: 'user1', role: 'user' } };
     const res = mockRes();
     const fake = { _id: 's1', completedAt: new Date() };
-    vi.spyOn(tourSessionService, 'stopSession').mockResolvedValue(fake);
+    const spy = vi.spyOn(tourSessionService, 'stopSession').mockResolvedValue(fake);
 
     await controller.stopTourSessionController(req, res);
 
+    expect(spy).toHaveBeenCalledWith({ sessionId: 's1', userId: 'user1', isAdmin: false });
     expect(res.json).toHaveBeenCalledWith(fake);
   });
 
   it('rateTourSessionController valida rating y responde', async () => {
-    const req = { params: { sessionId: 's1' }, body: { rating: 4 } };
+    const req = {
+      params: { sessionId: 's1' },
+      body: { rating: 4 },
+      user: { id: 'admin1', role: 'admin' },
+    };
     const res = mockRes();
     const fake = { _id: 's1', rating: 4 };
-    vi.spyOn(tourSessionService, 'rateSession').mockResolvedValue(fake);
+    const spy = vi.spyOn(tourSessionService, 'rateSession').mockResolvedValue(fake);
 
     await controller.rateTourSessionController(req, res);
 
+    expect(spy).toHaveBeenCalledWith({
+      sessionId: 's1',
+      rating: 4,
+      userId: 'admin1',
+      isAdmin: true,
+    });
     expect(res.json).toHaveBeenCalledWith(fake);
+  });
+
+  it.each([0, 6, 2.5, '5'])('rateTourSessionController rechaza rating inválido: %s', async (rating) => {
+    const req = {
+      params: { sessionId: 's1' },
+      body: { rating },
+      user: { id: 'user1', role: 'user' },
+    };
+    const res = mockRes();
+    const spy = vi.spyOn(tourSessionService, 'rateSession');
+
+    await controller.rateTourSessionController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('getUserTourSessionsController devuelve lista', async () => {

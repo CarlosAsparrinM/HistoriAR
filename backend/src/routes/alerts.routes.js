@@ -1,8 +1,13 @@
 import express from 'express';
 import * as alertsController from '../controllers/alerts.controller.js';
 import * as dataIntegrityController from '../controllers/dataIntegrity.controller.js';
+import { requireRole, verifyToken } from '../middlewares/auth.js';
 
 const router = express.Router();
+
+// Las alertas revelan información operativa y permiten mutaciones globales.
+// Todo el recurso queda restringido a administradores.
+router.use(verifyToken, requireRole('admin'));
 
 // GET alertas de integridad de datos (análisis en tiempo real)
 router.get('/integrity-check', dataIntegrityController.getDataIntegrityAlerts);
@@ -39,8 +44,5 @@ router.patch('/mark-all-read', alertsController.markAllAsRead);
 
 // DELETE alerta
 router.delete('/:id', alertsController.deleteAlert);
-
-// GET alerta por ID (debe ir al final para evitar conflictos)
-router.get('/:id', alertsController.getAlertById);
 
 export default router;

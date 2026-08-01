@@ -1,9 +1,12 @@
 import {
   createVisit,
   deleteVisit,
+  deleteVisitForUser,
   getAllVisits,
   getVisitById,
+  getVisitByIdForUser,
   updateVisit,
+  updateVisitForUser,
 } from '../services/visitService.js';
 import { buildPagination } from '../utils/pagination.js';
 
@@ -26,9 +29,15 @@ export async function listVisit(req, res) {
 }
 
 export async function getVisit(req, res) {
-  const doc = await getVisitById(req.params.id);
-  if (!doc) return res.status(404).json({ message: 'No encontrado' });
-  res.json(doc);
+  try {
+    const doc = req.user?.role === 'admin'
+      ? await getVisitById(req.params.id)
+      : await getVisitByIdForUser(req.params.id, req.user?.id);
+    if (!doc) return res.status(404).json({ message: 'No encontrado' });
+    return res.json(doc);
+  } catch (err) {
+    return res.status(400).json({ message: 'Identificador de visita inválido' });
+  }
 }
 
 export async function createVisitController(req, res) {
@@ -49,7 +58,23 @@ export async function createVisitController(req, res) {
 
 export async function updateVisitController(req, res) {
   try {
-    const doc = await updateVisit(req.params.id, req.body);
+    const allowedUserFields = ['duration', 'rating'];
+    const allowedAdminFields = [
+      ...allowedUserFields,
+      'date',
+      'device',
+      'tourId',
+      'monumentId',
+      'userId',
+    ];
+    const allowedFields = req.user?.role === 'admin' ? allowedAdminFields : allowedUserFields;
+    const payload = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([field]) => allowedFields.includes(field)),
+    );
+
+    const doc = req.user?.role === 'admin'
+      ? await updateVisit(req.params.id, payload)
+      : await updateVisitForUser(req.params.id, req.user?.id, payload);
     if (!doc) return res.status(404).json({ message: 'No encontrado' });
     res.json(doc);
   } catch (err) {
@@ -58,7 +83,13 @@ export async function updateVisitController(req, res) {
 }
 
 export async function deleteVisitController(req, res) {
-  const doc = await deleteVisit(req.params.id);
-  if (!doc) return res.status(404).json({ message: 'No encontrado' });
-  res.json({ message: 'Eliminado' });
+  try {
+    const doc = req.user?.role === 'admin'
+      ? await deleteVisit(req.params.id)
+      : await deleteVisitForUser(req.params.id, req.user?.id);
+    if (!doc) return res.status(404).json({ message: 'No encontrado' });
+    return res.json({ message: 'Eliminado' });
+  } catch (err) {
+    return res.status(400).json({ message: 'Identificador de visita inválido' });
+  }
 }

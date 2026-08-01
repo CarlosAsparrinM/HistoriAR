@@ -22,6 +22,7 @@ const optionalEnvVars = {
   PORT: 'Server port (default: 4000)',
   NODE_ENV: 'Environment (development/production)',
   ALLOWED_ORIGINS: 'Comma-separated list of allowed CORS origins',
+  TRUST_PROXY_HOPS: 'Number of trusted proxy hops in front of the Docker container',
   API_BASE_URL: 'Base URL of the API',
 };
 

@@ -1,11 +1,18 @@
 import { registerUser, loginUser, loginWithGoogle } from '../services/authService.js';
 
+function sendAuthError(res, error, fallbackMessage) {
+  const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 400;
+  const code = error?.code || 'AUTH_ERROR';
+  const message = error?.statusCode ? error.message : fallbackMessage;
+  return res.status(statusCode).json({ code, message });
+}
+
 export async function register(req, res) {
   try {
     const user = await registerUser(req.body);
     res.status(201).json({ id: user._id, name: user.name, email: user.email, role: user.role });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    sendAuthError(res, err, 'No se pudo crear la cuenta');
   }
 }
 
@@ -14,7 +21,7 @@ export async function login(req, res) {
     const { token, user } = await loginUser(req.body.email, req.body.password);
     res.json({ token, user: { id: user._id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    sendAuthError(res, err, 'No se pudo iniciar sesión');
   }
 }
 

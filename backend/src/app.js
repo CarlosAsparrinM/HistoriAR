@@ -25,6 +25,14 @@ config();
 
 const app = express();
 
+// Solo confiar en proxies cuando el operador del contenedor conoce el número
+// exacto de saltos. Esto permite que req.ip y el rate limiting usen la IP real
+// sin aceptar X-Forwarded-For arbitrario por defecto.
+const trustProxyHops = Number.parseInt(process.env.TRUST_PROXY_HOPS || '0', 10);
+if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+  app.set('trust proxy', trustProxyHops);
+}
+
 // Initialize DB connection
 connectDB().catch(err => console.error('Initial DB connection failed:', err.message));
 

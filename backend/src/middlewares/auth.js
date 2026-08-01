@@ -16,7 +16,7 @@ export async function verifyToken(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     
     // Verificar el estado del usuario en la base de datos
-    const user = await User.findById(payload.sub).select('status');
+    const user = await User.findById(payload.sub).select('name email role status');
     if (!user) {
       return res.status(401).json({ message: 'Usuario no encontrado' });
     }
@@ -29,10 +29,10 @@ export async function verifyToken(req, res, next) {
 
     // Normalizamos para que todos los controladores usen req.user.id
     req.user = {
-      id: payload.sub,    // 👈 convierte "sub" a "id"
-      name: payload.name,
-      role: payload.role,
-      email: payload.email
+      id: user._id.toString(),
+      name: user.name,
+      role: user.role,
+      email: user.email,
     };
     next();
   } catch (err) {

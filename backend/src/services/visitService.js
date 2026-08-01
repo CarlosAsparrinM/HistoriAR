@@ -19,6 +19,10 @@ export async function getVisitById(id) {
   return await Visit.findById(id);
 }
 
+export async function getVisitByIdForUser(id, userId) {
+  return await Visit.findOne({ _id: id, userId });
+}
+
 export async function createVisit(data) {
   let visit;
   if (data.clientVisitId && data.userId) {
@@ -86,11 +90,23 @@ export async function createVisit(data) {
 }
 
 export async function updateVisit(id, data) {
-  return await Visit.findByIdAndUpdate(id, data, { new: true });
+  return await Visit.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+}
+
+export async function updateVisitForUser(id, userId, data) {
+  return await Visit.findOneAndUpdate(
+    { _id: id, userId },
+    data,
+    { new: true, runValidators: true },
+  );
 }
 
 export async function deleteVisit(id) {
   return await Visit.findByIdAndDelete(id);
+}
+
+export async function deleteVisitForUser(id, userId) {
+  return await Visit.findOneAndDelete({ _id: id, userId });
 }
 
 export async function getAverageDuration(monumentId) {

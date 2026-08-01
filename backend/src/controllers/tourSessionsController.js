@@ -14,7 +14,11 @@ export async function startTourSessionController(req, res) {
 export async function stopTourSessionController(req, res) {
   try {
     const sessionId = req.params.sessionId;
-    const session = await tourSessionService.stopSession({ sessionId });
+    const session = await tourSessionService.stopSession({
+      sessionId,
+      userId: req.user?.id,
+      isAdmin: req.user?.role === 'admin',
+    });
     res.json(session);
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -25,8 +29,15 @@ export async function rateTourSessionController(req, res) {
   try {
     const sessionId = req.params.sessionId;
     const { rating } = req.body;
-    if (typeof rating !== 'number') throw new Error('Rating must be a number');
-    const session = await tourSessionService.rateSession({ sessionId, rating });
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
+    }
+    const session = await tourSessionService.rateSession({
+      sessionId,
+      rating,
+      userId: req.user?.id,
+      isAdmin: req.user?.role === 'admin',
+    });
     res.json(session);
   } catch (err) {
     res.status(400).json({ message: err.message });
