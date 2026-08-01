@@ -6,6 +6,6 @@
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         tools:replace="android:usesCleartextTraffic" />
 </manifest>

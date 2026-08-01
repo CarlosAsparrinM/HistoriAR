@@ -9,7 +9,7 @@ import 'package:app_movil/services/quiz_service.dart';
 
 void main() {
   setUp(() {
-    dotenv.loadFromString(envString: 'API_BASE_URL=http://localhost:3000\n');
+    dotenv.loadFromString(envString: 'API_BASE_URL=http://localhost:4000\n');
   });
 
   test('returns null when a monument has no quiz', () async {

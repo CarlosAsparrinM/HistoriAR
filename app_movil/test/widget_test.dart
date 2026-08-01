@@ -14,7 +14,7 @@ import 'test_support/memory_secure_store.dart';
 
 void main() {
   setUp(() {
-    dotenv.loadFromString(envString: 'API_BASE_URL=http://localhost:3000\n');
+    dotenv.loadFromString(envString: 'API_BASE_URL=http://localhost:4000\n');
     SharedPreferences.setMockInitialValues({});
     authState.token = '';
   });

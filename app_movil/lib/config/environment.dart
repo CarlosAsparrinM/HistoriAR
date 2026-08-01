@@ -1,9 +1,37 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class Environment {
   /// URL base de la API del backend
   static String get apiBaseUrl {
-    return dotenv.env['API_BASE_URL'] ?? 'http://localhost:3000';
+    return validateApiBaseUrl(dotenv.env['API_BASE_URL']);
+  }
+
+  static String validateApiBaseUrl(
+    String? configuredValue, {
+    bool releaseMode = kReleaseMode,
+  }) {
+    final value = configuredValue?.trim() ?? '';
+    if (value.isEmpty) {
+      if (releaseMode) {
+        throw StateError('API_BASE_URL es obligatoria en builds release');
+      }
+      return 'http://10.0.2.2:4000';
+    }
+
+    final uri = Uri.tryParse(value);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw StateError('API_BASE_URL no es una URL válida');
+    }
+    if (releaseMode && uri.scheme.toLowerCase() != 'https') {
+      throw StateError('API_BASE_URL debe usar HTTPS en builds release');
+    }
+
+    return value.endsWith('/') ? value.substring(0, value.length - 1) : value;
+  }
+
+  static void validateConfiguration() {
+    apiBaseUrl;
   }
 
   /// Timeout para las peticiones de API (en milisegundos)

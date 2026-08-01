@@ -11,7 +11,7 @@
         android:label="HistoriAR"
         android:name="${applicationName}"
         android:allowBackup="false"
-        android:usesCleartextTraffic="true"
+        android:usesCleartextTraffic="false"
         android:icon="@mipmap/launcher_icon">
         <activity
             android:name=".MainActivity"

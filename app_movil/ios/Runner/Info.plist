@@ -47,6 +47,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Necesitamos tu ubicación para mostrarte el mapa.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HistoriAR necesita la cámara para mostrar los monumentos en Realidad Aumentada.</string>
 	<!-- Google Sign-In Configuration -->
 	<key>CFBundleURLTypes</key>
 	<array>
@@ -57,16 +59,17 @@
 			<string>Google</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- Reemplaza REVERSE_CLIENT_ID_IOS con el valor de Google Cloud Console -->
-				<string>com.googleusercontent.apps.874824294700-REPLACE_WITH_IOS_CLIENT_SUFFIX</string>
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>
-	<!-- Permitir conexiones HTTP en desarrollo (cambiar en producción) -->
+	<key>GIDClientID</key>
+	<string>$(GOOGLE_IOS_CLIENT_ID)</string>
+	<!-- Excepciones limitadas al loopback para ejecución local; no se permiten cargas HTTP arbitrarias. -->
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
-		<true/>
+		<false/>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>localhost</key>

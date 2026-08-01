@@ -13,7 +13,7 @@ Este proyecto utiliza variables de entorno para gestionar la configuración seg�
 
 | Variable                   | Tipo    | Descripción                                     | Ejemplo                                |
 | -------------------------- | ------- | ----------------------------------------------- | -------------------------------------- |
-| `API_BASE_URL`             | String  | URL base del servidor backend                   | `http://localhost:3000`                |
+| `API_BASE_URL`             | String  | URL base del servidor backend; HTTPS obligatorio en release | `http://localhost:4000` |
 | `API_TIMEOUT`              | Integer | Timeout para peticiones API en ms               | `30000`                                |
 | `ENVIRONMENT`              | String  | Ambiente de ejecución                           | `development`, `staging`, `production` |
 | `LOCATION_UPDATE_INTERVAL` | Integer | Intervalo de actualización de ubicación en ms   | `5000`                                 |
@@ -26,7 +26,7 @@ Este proyecto utiliza variables de entorno para gestionar la configuración seg�
 ### Desarrollo
 
 ```env
-API_BASE_URL=http://localhost:3000
+API_BASE_URL=http://localhost:4000
 ENVIRONMENT=development
 DEBUG_MODE=true
 AR_ENABLED=true
@@ -35,7 +35,7 @@ AR_ENABLED=true
 ### Emulador Android
 
 ```env
-API_BASE_URL=http://10.0.2.2:3000
+API_BASE_URL=http://10.0.2.2:4000
 ENVIRONMENT=development
 DEBUG_MODE=true
 ```
@@ -97,10 +97,15 @@ if (Environment.isDevelopment()) {
 
 4. Asegúrate que `.env` está en el `.gitignore` para no incluirlo en el repositorio
 
+5. Para iOS, copia `ios/Flutter/Secrets.xcconfig.example` como
+   `ios/Flutter/Secrets.xcconfig` y configura `GOOGLE_IOS_CLIENT_ID` y
+   `GOOGLE_REVERSED_CLIENT_ID`. El archivo real está excluido de Git.
+
 ## Notas Importantes
 
 - El archivo `.env` **NO debe ser incluido en git** (está en `.gitignore`)
 - El archivo `.env.example` **SÍ debe estar en git** como referencia
 - Las variables se cargan al inicio de la aplicación en `main.dart`
-- Si una variable no está configurada, se usa un valor por defecto
+- En debug, `API_BASE_URL` usa `http://10.0.2.2:4000` como valor local si falta.
+- En release, `API_BASE_URL` es obligatoria y debe usar HTTPS; la app falla al inicio si la configuración es insegura.
 - Para cambios de variables de entorno, reinicia la aplicación

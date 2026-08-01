@@ -106,7 +106,7 @@ class ToursService {
             .map((item) => TourItem.fromJson(item)),
       );
 
-      final fetchedAllItems = total != null && tours.length >= total!;
+      final fetchedAllItems = total != null && tours.length >= total;
       if (items.length < _pageSize || fetchedAllItems) break;
 
       page += 1;
