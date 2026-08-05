@@ -1,7 +1,18 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import mongoose from 'mongoose';
+
+// Mock auth middleware
+vi.mock('../../src/middlewares/auth.js', () => ({
+  verifyToken: (req, res, next) => {
+    if (!req.headers.authorization) {
+      return res.status(401).json({ message: 'No token provided' });
+    }
+    req.user = { id: 'test-user-id', role: 'user' };
+    next();
+  },
+  requireRole: () => (req, res, next) => next(),
+}));
 
 // Mock the Monument model
 const mockMonuments = [
@@ -72,7 +83,15 @@ describe('Monument Search API', () => {
   });
 
   describe('GET /api/monuments/search', () => {
-    it('should search monuments by text', async () => {
+    it('should return 401 when no authorization header is provided', async () => {
+      const response = await request(app)
+        .get('/api/monuments/search')
+        .query({ text: 'Machu' });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should search monuments by text when token is provided', async () => {
       const searchResults = {
         items: [mockMonuments[0]],
         total: 1
@@ -82,6 +101,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ text: 'Machu' });
 
       expect(response.status).toBe(200);
@@ -107,6 +127,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ district: 'Lima' });
 
       expect(response.status).toBe(200);
@@ -127,6 +148,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ category: 'Arqueológico' });
 
       expect(response.status).toBe(200);
@@ -147,6 +169,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ institution: '507f1f77bcf86cd799439014' });
 
       expect(response.status).toBe(200);
@@ -167,6 +190,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ 
           text: 'Casa',
           district: 'Lima',
@@ -191,6 +215,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ 
           text: 'monument',
           page: '3',
@@ -215,6 +240,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ 
           text: 'Machu',
           populate: 'true'
@@ -237,6 +263,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ text: 'nonexistent' });
 
       expect(response.status).toBe(200);
@@ -252,6 +279,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ text: 'test' });
 
       expect(response.status).toBe(500);
@@ -270,7 +298,8 @@ describe('Monument Search API', () => {
       mockMonumentService.getFilterOptions.mockResolvedValue(filterOptions);
 
       const response = await request(app)
-        .get('/api/monuments/filter-options');
+        .get('/api/monuments/filter-options')
+        .set('Authorization', 'Bearer valid-token');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(filterOptions);
@@ -281,7 +310,8 @@ describe('Monument Search API', () => {
       mockMonumentService.getFilterOptions.mockRejectedValue(new Error('Database connection failed'));
 
       const response = await request(app)
-        .get('/api/monuments/filter-options');
+        .get('/api/monuments/filter-options')
+        .set('Authorization', 'Bearer valid-token');
 
       expect(response.status).toBe(500);
       expect(response.body.message).toBe('Database connection failed');
@@ -297,7 +327,8 @@ describe('Monument Search API', () => {
       mockMonumentService.getFilterOptions.mockResolvedValue(emptyOptions);
 
       const response = await request(app)
-        .get('/api/monuments/filter-options');
+        .get('/api/monuments/filter-options')
+        .set('Authorization', 'Bearer valid-token');
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(emptyOptions);
@@ -314,7 +345,8 @@ describe('Monument Search API', () => {
       mockMonumentService.searchMonuments.mockResolvedValue(searchResults);
 
       const response = await request(app)
-        .get('/api/monuments/search');
+        .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token');
 
       expect(response.status).toBe(200);
       expect(mockMonumentService.searchMonuments).toHaveBeenCalledWith(
@@ -333,6 +365,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ text: '   ' });
 
       expect(response.status).toBe(200);
@@ -352,6 +385,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ category: 'InvalidCategory' });
 
       expect(response.status).toBe(200);
@@ -368,6 +402,7 @@ describe('Monument Search API', () => {
 
       const response = await request(app)
         .get('/api/monuments/search')
+        .set('Authorization', 'Bearer valid-token')
         .query({ institution: 'invalid-id' });
 
       expect(response.status).toBe(200);

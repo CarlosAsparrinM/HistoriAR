@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as original_http;
 
+import '../contexts/auth_state.dart';
 import '../main.dart';
 import '../screens/login_screen.dart';
 import '../services/api_exceptions.dart';
@@ -12,12 +13,21 @@ import '../services/session_storage_service.dart';
 
 bool _isHandlingSessionEnd = false;
 
+Map<String, String> _buildHeaders(Map<String, String>? headers) {
+  final map = Map<String, String>.from(headers ?? {});
+  if (!map.containsKey('Authorization') && authState.token.isNotEmpty) {
+    map['Authorization'] = 'Bearer ${authState.token}';
+  }
+  return map;
+}
+
 Future<original_http.Response> get(
   Uri url, {
   Map<String, String>? headers,
 }) async {
-  final response = await original_http.get(url, headers: headers);
-  await inspectResponse(response, headers: headers);
+  final mergedHeaders = _buildHeaders(headers);
+  final response = await original_http.get(url, headers: mergedHeaders);
+  await inspectResponse(response, headers: mergedHeaders);
   return response;
 }
 
@@ -27,13 +37,14 @@ Future<original_http.Response> post(
   Object? body,
   Encoding? encoding,
 }) async {
+  final mergedHeaders = _buildHeaders(headers);
   final response = await original_http.post(
     url,
-    headers: headers,
+    headers: mergedHeaders,
     body: body,
     encoding: encoding,
   );
-  await inspectResponse(response, headers: headers);
+  await inspectResponse(response, headers: mergedHeaders);
   return response;
 }
 
@@ -43,13 +54,14 @@ Future<original_http.Response> put(
   Object? body,
   Encoding? encoding,
 }) async {
+  final mergedHeaders = _buildHeaders(headers);
   final response = await original_http.put(
     url,
-    headers: headers,
+    headers: mergedHeaders,
     body: body,
     encoding: encoding,
   );
-  await inspectResponse(response, headers: headers);
+  await inspectResponse(response, headers: mergedHeaders);
   return response;
 }
 
@@ -59,13 +71,14 @@ Future<original_http.Response> delete(
   Object? body,
   Encoding? encoding,
 }) async {
+  final mergedHeaders = _buildHeaders(headers);
   final response = await original_http.delete(
     url,
-    headers: headers,
+    headers: mergedHeaders,
     body: body,
     encoding: encoding,
   );
-  await inspectResponse(response, headers: headers);
+  await inspectResponse(response, headers: mergedHeaders);
   return response;
 }
 

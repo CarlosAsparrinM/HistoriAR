@@ -23,13 +23,13 @@ import { uploadImage, uploadModel } from '../utils/uploader.js';
 
 const router = Router();
 
-router.get('/search', searchMonumentsController);
-router.get('/filter-options', getFilterOptionsController);
+router.get('/search', verifyToken, searchMonumentsController);
+router.get('/filter-options', verifyToken, getFilterOptionsController);
 router.get('/stats', verifyToken, requireRole('admin'), getMonumentStatsController);
 router.get('/admin', verifyToken, requireRole('admin'), listMonumentAdmin);
 router.get('/admin/:id', verifyToken, requireRole('admin'), getMonumentAdmin);
-router.get('/', listMonument);
-router.get('/:id', getMonument);
+router.get('/', verifyToken, listMonument);
+router.get('/:id', verifyToken, getMonument);
 
 router.post('/',
   verifyToken, requireRole('admin'),

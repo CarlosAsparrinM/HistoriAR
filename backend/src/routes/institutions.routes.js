@@ -86,11 +86,11 @@ router.post('/upload-image', verifyToken, requireRole('admin'), uploadImage.sing
 });
 
 // Standard CRUD routes - MUST be after specific routes like /upload-image
-router.get('/', listInstitution);
+router.get('/', verifyToken, listInstitution);
 router.get('/stats', verifyToken, requireRole('admin'), getInstitutionStatsController);
 router.get('/admin', verifyToken, requireRole('admin'), listInstitutionAdmin);
 router.get('/admin/:id', verifyToken, requireRole('admin'), getInstitutionAdmin);
-router.get('/:id', getInstitution);
+router.get('/:id', verifyToken, getInstitution);
 router.post('/', verifyToken, requireRole('admin'), createInstitutionController);
 router.put('/:id', verifyToken, requireRole('admin'), updateInstitutionController);
 router.delete('/:id', verifyToken, requireRole('admin'), deleteInstitutionController);

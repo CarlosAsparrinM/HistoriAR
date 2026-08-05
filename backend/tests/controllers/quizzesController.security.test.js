@@ -74,4 +74,44 @@ describe('quizzesController public contract', () => {
     expect(service.getAllQuizzes).toHaveBeenCalledWith({}, expect.any(Object));
     expect(res.json.mock.calls[0][0].items[0].questions[0].options[0].isCorrect).toBe(true);
   });
+
+  it('devuelve los intentos del usuario autenticado en getMyAttemptsController', async () => {
+    const attemptsMock = [
+      {
+        _id: 'att-1',
+        quizId: { _id: 'q-1', title: 'Quiz Machupicchu' },
+        monumentId: { _id: 'm-1', name: 'Machupicchu' },
+        correctAnswers: 3,
+        totalQuestions: 3,
+        percentageScore: 100,
+        timeSpent: 45,
+        completedAt: new Date('2026-08-05'),
+      },
+    ];
+    service.getAllUserAttempts.mockResolvedValue(attemptsMock);
+    const req = { user: { id: 'user-123' } };
+    const res = mockRes();
+
+    await controller.getMyAttemptsController(req, res);
+
+    expect(service.getAllUserAttempts).toHaveBeenCalledWith('user-123');
+    expect(res.json).toHaveBeenCalledWith({
+      total: 1,
+      items: [
+        {
+          _id: 'att-1',
+          quizId: 'q-1',
+          quizTitle: 'Quiz Machupicchu',
+          monumentId: 'm-1',
+          monumentName: 'Machupicchu',
+          correctAnswers: 3,
+          totalQuestions: 3,
+          percentageScore: 100,
+          timeSpent: 45,
+          completedAt: expect.any(Date),
+        },
+      ],
+    });
+  });
 });
+

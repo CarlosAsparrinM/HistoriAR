@@ -4,6 +4,7 @@ import 'package:model_viewer_plus/model_viewer_plus.dart';
 import '../../models/historical_entry.dart';
 import '../../models/monument.dart';
 import '../../services/public_api.dart';
+import '../quiz/quiz_screen.dart';
 
 class MonumentDetailPage extends StatefulWidget {
   const MonumentDetailPage({super.key, required this.monument, required this.api});
@@ -19,6 +20,8 @@ class _MonumentDetailPageState extends State<MonumentDetailPage> {
   late final Future<Monument> _monument = widget.api.getMonument(widget.monument.id);
   late final Future<List<HistoricalEntry>> _history =
       widget.api.getHistoricalData(widget.monument.id);
+  late final Future<Map<String, dynamic>?> _quiz =
+      widget.api.getQuizByMonument(widget.monument.id);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -32,17 +35,29 @@ class _MonumentDetailPageState extends State<MonumentDetailPage> {
             if (snapshot.hasError || !snapshot.hasData) {
               return const _DetailUnavailable();
             }
-            return _MonumentContent(monument: snapshot.data!, history: _history);
+            return _MonumentContent(
+              monument: snapshot.data!,
+              history: _history,
+              quiz: _quiz,
+              api: widget.api,
+            );
           },
         ),
       );
 }
 
 class _MonumentContent extends StatelessWidget {
-  const _MonumentContent({required this.monument, required this.history});
+  const _MonumentContent({
+    required this.monument,
+    required this.history,
+    required this.quiz,
+    required this.api,
+  });
 
   final Monument monument;
   final Future<List<HistoricalEntry>> history;
+  final Future<Map<String, dynamic>?> quiz;
+  final PublicApi api;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -89,8 +104,91 @@ class _MonumentContent extends StatelessWidget {
           const SizedBox(height: 24),
           Text('Información histórica', style: Theme.of(context).textTheme.titleLarge),
           _HistorySection(history: history),
+          const SizedBox(height: 24),
+          _QuizSection(quiz: quiz, api: api, monumentName: monument.name),
         ],
       );
+}
+
+class _QuizSection extends StatelessWidget {
+  const _QuizSection({
+    required this.quiz,
+    required this.api,
+    required this.monumentName,
+  });
+
+  final Future<Map<String, dynamic>?> quiz;
+  final PublicApi api;
+  final String monumentName;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: quiz,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        final quizData = snapshot.data;
+        if (quizData == null) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xff8c3b1f).withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xff8c3b1f).withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.quiz_outlined, color: Color(0xff8c3b1f), size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Quiz Educativo Disponible',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xff8c3b1f),
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Pon a prueba tus conocimientos sobre $monumentName respondiendo este quiz.',
+                style: TextStyle(color: Colors.grey[800]),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => QuizScreen(
+                        quizData: quizData,
+                        api: api,
+                        monumentName: monumentName,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Realizar Quiz'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xff8c3b1f),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _HistorySection extends StatelessWidget {

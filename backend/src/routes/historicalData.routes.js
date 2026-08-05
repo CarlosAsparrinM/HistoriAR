@@ -21,6 +21,7 @@ const publicReadRateLimiter = createRateLimiter({
 // Contenido para visitantes: solo fichas que un administrador publicó.
 router.get(
   '/monuments/:monumentId/historical-data/public',
+  verifyToken,
   publicReadRateLimiter,
   getPublicHistoricalDataByMonument,
 );

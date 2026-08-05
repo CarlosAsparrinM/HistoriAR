@@ -22,8 +22,8 @@ export function toPublicQuiz(source) {
     description: quiz.description,
     questions: (quiz.questions || []).map((question) => ({
       questionText: question.questionText,
-      options: (question.options || []).map((option) => ({ text: option.text }))
-    }))
+      options: (question.options || []).map((option) => ({ text: option.text })),
+    })),
   };
 }
 
@@ -146,6 +146,34 @@ export async function getAllUserAttemptsController(req, res) {
 
     const attempts = await getAllUserAttempts(req.params.userId);
     res.json({ total: attempts.length, items: attempts });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+/**
+ * Obtener todos los intentos del usuario autenticado actual
+ */
+export async function getMyAttemptsController(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ message: 'Usuario no autenticado' });
+    }
+    const attempts = await getAllUserAttempts(userId);
+    const items = attempts.map((att) => ({
+      _id: att._id,
+      quizId: att.quizId?._id || att.quizId,
+      quizTitle: att.quizId?.title || '',
+      monumentId: att.monumentId?._id || att.monumentId,
+      monumentName: att.monumentId?.name || '',
+      correctAnswers: att.correctAnswers,
+      totalQuestions: att.totalQuestions,
+      percentageScore: att.percentageScore,
+      timeSpent: att.timeSpent,
+      completedAt: att.completedAt,
+    }));
+    res.json({ total: items.length, items });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
