@@ -126,3 +126,25 @@ test('operaciones administrativas críticas usan ruta, método, cookie y CSRF es
   }
   assert.equal(calls[4][1].body, JSON.stringify({ items: [{ id: 'entry-1', order: 0 }] }));
 });
+
+test('publishing a historical entry preserves cookie, CSRF, and explicit status', async () => {
+  let call;
+  globalThis.fetch = async (...args) => {
+    call = args;
+    return jsonResponse({ ok: true });
+  };
+  const api = new ApiService();
+  api.setCsrfToken('csrf-value');
+
+  await api.updateHistoricalData('entry-1', {
+    title: 'Reviewed entry',
+    status: 'Disponible',
+  });
+
+  const [url, options] = call;
+  assert.match(url, /\/historical-data\/entry-1$/);
+  assert.equal(options.method, 'PUT');
+  assert.equal(options.credentials, 'include');
+  assert.equal(options.headers['X-CSRF-Token'], 'csrf-value');
+  assert.equal(options.body.get('status'), 'Disponible');
+});

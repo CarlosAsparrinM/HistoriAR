@@ -4,13 +4,26 @@ import {
   deleteHistoricalData,
   getHistoricalDataById,
   getHistoricalDataByMonument,
+  getPublicHistoricalDataByMonument,
   reorderHistoricalData,
   updateHistoricalData,
 } from '../controllers/historicalDataController.js';
 import { requireRole, verifyToken } from '../middlewares/auth.js';
+import { createRateLimiter } from '../middlewares/rateLimit.js';
 import { uploadImage } from '../utils/uploader.js';
 
 const router = express.Router();
+const publicReadRateLimiter = createRateLimiter({
+  max: 120,
+  message: 'Demasiadas solicitudes de contenido público. Intenta nuevamente más tarde.',
+});
+
+// Contenido para visitantes: solo fichas que un administrador publicó.
+router.get(
+  '/monuments/:monumentId/historical-data/public',
+  publicReadRateLimiter,
+  getPublicHistoricalDataByMonument,
+);
 
 // Get all historical data for a monument
 router.get('/monuments/:monumentId/historical-data', verifyToken, getHistoricalDataByMonument);

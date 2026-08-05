@@ -515,6 +515,7 @@ export class ApiService {
     if (data.discoveryInfo !== undefined) formData.append('discoveryInfo', data.discoveryInfo);
     if (data.activities) formData.append('activities', JSON.stringify(data.activities));
     if (data.sources) formData.append('sources', JSON.stringify(data.sources));
+    if (data.status !== undefined) formData.append('status', data.status);
     if (imageFile) formData.append('image', imageFile);
 
     const url = `${this.baseURL}/historical-data/${id}`;

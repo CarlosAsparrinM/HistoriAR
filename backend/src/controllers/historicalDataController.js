@@ -12,6 +12,44 @@ async function hydrateHistoricalDataMedia(entry) {
   ]);
 }
 
+function toPublicHistoricalData(entry) {
+  const plain = entry.toObject ? entry.toObject() : entry;
+  return {
+    id: plain._id,
+    title: plain.title,
+    description: plain.description || '',
+    imageUrl: plain.imageUrl || null,
+    discoveryInfo: plain.discoveryInfo || '',
+    activities: Array.isArray(plain.activities) ? plain.activities : [],
+    sources: Array.isArray(plain.sources) ? plain.sources : [],
+    order: plain.order,
+  };
+}
+
+// DTO anónimo: no incluye creador, estado interno ni claves de almacenamiento.
+export async function getPublicHistoricalDataByMonument(req, res) {
+  try {
+    const { monumentId } = req.params;
+    if (!mongoose.isValidObjectId(monumentId)) {
+      return res.status(404).json({ message: 'Monumento no encontrado' });
+    }
+
+    const Monument = (await import('../models/Monument.js')).default;
+    const monument = await Monument.exists({ _id: monumentId, status: 'Disponible' });
+    if (!monument) {
+      return res.status(404).json({ message: 'Monumento no encontrado' });
+    }
+
+    const entries = await HistoricalData.find({ monumentId, status: 'Disponible' })
+      .sort({ order: 1, createdAt: 1 });
+    const hydrated = await Promise.all(entries.map(hydrateHistoricalDataMedia));
+    res.json(hydrated.map(toPublicHistoricalData));
+  } catch (err) {
+    console.error('Error fetching public historical data:', err);
+    res.status(500).json({ message: 'No se pudo cargar la información histórica' });
+  }
+}
+
 /**
  * Get all historical data entries for a monument
  */
@@ -127,6 +165,7 @@ export async function createHistoricalData(req, res) {
       activities: activities ? JSON.parse(activities) : [],
       sources: sources ? JSON.parse(sources) : [],
       createdBy: userId,
+      status: 'Oculto',
       order
     });
 
@@ -148,7 +187,7 @@ export async function createHistoricalData(req, res) {
 export async function updateHistoricalData(req, res) {
   try {
     const { id } = req.params;
-    const { title, description, discoveryInfo, activities, sources } = req.body;
+    const { title, description, discoveryInfo, activities, sources, status } = req.body;
 
     const historicalData = await HistoricalData.findById(id);
 
@@ -162,6 +201,7 @@ export async function updateHistoricalData(req, res) {
     if (discoveryInfo !== undefined) historicalData.discoveryInfo = discoveryInfo;
     if (activities) historicalData.activities = JSON.parse(activities);
     if (sources) historicalData.sources = JSON.parse(sources);
+    if (status === 'Disponible' || status === 'Oculto') historicalData.status = status;
 
     // Handle image upload if provided
     if (req.file) {

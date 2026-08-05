@@ -36,7 +36,7 @@ if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
 // Get allowed origins from environment variable or use defaults for development
 const defaultOrigins = process.env.NODE_ENV === 'production' 
   ? [] 
-  : ['http://localhost:5173', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:4000'];
+  : ['http://localhost:5173', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:4000', 'http://localhost:8080'];
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())

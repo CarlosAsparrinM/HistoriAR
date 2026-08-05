@@ -26,6 +26,7 @@ function HistoricalDataForm({ monumentId, monumentName, entry = null, onSave, on
   const [formData, setFormData] = useState({
     title: entry?.title || '',
     description: entry?.description || '',
+    status: entry?.status || 'Oculto',
   });
   
   const [selectedImage, setSelectedImage] = useState(null);
@@ -200,6 +201,29 @@ function HistoricalDataForm({ monumentId, monumentName, entry = null, onSave, on
               disabled={isSubmitting}
             />
           </div>
+
+          {isEditing ? (
+            <div>
+              <Label htmlFor="status">Visibilidad en HistoriAR Web</Label>
+              <select
+                id="status"
+                value={formData.status}
+                onChange={(e) => handleInputChange('status', e.target.value)}
+                disabled={isSubmitting}
+                className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="Oculto">Oculto (solo administración)</option>
+                <option value="Disponible">Disponible (web pública)</option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Publica solo contenido revisado; las fichas nuevas se crean ocultas.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              La ficha se creará oculta. Edítala después para publicarla en la web.
+            </p>
+          )}
 
           {/* Image Upload */}
           <div>

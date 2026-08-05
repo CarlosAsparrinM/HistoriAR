@@ -12,6 +12,7 @@ const HistoricalDataSchema = new mongoose.Schema({
   activities:   [{ type: String }],
   sources:      [{ type: String }],
   createdBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  status:       { type: String, enum: ['Disponible', 'Oculto'], default: 'Oculto', index: true },
   order:        {
     type: Number,
     default: 0,
