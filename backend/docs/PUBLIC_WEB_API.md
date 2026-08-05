@@ -1,8 +1,23 @@
-# API pública para HistoriAR Web
+# Contratos de API para HistoriAR Web
 
-Este contrato solo sirve contenido de consulta. No requiere sesión, cookie,
-token ni cabecera CSRF. La interfaz web no debe llamar rutas administrativas ni
-enviar credenciales.
+Las rutas de contenido descritas abajo son los contratos de lectura existentes.
+La interfaz HistoriAR Web adoptará acceso obligatorio con cuenta local y
+guardas de navegación. Móvil y web compartirán los mismos contratos protegidos
+después de una migración coordinada a Bearer; hasta activar `verifyToken` ruta
+por ruta no debe afirmarse que las lecturas existentes están protegidas.
+
+La web no llama rutas administrativas, no usa Google Sign-In y no comparte la
+cookie del panel.
+
+## Sesión local de usuario
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/validate`
+
+El cliente web restaurará el JWT desde `sessionStorage` tras F5 y lo eliminará
+al cerrar la pestaña, cerrar sesión o recibir `401/403`. No se utiliza
+`localStorage`.
 
 ## Historial de un monumento
 
@@ -56,3 +71,22 @@ falta borrar datos ni objetos de S3.
 
 Para producción, el origen web exacto debe estar en `ALLOWED_ORIGINS`, la API
 debe servir HTTPS y no se deben habilitar comodines CORS.
+
+## Contratos pendientes aprobados
+
+### Instituciones
+
+El DTO web devolverá solo `id`, nombre, tipo, descripción, sitio web, imagen
+firmada, dirección pública y horarios. No devolverá `s3ImageKey`, estado
+interno, radio de proximidad, timestamps administrativos ni alertas.
+
+### Quizzes
+
+- El DTO inicial incluye preguntas y opciones, pero nunca `isCorrect`, índices
+  correctos ni explicaciones antes de responder.
+- `POST /api/quizzes/:id/submit` corrige en servidor y tendrá un máximo inicial
+  de 5 envíos por minuto por usuario e IP.
+- `GET /api/quizzes/my-attempts` obtiene del token al usuario y devuelve una
+  lista paginada de sus puntajes; no acepta `userId` enviado por el cliente.
+- Los intentos web se guardan exclusivamente en `QuizAttempt`. Nunca crean
+  `Visit`, `TourSession` ni progreso de tours.

@@ -73,7 +73,7 @@ HistoriAR/
 │   └── .dockerignore           # Exclusiones del contexto de imagen
 │
 ├── admin-panel/                # Panel web de administración (React + Vite)
-├── app_web/                    # Sitio público (Flutter Web, sin AR)
+├── app_web/                    # Plataforma autenticada (Flutter Web, sin AR ni tours)
 │   └── src/
 │       ├── App.jsx             # Router + providers
 │       ├── components/         # 22 componentes de gestión
@@ -181,7 +181,7 @@ VITE_NODE_ENV=development
 
 El panel usa una cookie de sesión `HttpOnly` y un token CSRF mantenido solo en memoria. No guarda el JWT administrativo en `localStorage`. Si el panel y la API se alojan en sitios diferentes, configura `ADMIN_COOKIE_SAME_SITE=none`; en producción la cookie siempre se emite con `Secure`. `ALLOWED_ORIGINS` debe contener el origen exacto del panel, sin comodines.
 
-### Sitio público web
+### Plataforma web autenticada
 
 ```bash
 cd app_web
@@ -190,9 +190,12 @@ flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:4000/api
 flutter build web --release --dart-define=API_BASE_URL=https://api.ejemplo.pe/api
 ```
 
-La versión web no incluye AR ni credenciales administrativas. Consulta
-`app_web/README.md` y `backend/docs/PUBLIC_WEB_API.md` para la configuración de
-CORS, el contrato público y la publicación segura de fichas históricas.
+La versión web requiere una cuenta local con correo y contraseña; no incluye
+Google Sign-In, AR, tours físicos, GPS ni credenciales administrativas. Los
+quizzes web se registran en `QuizAttempt` y nunca en `Visit`. Consulta
+`app_web/README.md`, `backend/docs/PUBLIC_WEB_API.md` y
+`PLAN_IMPLEMENTACION_VERSION_WEB.md` para el estado de implementación, CORS,
+sesión y contratos de lectura.
 
 ### 3. App Móvil
 
