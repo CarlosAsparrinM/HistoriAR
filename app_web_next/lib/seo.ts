@@ -20,6 +20,25 @@ export const siteUrl = normalizeSiteUrl(
 export const siteName = 'HistoriAR';
 export const siteDescription = 'Explora monumentos, historia y patrimonio cultural del Perú con mapas, modelos 3D y experiencias educativas.';
 
+export const defaultOgImage = {
+  url: absoluteUrl('/og.png'),
+  width: 1728,
+  height: 910,
+  alt: 'HistoriAR: monumentos, historia y patrimonio cultural del Perú',
+  type: 'image/png',
+};
+
+export const defaultKeywords = [
+  'monumentos del Perú',
+  'patrimonio cultural del Perú',
+  'historia del Perú',
+  'turismo cultural Perú',
+  'huacas de Lima',
+  'sitios arqueológicos del Perú',
+  'realidad aumentada educativa',
+  'modelos 3D patrimonio cultural',
+];
+
 export function absoluteUrl(path: string): string {
   return new URL(path, `${siteUrl}/`).toString();
 }
@@ -28,3 +47,4 @@ export function seoDescription(value: string | undefined, fallback = siteDescrip
   const normalized = value?.replace(/\s+/g, ' ').trim() || fallback;
   return normalized.length <= 160 ? normalized : `${normalized.slice(0, 157).trimEnd()}…`;
 }
+

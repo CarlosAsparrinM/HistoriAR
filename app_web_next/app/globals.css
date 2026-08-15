@@ -137,3 +137,169 @@ button { cursor: pointer; }
   .history-image { width: 180px; height: 180px; flex: 0 0 180px; margin: 0 0 12px; }
   .history-title-row .history-audio-button { margin-left: auto; }
 }
+
+/* Modal Central de Horario de Atención y Estado del Backend */
+.service-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 8, 5, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: service-modal-fade 0.22s ease-out;
+}
+
+.service-modal-card {
+  position: relative;
+  width: min(480px, calc(100vw - 32px));
+  padding: 32px 24px 28px;
+  color: #fff;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 20px;
+  background: linear-gradient(155deg, #38180e 0%, #200d07 100%);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  text-align: center;
+  animation: service-modal-scale 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.service-modal-close-icon {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  color: #f5e8e2;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.service-modal-close-icon:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.service-modal-icon-badge {
+  display: inline-grid;
+  width: 60px;
+  height: 60px;
+  place-items: center;
+  margin-bottom: 16px;
+  color: #f59e0b;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.15);
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.2);
+}
+
+.service-modal-card h2 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.service-modal-card p {
+  margin: 0 0 14px;
+  color: #f5e8e2;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.service-hours-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  margin: 6px 0 16px;
+  color: #fed7aa;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+  border-radius: 12px;
+  background: rgba(251, 146, 60, 0.14);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.service-modal-subtext {
+  margin-bottom: 22px !important;
+  color: #d1c0b8 !important;
+  font-size: 13px !important;
+  line-height: 18px !important;
+}
+
+.service-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.service-modal-btn-primary {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  color: #fff;
+  border: 0;
+  border-radius: 21px;
+  background: var(--primary);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.service-modal-btn-primary:hover:not(:disabled) {
+  background: #a44525;
+  transform: translateY(-1px);
+}
+
+.service-modal-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.service-modal-btn-secondary {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 0 20px;
+  color: #f5e8e2;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 21px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.service-modal-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes service-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes service-modal-scale {
+  from { opacity: 0; transform: scale(0.93) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+

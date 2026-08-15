@@ -10,15 +10,25 @@ function requireBrowserApiBaseUrl(): string {
 }
 
 async function browserJson(url: string, init?: RequestInit): Promise<unknown> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { Accept: 'application/json', ...init?.headers },
-  });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(payload?.message ?? `La API respondió con estado ${response.status}.`, response.status);
+  try {
+    const response = await fetch(url, {
+      ...init,
+      headers: { Accept: 'application/json', ...init?.headers },
+    });
+    if (!response.ok) {
+      if (typeof window !== 'undefined' && (response.status >= 500 || response.status === 404)) {
+        window.dispatchEvent(new CustomEvent('historiar:backend-error'));
+      }
+      const payload = await response.json().catch(() => null) as { message?: string } | null;
+      throw new ApiError(payload?.message ?? `La API respondió con estado ${response.status}.`, response.status);
+    }
+    return response.json();
+  } catch (error) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('historiar:backend-error'));
+    }
+    throw error;
   }
-  return response.json();
 }
 
 export async function searchMonuments(text: string, page = 1): Promise<MonumentList> {
