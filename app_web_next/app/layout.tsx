@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 import '@/app/globals.css';
 import { BetaNotice } from '@/components/layout/beta-notice';
 import { JsonLd } from '@/components/seo/json-ld';
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         ]} />
         <main>{children}</main>
         <BetaNotice />
+        <Analytics />
       </body>
     </html>
   );

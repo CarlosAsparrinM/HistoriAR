@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { BannerAd } from '@/components/ads/banner-ad';
 import { HistoricalSection } from '@/components/monument/historical-section';
 import { AppFooter } from '@/components/layout/app-footer';
 import { AppHeader } from '@/components/layout/app-header';
@@ -47,11 +48,11 @@ export default async function MonumentPage({ params }: RouteProps) {
       { '@context': 'https://schema.org', '@type': 'TouristAttraction', name: monument.name, description: seoDescription(monument.description), url: monumentUrl, image: monument.imageUrl ? [monument.imageUrl] : undefined, address: address ? { '@type': 'PostalAddress', streetAddress: monument.location.address, addressLocality: monument.location.district, addressCountry: 'PE' } : undefined, geo: monument.location.lat !== undefined && monument.location.lng !== undefined ? { '@type': 'GeoCoordinates', latitude: monument.location.lat, longitude: monument.location.lng } : undefined, isAccessibleForFree: true, inLanguage: 'es-PE' },
       { '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Explorar monumentos', item: absoluteUrl('/explorar') }, { '@type': 'ListItem', position: 2, name: monument.name, item: monumentUrl }] },
     ]} />
-    <AppHeader backHref="/explorar" /><div className="page-with-ads"><aside className="ad-slot" aria-label="Espacio publicitario"><span>PUBLICIDAD</span><small>Lateral izquierdo<br />160 × 600</small></aside><article className="page detail">
+    <AppHeader backHref="/explorar" /><div className="page-with-ads"><aside className="ad-slot" aria-label="Espacio publicitario"><BannerAd /></aside><article className="page detail">
     {monument.imageUrl && <Image className="hero-image" src={monument.imageUrl} alt={`Vista de ${monument.name}`} width={1200} height={675} sizes="(max-width: 899px) 100vw, calc(100vw - 360px)" priority unoptimized />}
     <div><h1>{monument.name}</h1>{monument.location.district && <p className="district">{monument.location.district}</p>}<p className="detail-description">{monument.description || 'Información histórica en preparación.'}</p></div>
     <div className="detail-grid"><section className="plain-section"><h2>Modelo 3D</h2><MonumentModelViewer src={monument.model3DUrl} name={monument.name} /><p>Para visualizarlo en realidad aumentada, usa la aplicación móvil de HistoriAR.</p></section><section className="plain-section"><h2>Información histórica</h2><HistoricalSection entries={history} /></section></div>
     {quiz && <section className="quiz-promo"><div className="quiz-promo-title"><CircleHelp size={28} /><strong>Quiz Educativo Disponible</strong></div><p>Pon a prueba tus conocimientos sobre {monument.name} respondiendo este quiz.</p><p className="muted">Puedes realizarlo aquí mismo, sin instalar la aplicación móvil.</p><Link className="primary-button" href={`/monumentos/${id}/quiz`}><PlayCircle size={18} /> Realizar quiz en la web</Link></section>}
     <AppFooter />
-  </article><aside className="ad-slot" aria-label="Espacio publicitario"><span>PUBLICIDAD</span><small>Lateral derecho<br />160 × 600</small></aside></div></div>;
+  </article><aside className="ad-slot" aria-label="Espacio publicitario"><BannerAd /></aside></div></div>;
 }
