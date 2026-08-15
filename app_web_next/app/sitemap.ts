@@ -42,7 +42,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: now,
         changeFrequency: 'weekly' as const,
         priority: 0.8,
-        images: monument.imageUrl ? [monument.imageUrl] : undefined,
       })));
 
       if (monumentEntries.length >= result.total) break;

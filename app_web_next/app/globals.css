@@ -112,8 +112,26 @@ button { cursor: pointer; }
 .quiz-result .history-entry { display: block; padding: 16px; border: 1px solid; border-radius: 8px; box-shadow: none; text-align: left; }
 .review-correct { border-color: #81c784 !important; background: #e8f5e9; }
 .review-incorrect { border-color: #ffb74d !important; background: #fff8e1; }
-.legal { max-width: 800px; margin: 0 auto; line-height: 1.6; }
-.legal h1, .legal h2 { color: var(--primary); }
+.legal-wrapper { flex: 1; width: 100%; max-width: 860px; margin: 0 auto; padding: 28px 20px 48px; }
+.legal-nav-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.legal-tab { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; font-size: 14px; font-weight: 500; color: var(--muted); background: #f0eae6; transition: all .18s ease; }
+.legal-tab:hover { background: #e3d9d3; color: var(--primary); }
+.legal-tab.active { background: var(--primary); color: #fff; font-weight: 600; box-shadow: 0 2px 6px rgba(140, 59, 31, .25); }
+.legal-card { background: #fff; border-radius: 16px; padding: 36px 32px; box-shadow: 0 2px 10px rgba(0, 0, 0, .05), 0 0 0 1px rgba(0, 0, 0, .04); }
+.legal-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 12px; background: rgba(140, 59, 31, .1); color: var(--primary); font-size: 12px; font-weight: 600; margin-bottom: 12px; }
+.legal-card h1 { margin: 0 0 8px; color: var(--ink); font-size: 26px; font-weight: 700; line-height: 34px; }
+.legal-card .updated-at { color: var(--muted); font-size: 13px; margin: 0 0 24px; border-bottom: 1px solid #f0eae6; padding-bottom: 14px; }
+.legal-card h2 { margin: 24px 0 10px; color: var(--primary); font-size: 17px; font-weight: 600; line-height: 24px; }
+.legal-card p, .legal-card li { color: #374151; font-size: 14px; line-height: 1.65; margin: 0 0 12px; }
+.legal-card ul { padding-left: 20px; margin: 8px 0 16px; }
+.legal-card li { margin-bottom: 6px; }
+.legal-highlight-box { margin: 20px 0; padding: 16px 20px; border-radius: 12px; background: #fdf8f5; border-left: 4px solid var(--primary); }
+.legal-highlight-box p { margin: 0; font-size: 13.5px; color: #4b5563; }
+.legal-highlight-box strong { color: var(--primary); }
+@media (max-width: 600px) {
+  .legal-card { padding: 24px 16px; border-radius: 12px; }
+  .legal-card h1 { font-size: 22px; line-height: 30px; }
+}
 @media (min-width: 900px) {
   .explore-stage { grid-template-columns: 180px minmax(0, 1fr) 180px; }
   .page-with-ad-space { grid-template-columns: 180px minmax(0, 1fr) 180px; }
