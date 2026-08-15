@@ -145,7 +145,7 @@ function LoginForm() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@historiar.pe"
+                  placeholder="administrador@ejemplo.com"
                   required
                 />
               </div>

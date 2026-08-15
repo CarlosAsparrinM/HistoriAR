@@ -29,7 +29,7 @@ describe('public historical data contract', () => {
     monumentModel.exists.mockResolvedValue({ _id: '507f1f77bcf86cd799439011' });
   });
 
-  it('consulta solo fichas disponibles y elimina campos administrativos', async () => {
+  it('consulta todas las fichas del monumento y elimina campos administrativos', async () => {
     historicalDataModel.find.mockReturnValue({
       sort: vi.fn().mockResolvedValue([{
         _id: 'entry-1', title: 'Historia', description: 'Texto', order: 0,
@@ -42,7 +42,7 @@ describe('public historical data contract', () => {
     await controller.getPublicHistoricalDataByMonument({ params: { monumentId } }, res);
 
     expect(monumentModel.exists).toHaveBeenCalledWith({ _id: monumentId, status: 'Disponible' });
-    expect(historicalDataModel.find).toHaveBeenCalledWith({ monumentId, status: 'Disponible' });
+    expect(historicalDataModel.find).toHaveBeenCalledWith({ monumentId });
     const body = res.json.mock.calls[0][0][0];
     expect(body).toMatchObject({ id: 'entry-1', title: 'Historia', imageUrl: 'https://signed.example/image.jpg' });
     expect(body).not.toHaveProperty('createdBy');

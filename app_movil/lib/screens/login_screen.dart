@@ -123,7 +123,12 @@ class _LoginScreenState extends State<LoginScreen>
 
     setState(() => _isLoading = true);
     try {
-      await _authService.register(name: name, email: email, password: password);
+      await _authService.register(
+        name: name,
+        email: email,
+        password: password,
+        termsAccepted: _termsAccepted,
+      );
       _showError('Cuenta creada, ahora inicia sesión');
       _tabController.animateTo(0);
     } catch (e) {
@@ -145,7 +150,10 @@ class _LoginScreenState extends State<LoginScreen>
     }
     setState(() => _isLoading = true);
     try {
-      final token = await _authService.loginWithGoogle();
+      final token = await _authService.loginWithGoogle(
+        isRegister: isRegister,
+        termsAccepted: isRegister && _termsAccepted,
+      );
       await _sessionStorage.saveToken(token);
 
       try {
@@ -361,8 +369,8 @@ class _LoginScreenState extends State<LoginScreen>
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres';
+              if (value!.length < 9 || !RegExp(r'^[A-Za-z0-9]+$').hasMatch(value)) {
+                return 'Usa al menos 9 caracteres, solo letras y números';
               }
               return null;
             },
@@ -529,8 +537,8 @@ class _LoginScreenState extends State<LoginScreen>
               if (value?.isEmpty ?? true) {
                 return 'La contraseña es obligatoria';
               }
-              if (value!.length < 6) {
-                return 'La contraseña debe tener al menos 6 caracteres';
+              if (value!.length < 9 || !RegExp(r'^[A-Za-z0-9]+$').hasMatch(value)) {
+                return 'Usa al menos 9 caracteres, solo letras y números';
               }
               return null;
             },

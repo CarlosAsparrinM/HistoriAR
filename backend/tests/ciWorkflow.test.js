@@ -14,7 +14,10 @@ describe('CI workflow contract', () => {
     expect(workflow).toContain('run: npm run build');
     expect(workflow).toContain('run: flutter analyze --no-pub');
     expect(workflow).toContain('run: flutter test --no-pub');
-    expect(workflow).toContain('run: flutter build web --release --no-pub --dart-define=API_BASE_URL=https://api.example.invalid/api');
+    expect(workflow).toContain('working-directory: app_web_next');
+    expect(workflow).toContain('run: npm run typecheck');
+    expect(workflow).toContain('run: npm test');
+    expect(workflow).toContain('run: npm run build');
   });
 
   it('mantiene permisos minimos y no contiene pasos operativos', () => {

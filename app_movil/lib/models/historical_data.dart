@@ -7,7 +7,6 @@ class HistoricalData {
   final String? s3ImageKey;
   final String? s3ImageFileName;
   final String? discoveryInfo;
-  final List<String> oldImages;
   final List<String> activities;
   final List<String> sources;
   final int order;
@@ -23,7 +22,6 @@ class HistoricalData {
     this.s3ImageKey,
     this.s3ImageFileName,
     this.discoveryInfo,
-    this.oldImages = const [],
     this.activities = const [],
     this.sources = const [],
     this.order = 0,
@@ -41,7 +39,6 @@ class HistoricalData {
       s3ImageKey: json['s3ImageKey'] as String?,
       s3ImageFileName: json['s3ImageFileName'] as String?,
       discoveryInfo: json['discoveryInfo'] as String?,
-      oldImages: _stringList(json['oldImages']),
       activities: _stringList(json['activities']),
       sources: _stringList(json['sources']),
       order: (json['order'] as num?)?.toInt() ?? 0,
@@ -60,7 +57,6 @@ class HistoricalData {
       's3ImageKey': s3ImageKey,
       's3ImageFileName': s3ImageFileName,
       'discoveryInfo': discoveryInfo,
-      'oldImages': oldImages,
       'activities': activities,
       'sources': sources,
       'order': order,

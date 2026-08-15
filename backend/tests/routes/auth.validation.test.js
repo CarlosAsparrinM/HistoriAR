@@ -30,7 +30,7 @@ describe('auth request validation', () => {
   it('rechaza email inválido antes del controlador de registro', async () => {
     const response = await request(app)
       .post('/api/auth/register')
-      .send({ name: 'User', email: 'invalid', password: 'Password9' });
+      .send({ name: 'User', email: 'invalid', password: 'Password9', termsAccepted: true });
 
     expect(response.status).toBe(400);
     expect(response.body.code).toBe('VALIDATION_ERROR');
@@ -47,6 +47,20 @@ describe('auth request validation', () => {
       expect.objectContaining({ field: 'password' }),
     ]));
     expect(controllerMocks.login).not.toHaveBeenCalled();
+  });
+
+  it('exige la aceptación de términos para registro local y Google', async () => {
+    const local = await request(app)
+      .post('/api/auth/register')
+      .send({ name: 'User', email: 'user@example.com', password: 'Password9' });
+    expect(local.status).toBe(400);
+    expect(controllerMocks.register).not.toHaveBeenCalled();
+
+    const google = await request(app)
+      .post('/api/auth/google')
+      .send({ idToken: 'token', intent: 'register', termsAccepted: false });
+    expect(google.status).toBe(400);
+    expect(controllerMocks.googleLogin).not.toHaveBeenCalled();
   });
 
   it('normaliza email válido antes de llamar al controlador', async () => {

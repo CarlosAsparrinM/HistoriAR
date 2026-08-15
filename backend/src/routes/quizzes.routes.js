@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   listQuiz,
   getQuiz,
+  evaluatePublicQuiz,
   listQuizAdmin,
   getQuizAdmin,
   createQuizController,
@@ -29,6 +30,7 @@ router.get('/admin/:id', verifyToken, requireRole('admin'), getQuizAdmin);
 router.get('/my-attempts', verifyToken, getMyAttemptsController);
 router.get('/', listQuiz);
 router.get('/:id', getQuiz);
+router.post('/:id/evaluate', quizSubmitLimiter, evaluatePublicQuiz);
 router.post('/', verifyToken, requireRole('admin'), createQuizController);
 router.put('/:id', verifyToken, requireRole('admin'), updateQuizController);
 router.delete('/:id', verifyToken, requireRole('admin'), deleteQuizController);

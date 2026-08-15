@@ -6,6 +6,7 @@ import {
   getQuizAttempts,
   getQuizById,
   getUserAttempts,
+  processQuizAnswers,
   submitQuizAttempt,
   updateQuiz,
 } from '../services/quizService.js';
@@ -43,6 +44,33 @@ export async function getQuiz(req, res) {
   const doc = await getQuizById(req.params.id);
   if (!doc || doc.isActive !== true) return res.status(404).json({ message: 'No encontrado' });
   res.json(toPublicQuiz(doc));
+}
+
+// Evalúa un quiz público sin crear un intento ni requerir una cuenta.
+// Las respuestas correctas permanecen en el servidor hasta la evaluación.
+export async function evaluatePublicQuiz(req, res) {
+  try {
+    const quiz = await getQuizById(req.params.id);
+    if (!quiz || quiz.isActive !== true) {
+      return res.status(404).json({ message: 'Quiz no encontrado o inactivo' });
+    }
+
+    const { correctAnswers, review } = processQuizAnswers(quiz, req.body?.answers);
+    const totalQuestions = quiz.questions.length;
+    return res.json({
+      score: correctAnswers,
+      maxScore: totalQuestions,
+      percentage: Math.round((correctAnswers / totalQuestions) * 100),
+      review: review.map(({ questionIndex, selectedOptionIndex, isCorrect, explanation }) => ({
+        questionIndex,
+        selectedOptionIndex,
+        isCorrect,
+        explanation,
+      })),
+    });
+  } catch (err) {
+    return res.status(400).json({ message: err.message });
+  }
 }
 
 export async function listQuizAdmin(req, res) {

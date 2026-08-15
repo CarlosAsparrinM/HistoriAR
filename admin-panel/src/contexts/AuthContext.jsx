@@ -8,21 +8,28 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
     const validateSession = async () => {
       try {
-        const { user: sessionUser } = await apiService.getAdminSession();
-        setUser(sessionUser);
-      } catch {
-        setUser(null);
+        const session = await apiService.getAdminSession({ signal: controller.signal });
+        if (active) setUser(session?.user ?? null);
+      } catch (error) {
+        if (active && error?.name !== 'AbortError') setUser(null);
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
     const expireSession = () => setUser(null);
     window.addEventListener('historiar:session-expired', expireSession);
     validateSession();
-    return () => window.removeEventListener('historiar:session-expired', expireSession);
+    return () => {
+      active = false;
+      controller.abort();
+      window.removeEventListener('historiar:session-expired', expireSession);
+    };
   }, []);
 
   const login = useCallback(async (email, password) => {

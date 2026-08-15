@@ -7,12 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "admin:create": "node src/seeds/seedAdmin.js",
     "setup:s3": "node scripts/setup-s3.js",
-    "migrate:s3": "node scripts/migrate-to-s3.js",
-    "migrate:s3-structure": "node src/migrations/migrateS3Structure.js",
-    "migrate": "node scripts/runMigrations.js",
-    "migrate:institutions": "node src/migrations/addLocationToInstitutions.js",
-    "migrate:quizzes": "node src/migrations/migrateQuizStructure.js",
     "indexes": "node scripts/createIndexes.js",
     "verify": "node scripts/verifyConfig.js",
     "test:s3": "node scripts/testS3Upload.js",
@@ -21,7 +17,7 @@
     "fix:acls": "node scripts/fixS3ACLs.js",
     "check:env": "node scripts/checkEnvVars.js",
     "test:health": "node scripts/testHealthEndpoint.js",
-    "deploy:prepare": "npm run check:env && npm run verify && npm run migrate && npm run indexes",
+    "deploy:prepare": "npm run check:env && npm run verify && npm run indexes",
     "test": "vitest --run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui"
@@ -39,7 +35,6 @@
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.946.0",
-    "@aws-sdk/lib-storage": "^3.946.0",
     "@aws-sdk/s3-request-presigner": "^3.946.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -51,8 +46,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.6.0",
     "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
-    "uuid": "^13.0.0"
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "@vitest/ui": "^1.0.0",

@@ -57,6 +57,9 @@ const registerValidators = [
   body('password')
     .isString().withMessage('La contraseña debe ser texto')
     .isLength({ min: 9, max: 128 }).withMessage('La contraseña debe tener entre 9 y 128 caracteres'),
+  body('termsAccepted')
+    .isBoolean().withMessage('Debes aceptar los Términos y Condiciones y la Política de Privacidad')
+    .custom((value) => value === true).withMessage('Debes aceptar los Términos y Condiciones y la Política de Privacidad'),
   body('district')
     .optional()
     .isString().withMessage('El distrito debe ser texto')
@@ -78,7 +81,13 @@ const loginValidators = [
 
 const googleValidators = [
   body('idToken').isString().notEmpty().withMessage('idToken requerido'),
-  body('isRegister').optional().isBoolean().withMessage('isRegister debe ser booleano'),
+  body('intent').isIn(['login', 'register']).withMessage('intent debe ser login o register'),
+  body('termsAccepted').custom((value, { req }) => {
+    if (req.body.intent === 'register' && value !== true) {
+      throw new Error('Debes aceptar los Términos y Condiciones y la Política de Privacidad');
+    }
+    return true;
+  }),
 ];
 
 router.post('/register', registerRateLimit, registerValidators, validateRequest, register);

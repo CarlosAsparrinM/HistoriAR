@@ -73,7 +73,6 @@ HistoriAR/
 │   └── .dockerignore           # Exclusiones del contexto de imagen
 │
 ├── admin-panel/                # Panel web de administración (React + Vite)
-├── app_web/                    # Plataforma autenticada (Flutter Web, sin AR ni tours)
 │   └── src/
 │       ├── App.jsx             # Router + providers
 │       ├── components/         # 22 componentes de gestión
@@ -88,6 +87,12 @@ HistoriAR/
 │       ├── hooks/              # useMonuments, useQuizzes, useTours...
 │       ├── services/           # ApiService singleton
 │       └── utils/              # Variantes, constantes
+│
+├── app_web_next/               # Plataforma web pública (Next.js, puerto 3005)
+│   ├── app/                     # Rutas y layouts de App Router
+│   ├── components/              # Mapa, fichas, modelo 3D y quiz
+│   ├── lib/                     # Cliente API, esquemas y configuración
+│   └── tests/                   # Contratos y pruebas E2E
 │
 ├── app_movil/                  # App móvil (Flutter / Dart)
 │   └── lib/
@@ -143,7 +148,7 @@ AWS_ACCESS_KEY_ID=<key_opcional>
 AWS_SECRET_ACCESS_KEY=<secret_opcional>
 AWS_REGION=us-east-1
 S3_BUCKET=historiar-storage
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,http://localhost:8080
+ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3005
 GOOGLE_CLIENT_ID=<google_client_id>
 ```
 
@@ -154,9 +159,8 @@ Scripts disponibles:
 | `npm run dev` | Servidor con hot-reload (nodemon) |
 | `npm start` | Servidor en producción |
 | `npm test` | Ejecutar tests con Vitest |
-| `npm run migrate` | Ejecutar migraciones |
 | `npm run indexes` | Crear índices en MongoDB |
-| `npm run deploy:prepare` | Check env + verify + migrate + indexes |
+| `npm run deploy:prepare` | Check env + verify + indexes |
 | `npm run setup:s3` | Configurar bucket S3 |
 
 Las visitas creadas por la app incluyen `experienceType: ar | model3d`. El dashboard considera sesión AR solo una visita marcada `ar`, después de que el modelo se haya mostrado correctamente en el modo de realidad aumentada. Los documentos históricos sin este campo permanecen sin clasificar y no se cuentan retroactivamente como AR.
@@ -181,23 +185,22 @@ VITE_NODE_ENV=development
 
 El panel usa una cookie de sesión `HttpOnly` y un token CSRF mantenido solo en memoria. No guarda el JWT administrativo en `localStorage`. Si el panel y la API se alojan en sitios diferentes, configura `ADMIN_COOKIE_SAME_SITE=none`; en producción la cookie siempre se emite con `Secure`. `ALLOWED_ORIGINS` debe contener el origen exacto del panel, sin comodines.
 
-### Plataforma web autenticada
+### 3. Plataforma web
 
 ```bash
-cd app_web
-flutter pub get
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:4000/api
-flutter build web --release --dart-define=API_BASE_URL=https://api.ejemplo.pe/api
+cd app_web_next
+cp .env.example .env.local      # Configurar URLs del backend
+npm ci
+npm run dev                     # Abre en http://localhost:3005
 ```
 
-La versión web requiere una cuenta local con correo y contraseña; no incluye
-Google Sign-In, AR, tours físicos, GPS ni credenciales administrativas. Los
-quizzes web se registran en `QuizAttempt` y nunca en `Visit`. Consulta
-`app_web/README.md`, `backend/docs/PUBLIC_WEB_API.md` y
-`PLAN_IMPLEMENTACION_VERSION_WEB.md` para el estado de implementación, CORS,
-sesión y contratos de lectura.
+La plataforma web pública utiliza Next.js App Router, consume las rutas públicas
+del backend y muestra el catálogo, mapa, fichas históricas, modelos 3D y quizzes.
+El servidor de desarrollo y producción usa siempre el puerto `3005`. Consulta
+`app_web_next/README.md` y `backend/docs/PUBLIC_WEB_API.md` para la configuración
+de CORS y los contratos de lectura.
 
-### 3. App Móvil
+### 4. App Móvil
 
 ```bash
 cd app_movil

@@ -34,8 +34,8 @@ if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
 
 // CORS configuration
 // Get allowed origins from environment variable or use defaults for development
-const defaultOrigins = process.env.NODE_ENV === 'production' 
-  ? [] 
+const defaultOrigins = process.env.NODE_ENV === 'production'
+  ? []
   : ['http://localhost:5173', 'http://localhost:5175', 'http://localhost:3000', 'http://localhost:4000', 'http://localhost:8080'];
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -52,7 +52,8 @@ const corsOptions = {
     console.log('CORS origin received:', origin);
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
+    const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (allowedOrigins.includes(origin) || (process.env.NODE_ENV !== 'production' && isLocalhost)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

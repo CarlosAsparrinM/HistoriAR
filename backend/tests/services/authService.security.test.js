@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const googleMocks = vi.hoisted(() => ({
+  verifyIdToken: vi.fn(),
+}));
+
 vi.mock('bcryptjs', () => ({
   default: {
     hash: vi.fn(),
@@ -13,6 +17,10 @@ vi.mock('jsonwebtoken', () => ({
   },
 }));
 
+vi.mock('google-auth-library', () => ({
+  OAuth2Client: vi.fn(() => ({ verifyIdToken: googleMocks.verifyIdToken })),
+}));
+
 vi.mock('../../src/models/User.js', () => ({
   default: {
     findOne: vi.fn(),
@@ -22,11 +30,16 @@ vi.mock('../../src/models/User.js', () => ({
 
 const bcrypt = (await import('bcryptjs')).default;
 const User = (await import('../../src/models/User.js')).default;
-const { AuthError, loginUser, registerUser } = await import('../../src/services/authService.js');
+const { AuthError, initializeGoogleAuth, loginUser, loginWithGoogle, registerUser } = await import('../../src/services/authService.js');
 
 describe('authService security', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    User.findOne.mockReset();
+    User.create.mockReset();
+    process.env.GOOGLE_CLIENT_ID = 'google-client-id';
+    process.env.JWT_SECRET = 'test-secret';
+    initializeGoogleAuth();
   });
 
   it('ignora role y status enviados al registro público', async () => {
@@ -38,6 +51,7 @@ describe('authService security', () => {
       name: '  Visitante  ',
       email: 'USER@Example.COM ',
       password: 'Password9',
+      termsAccepted: true,
       district: 'Lima',
       role: 'admin',
       status: 'Suspendido',
@@ -50,6 +64,9 @@ describe('authService security', () => {
       district: 'Lima',
       role: 'user',
       status: 'Activo',
+      termsAcceptedAt: expect.any(Date),
+      termsVersion: expect.any(String),
+      privacyVersion: expect.any(String),
     });
     expect(user.role).toBe('user');
     expect(user.status).toBe('Activo');
@@ -62,6 +79,7 @@ describe('authService security', () => {
       name: 'Visitante',
       email: 'user@example.com',
       password: 'Password9',
+      termsAccepted: true,
     })).rejects.toMatchObject({
       name: 'AuthError',
       statusCode: 409,
@@ -105,5 +123,73 @@ describe('authService security', () => {
       statusCode: 401,
       code: 'INVALID_CREDENTIALS',
     });
+  });
+
+  it('no crea cuentas al iniciar sesión con Google si no existe una identidad registrada', async () => {
+    googleMocks.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: 'google-subject', email: 'user@example.com', email_verified: true }),
+    });
+    User.findOne.mockReturnValue({ select: vi.fn().mockResolvedValue(null) });
+
+    await expect(loginWithGoogle({
+      idToken: 'id-token',
+      intent: 'login',
+      termsAccepted: false,
+    })).rejects.toMatchObject({
+      statusCode: 404,
+      code: 'GOOGLE_ACCOUNT_NOT_FOUND',
+    });
+    expect(User.create).not.toHaveBeenCalled();
+  });
+
+  it('acepta como audience los clientes configurados para móvil y web', async () => {
+    process.env.GOOGLE_MOBILE_CLIENT_ID = 'mobile-client-id';
+    process.env.GOOGLE_WEB_CLIENT_ID = 'web-client-id';
+    googleMocks.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({ sub: 'google-subject', email: 'user@example.com', email_verified: true }),
+    });
+    User.findOne.mockReturnValue({ select: vi.fn().mockResolvedValue(null) });
+
+    await expect(loginWithGoogle({
+      idToken: 'id-token',
+      intent: 'login',
+      termsAccepted: false,
+    })).rejects.toMatchObject({ code: 'GOOGLE_ACCOUNT_NOT_FOUND' });
+    expect(googleMocks.verifyIdToken).toHaveBeenCalledWith(expect.objectContaining({
+      audience: expect.arrayContaining(['mobile-client-id', 'web-client-id']),
+    }));
+  });
+
+  it('solo registra con Google después de aceptar los términos', async () => {
+    googleMocks.verifyIdToken.mockResolvedValue({
+      getPayload: () => ({
+        sub: 'google-subject',
+        email: 'new@example.com',
+        email_verified: true,
+        name: 'New User',
+      }),
+    });
+    User.findOne
+      .mockReturnValueOnce({ select: vi.fn().mockResolvedValue(null) })
+      .mockResolvedValueOnce(null);
+    User.create.mockImplementation(async (payload) => ({ _id: 'user-1', ...payload }));
+
+    await expect(loginWithGoogle({
+      idToken: 'id-token',
+      intent: 'register',
+      termsAccepted: false,
+    })).rejects.toMatchObject({ code: 'TERMS_ACCEPTANCE_REQUIRED' });
+    expect(User.create).not.toHaveBeenCalled();
+
+    const result = await loginWithGoogle({
+      idToken: 'id-token',
+      intent: 'register',
+      termsAccepted: true,
+    });
+    expect(result.token).toBe('signed-token');
+    expect(User.create).toHaveBeenCalledWith(expect.objectContaining({
+      googleSubject: 'google-subject',
+      termsAcceptedAt: expect.any(Date),
+    }));
   });
 });

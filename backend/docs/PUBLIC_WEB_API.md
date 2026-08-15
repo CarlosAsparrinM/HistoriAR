@@ -24,8 +24,8 @@ al cerrar la pestaña, cerrar sesión o recibir `401/403`. No se utiliza
 `GET /api/monuments/:monumentId/historical-data/public`
 
 Devuelve `404` si el ID no es válido, el monumento no existe o no tiene estado
-`Disponible`. Solo incluye entradas históricas con estado `Disponible`, en
-orden ascendente.
+`Disponible`. Incluye todas sus entradas históricas en orden ascendente, porque
+las fichas se publican desde el momento en que se crean.
 
 Ejemplo de respuesta:
 
@@ -52,17 +52,11 @@ La ruta tiene un límite de 120 solicitudes por IP cada 15 minutos. En una
 instalación con más de una instancia de backend, el limitador en memoria debe
 reemplazarse por almacenamiento compartido antes de publicar la web.
 
-## Publicar una ficha histórica
+## Publicación de fichas históricas
 
-Las nuevas fichas se crean con `status: Oculto` de forma intencional. Para
-hacer una visible en la web, un administrador debe editarla en el panel y
-seleccionar **Disponible (web pública)**. El endpoint administrativo de edición
-acepta exclusivamente `Oculto` o `Disponible`.
-
-Las fichas existentes sin `status` se tratan como ocultas. No se ejecuta una
-migración automática porque podría publicar contenido no revisado. El rollback
-operativo es editar las fichas publicadas y devolverlas a `Oculto`; no hace
-falta borrar datos ni objetos de S3.
+Las fichas históricas no manejan un estado de publicación independiente. Una
+ficha queda visible en la web inmediatamente después de crearla. Su exposición
+pública depende únicamente de que el monumento asociado esté `Disponible`.
 
 ## Catálogo y detalle
 
@@ -81,6 +75,16 @@ firmada, dirección pública y horarios. No devolverá `s3ImageKey`, estado
 interno, radio de proximidad, timestamps administrativos ni alertas.
 
 ### Quizzes
+
+La web permite responder quizzes de forma anónima. Obtiene las preguntas con
+`GET /api/quizzes?monumentId=:id` y las evalúa con
+`POST /api/quizzes/:id/evaluate`. La evaluación no crea un `QuizAttempt`, no
+requiere token y está limitada a 5 solicitudes por minuto por IP. Solo devuelve
+puntaje y retroalimentación; las respuestas correctas no se incluyen antes de
+evaluar.
+
+Las reglas siguientes sobre `submit` e intentos corresponden a la app móvil
+autenticada, no a la experiencia web pública.
 
 - El DTO inicial incluye preguntas y opciones, pero nunca `isCorrect`, índices
   correctos ni explicaciones antes de responder.

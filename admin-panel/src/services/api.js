@@ -91,11 +91,19 @@ export class ApiService {
     return data;
   }
 
-  async getAdminSession() {
+  async getAdminSession({ signal } = {}) {
     const response = await fetch(`${this.baseURL}/auth/admin/session`, {
       method: 'GET',
       credentials: 'include',
+      signal,
     });
+    // No hay sesión al abrir el panel por primera vez. Ese 401 es un estado
+    // esperado y no debe emitir el evento global de sesión expirada, ya que
+    // podría invalidar un inicio de sesión que acaba de completarse.
+    if (response.status === 401) {
+      this.setCsrfToken(null);
+      return null;
+    }
     const data = await this.handleFetchResponse(response);
     this.setCsrfToken(data.csrfToken);
     return data;
@@ -515,7 +523,6 @@ export class ApiService {
     if (data.discoveryInfo !== undefined) formData.append('discoveryInfo', data.discoveryInfo);
     if (data.activities) formData.append('activities', JSON.stringify(data.activities));
     if (data.sources) formData.append('sources', JSON.stringify(data.sources));
-    if (data.status !== undefined) formData.append('status', data.status);
     if (imageFile) formData.append('image', imageFile);
 
     const url = `${this.baseURL}/historical-data/${id}`;

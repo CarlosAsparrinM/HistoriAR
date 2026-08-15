@@ -8,17 +8,15 @@ export async function getAllMonuments(filter = {}, { skip = 0, limit = 10, popul
   const queryFilter = { ...filter };
 
   if (hasText) {
-    queryFilter.$text = { $search: String(text).trim() };
+    const escapedText = String(text).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    queryFilter.$or = [
+      { name: { $regex: escapedText, $options: 'i' } },
+      { description: { $regex: escapedText, $options: 'i' } },
+      { 'location.district': { $regex: escapedText, $options: 'i' } },
+    ];
   }
 
-  let query = Monument.find(queryFilter);
-
-  if (hasText) {
-    query = query.select({ score: { $meta: 'textScore' } });
-    query = query.sort({ score: { $meta: 'textScore' }, name: 1 });
-  } else {
-    query = query.sort({ name: 1 });
-  }
+  let query = Monument.find(queryFilter).sort({ name: 1 });
 
   query = query.skip(skip).limit(limit);
 

@@ -149,6 +149,7 @@ class AuthService {
     required String name,
     required String email,
     required String password,
+    required bool termsAccepted,
   }) async {
     final uri = Uri.parse('${Environment.apiBaseUrl}$_basePath/register');
 
@@ -161,6 +162,7 @@ class AuthService {
               'name': name,
               'email': email,
               'password': password,
+              'termsAccepted': termsAccepted,
             }),
           )
           .timeout(
@@ -199,7 +201,10 @@ class AuthService {
     }
   }
 
-  Future<String> loginWithGoogle({bool isRegister = false}) async {
+  Future<String> loginWithGoogle({
+    required bool isRegister,
+    required bool termsAccepted,
+  }) async {
     try {
       // Paso 1: Obtener cuenta de Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -225,7 +230,11 @@ class AuthService {
           .post(
             uri,
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'idToken': idToken, 'isRegister': isRegister}),
+            body: jsonEncode({
+              'idToken': idToken,
+              'intent': isRegister ? 'register' : 'login',
+              'termsAccepted': termsAccepted,
+            }),
           )
           .timeout(
             const Duration(seconds: _timeoutSeconds),

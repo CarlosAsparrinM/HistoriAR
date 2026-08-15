@@ -6,6 +6,19 @@ import User from '../models/User.js';
 // Será inicializado después de que dotenv cargue las variables
 let client;
 
+export const TERMS_VERSION = '2026-08-12';
+export const PRIVACY_VERSION = '2026-08-12';
+
+function googleAudiences() {
+  // GOOGLE_CLIENT_ID is retained temporarily for existing installations.
+  // New deployments must configure one client per platform.
+  return [
+    process.env.GOOGLE_MOBILE_CLIENT_ID,
+    process.env.GOOGLE_WEB_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_ID,
+  ].filter((value, index, values) => value && values.indexOf(value) === index);
+}
+
 export class AuthError extends Error {
   constructor(message, statusCode = 400, code = 'AUTH_ERROR') {
     super(message);
@@ -34,22 +47,29 @@ function validatePasswordStrength(password) {
 }
 
 export function initializeGoogleAuth() {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const audiences = googleAudiences();
   const jwtSecret = process.env.JWT_SECRET;
 
   if (!jwtSecret) {
     throw new Error('❌ JWT_SECRET no configurado en .env');
   }
 
-  if (!googleClientId) {
-    console.warn('⚠️ GOOGLE_CLIENT_ID no configurado en .env - Google login no funcionará');
+  if (audiences.length === 0) {
+    console.warn('⚠️ GOOGLE_MOBILE_CLIENT_ID/GOOGLE_WEB_CLIENT_ID no configurados - Google login no funcionará');
   }
 
-  client = new OAuth2Client(googleClientId);
+  client = new OAuth2Client();
 }
 
 export async function registerUser(data) {
-  const { name, password, district } = data;
+  const { name, password, district, termsAccepted } = data;
+  if (termsAccepted !== true) {
+    throw new AuthError(
+      'Debes aceptar los Términos y Condiciones y la Política de Privacidad',
+      400,
+      'TERMS_ACCEPTANCE_REQUIRED',
+    );
+  }
   const email = normalizeEmail(data.email);
   const exists = await User.findOne({ email });
   if (exists) {
@@ -70,6 +90,9 @@ export async function registerUser(data) {
       district,
       role: 'user',
       status: 'Activo',
+      termsAcceptedAt: new Date(),
+      termsVersion: TERMS_VERSION,
+      privacyVersion: PRIVACY_VERSION,
     });
   } catch (error) {
     if (error?.code === 11000) {
@@ -108,83 +131,94 @@ export async function loginUser(email, password) {
   return { token, user };
 }
 
-export async function loginWithGoogle(idToken, isRegister = false) {
+export async function loginWithGoogle({ idToken, intent, termsAccepted }) {
+  if (!['login', 'register'].includes(intent)) {
+    throw new AuthError('intent debe ser login o register', 400, 'INVALID_GOOGLE_INTENT');
+  }
+
   // Validar que el cliente esté inicializado
   if (!client) {
-    throw new Error('Google Auth no está inicializado. Verifica GOOGLE_CLIENT_ID en .env');
+    throw new AuthError('Google Auth no está inicializado.', 500, 'GOOGLE_NOT_CONFIGURED');
   }
 
   // Validar que el idToken no esté vacío
   if (!idToken || typeof idToken !== 'string') {
-    throw new Error('Token inválido: idToken requerido');
+    throw new AuthError('Token inválido: idToken requerido', 400, 'INVALID_GOOGLE_TOKEN');
   }
 
   let ticket;
   try {
+    const audiences = googleAudiences();
+    if (audiences.length === 0) {
+      throw new AuthError('Google Sign-In no está configurado en el servidor.', 500, 'GOOGLE_NOT_CONFIGURED');
+    }
     // Verificar el idToken con Google
     ticket = await client.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: audiences,
     });
   } catch (err) {
+    if (err instanceof AuthError) throw err;
     // Manejo específico de errores de verificación
     if (err.message?.includes('audience')) {
-      throw new Error('Token de Google inválido o no coincide con la configuración');
+      throw new AuthError('Token de Google inválido o no coincide con la configuración', 401, 'INVALID_GOOGLE_TOKEN');
     }
     if (err.message?.includes('Token used too late')) {
-      throw new Error('Token de Google expirado');
+      throw new AuthError('Token de Google expirado', 401, 'INVALID_GOOGLE_TOKEN');
     }
     if (err.message?.includes('No ID token')) {
-      throw new Error('Token de Google no contiene información de usuario');
+      throw new AuthError('Token de Google no contiene información de usuario', 401, 'INVALID_GOOGLE_TOKEN');
     }
-    throw new Error(`Error al verificar token de Google: ${err.message}`);
+    throw new AuthError('No se pudo verificar el token de Google', 401, 'INVALID_GOOGLE_TOKEN');
   }
 
   const payload = ticket.getPayload();
 
   // Validar que el payload contenga los datos esperados
-  if (!payload?.email) {
-    throw new Error('Token de Google no contiene email');
+  if (!payload?.sub || !payload.email || payload.email_verified !== true) {
+    throw new AuthError('La cuenta de Google no tiene un correo verificado', 401, 'INVALID_GOOGLE_TOKEN');
   }
 
-  const { email, name, picture } = payload;
+  const { sub: googleSubject, email, name, picture } = payload;
+  const normalizedEmail = normalizeEmail(email);
 
-  // Se solicita el hash solo para conservar el comportamiento que distingue
-  // cuentas locales de cuentas creadas exclusivamente con Google.
-  let user = await User.findOne({ email }).select('+password');
-
-  if (isRegister && user) {
-    throw new Error('El correo ya está registrado');
+  if (intent === 'register' && termsAccepted !== true) {
+    throw new AuthError('Debes aceptar los Términos y Condiciones y la Política de Privacidad', 400, 'TERMS_ACCEPTANCE_REQUIRED');
   }
 
-  if (!user) {
-    // Si no existe, lo creamos con datos de Google
+  let user = await User.findOne({ googleSubject }).select('+password');
+
+  if (intent === 'register') {
+    if (user || await User.findOne({ email: normalizedEmail })) {
+      throw new AuthError('El correo ya está registrado. Inicia sesión o vincula Google desde tu perfil.', 409, 'EMAIL_ALREADY_EXISTS');
+    }
     try {
       user = await User.create({
-        name: name || email.split('@')[0],
-        email,
+        name: name || normalizedEmail.split('@')[0],
+        email: normalizedEmail,
+        googleSubject,
         role: 'user',
         avatarUrl: picture,
         status: 'Activo',
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
+        privacyVersion: PRIVACY_VERSION,
       });
     } catch (err) {
-      // Si falla la creación, probablemente sea un error de base de datos
-      throw new Error(`No se pudo crear el usuario: ${err.message}`);
+      if (err?.code === 11000) {
+        throw new AuthError('El correo ya está registrado', 409, 'EMAIL_ALREADY_EXISTS');
+      }
+      throw err;
     }
-  } else {
-    // Validar estado
-    if (user.status === 'Eliminado') {
-      throw new Error('Esta cuenta ha sido eliminada.');
-    }
-    if (user.status === 'Suspendido') {
-      throw new Error('Esta cuenta está suspendida.');
-    }
+  } else if (!user) {
+    throw new AuthError('No existe una cuenta registrada con este Google. Regístrate primero.', 404, 'GOOGLE_ACCOUNT_NOT_FOUND');
+  }
 
-    // Usuario existe y está activo
-    if (!user.password && picture && !user.avatarUrl) {
-      user.avatarUrl = picture;
-      await user.save();
-    }
+  if (user.status === 'Eliminado') {
+    throw new AuthError('Esta cuenta ha sido eliminada.', 401, 'INVALID_CREDENTIALS');
+  }
+  if (user.status === 'Suspendido') {
+    throw new AuthError('Esta cuenta está suspendida.', 403, 'ACCOUNT_SUSPENDED');
   }
 
   // Generar JWT

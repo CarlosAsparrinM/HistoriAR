@@ -40,7 +40,7 @@ export async function getPublicHistoricalDataByMonument(req, res) {
       return res.status(404).json({ message: 'Monumento no encontrado' });
     }
 
-    const entries = await HistoricalData.find({ monumentId, status: 'Disponible' })
+    const entries = await HistoricalData.find({ monumentId })
       .sort({ order: 1, createdAt: 1 });
     const hydrated = await Promise.all(entries.map(hydrateHistoricalDataMedia));
     res.json(hydrated.map(toPublicHistoricalData));
@@ -165,7 +165,6 @@ export async function createHistoricalData(req, res) {
       activities: activities ? JSON.parse(activities) : [],
       sources: sources ? JSON.parse(sources) : [],
       createdBy: userId,
-      status: 'Oculto',
       order
     });
 
@@ -187,7 +186,7 @@ export async function createHistoricalData(req, res) {
 export async function updateHistoricalData(req, res) {
   try {
     const { id } = req.params;
-    const { title, description, discoveryInfo, activities, sources, status } = req.body;
+    const { title, description, discoveryInfo, activities, sources } = req.body;
 
     const historicalData = await HistoricalData.findById(id);
 
@@ -201,7 +200,6 @@ export async function updateHistoricalData(req, res) {
     if (discoveryInfo !== undefined) historicalData.discoveryInfo = discoveryInfo;
     if (activities) historicalData.activities = JSON.parse(activities);
     if (sources) historicalData.sources = JSON.parse(sources);
-    if (status === 'Disponible' || status === 'Oculto') historicalData.status = status;
 
     // Handle image upload if provided
     if (req.file) {

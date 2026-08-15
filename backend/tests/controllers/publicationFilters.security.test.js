@@ -60,6 +60,35 @@ describe('publication filters', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'No encontrado' });
   });
 
+  it('elimina referencias internas de almacenamiento y autor de la respuesta pública', async () => {
+    monumentService.getMonumentById.mockResolvedValue({
+      _id: 'm1',
+      name: 'Huaca de prueba',
+      description: 'Descripción pública',
+      status: 'Disponible',
+      location: { lat: -12.1, lng: -77.0, address: 'Dirección', district: 'Lima' },
+      s3ImageKey: 'images/monuments/m1/internal.jpg',
+      s3ModelKey: 'models/monuments/m1/internal.glb',
+      s3ImageFileName: 'internal.jpg',
+      s3ModelFileName: 'internal.glb',
+      createdBy: 'admin-1',
+      __v: 3,
+    });
+    const res = mockRes();
+
+    await monuments.getMonument({ params: { id: 'm1' }, query: {} }, res);
+
+    const body = res.json.mock.calls[0][0];
+    expect(body).toMatchObject({ _id: 'm1', name: 'Huaca de prueba' });
+    expect(body).not.toHaveProperty('s3ImageKey');
+    expect(body).not.toHaveProperty('s3ModelKey');
+    expect(body).not.toHaveProperty('s3ImageFileName');
+    expect(body).not.toHaveProperty('s3ModelFileName');
+    expect(body).not.toHaveProperty('createdBy');
+    expect(body).not.toHaveProperty('status');
+    expect(body).not.toHaveProperty('__v');
+  });
+
   it('bloquea filtros que intenten listar instituciones ocultas', async () => {
     institutionService.getAllInstitutions.mockResolvedValue({ items: [], total: 0 });
     const res = mockRes();

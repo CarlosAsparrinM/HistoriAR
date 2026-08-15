@@ -41,11 +41,9 @@ async function seedAll() {
     console.log('\n📋 Summary:');
     console.log('- Categories: 4 created');
     console.log('- Institutions: 4 created');
-    console.log('- Users: 5 regular + 1 admin');
+    console.log('- Users: 5 regular users');
     console.log('- Monuments: 5 created with proper category references');
-    console.log('\n🔑 Admin credentials:');
-    console.log('Email: admin@historiar.pe');
-    console.log('Password: admin123');
+    console.log('- Admin: create one securely with npm run admin:create');
 
   } catch (error) {
     console.error('❌ Error during seeding:', error);

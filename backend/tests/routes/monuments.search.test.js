@@ -83,12 +83,16 @@ describe('Monument Search API', () => {
   });
 
   describe('GET /api/monuments/search', () => {
-    it('should return 401 when no authorization header is provided', async () => {
+    it('should search monuments without requiring an authorization header', async () => {
+      mockMonumentService.searchMonuments.mockResolvedValue({
+        items: [mockMonuments[0]],
+        total: 1,
+      });
       const response = await request(app)
         .get('/api/monuments/search')
         .query({ text: 'Machu' });
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(200);
     });
 
     it('should search monuments by text when token is provided', async () => {
@@ -105,11 +109,18 @@ describe('Monument Search API', () => {
         .query({ text: 'Machu' });
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({
+      expect(response.body).toMatchObject({
         page: 1,
         total: 1,
-        items: [mockMonuments[0]]
+        items: [{
+          _id: mockMonuments[0]._id,
+          name: mockMonuments[0].name,
+          description: mockMonuments[0].description,
+          institutionId: mockMonuments[0].institutionId,
+        }]
       });
+      expect(response.body.items[0]).not.toHaveProperty('status');
+      expect(response.body.items[0]).not.toHaveProperty('s3ImageKey');
       
       expect(mockMonumentService.searchMonuments).toHaveBeenCalledWith(
         { text: 'Machu', district: undefined, category: undefined, institution: undefined },

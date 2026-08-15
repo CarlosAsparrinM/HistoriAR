@@ -18,10 +18,9 @@ const publicReadRateLimiter = createRateLimiter({
   message: 'Demasiadas solicitudes de contenido público. Intenta nuevamente más tarde.',
 });
 
-// Contenido para visitantes: solo fichas que un administrador publicó.
+// Toda ficha creada para un monumento disponible se publica inmediatamente.
 router.get(
   '/monuments/:monumentId/historical-data/public',
-  verifyToken,
   publicReadRateLimiter,
   getPublicHistoricalDataByMonument,
 );

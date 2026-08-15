@@ -204,7 +204,7 @@ Tareas:
 
 1. Declarar el hash de contraseña con `select: false` en el modelo.
 2. Solicitarlo explícitamente solo durante login o cambio de contraseña.
-3. Eliminar `admin123` y otras contraseñas fijas de seeds y logs.
+3. Eliminar contraseñas administrativas predeterminadas de seeds y logs.
 4. Obtener credenciales iniciales desde variables de entorno de un solo uso o crear un comando interactivo seguro.
 5. Revisar la política actual que solo permite letras y números; permitir frases largas y caracteres especiales sin imponer reglas que reduzcan entropía.
 

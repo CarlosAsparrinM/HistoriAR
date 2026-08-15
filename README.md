@@ -36,3 +36,17 @@ This thesis addresses the dissemination of Peruvian historical and cultural heri
 ## Keywords
 
 augmented reality; historical heritage; gamification; quizzes; monuments; geolocation; 3D models; digital ecosystem; Flutter; React; Node.js
+
+## Crear un administrador
+
+El repositorio no incluye credenciales administrativas predeterminadas. Después de configurar
+`backend/.env`, crea un administrador desde una terminal interactiva:
+
+```powershell
+cd backend
+npm run admin:create
+```
+
+El comando muestra el clúster y la base de datos de destino, solicita confirmación y pide nombre,
+correo y contraseña. La contraseña se oculta mientras se escribe y solo se almacena como hash.
+Si el correo ya pertenece a un usuario, el comando lo asciende a administrador y activa la cuenta.

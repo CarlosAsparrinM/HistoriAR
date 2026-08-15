@@ -103,33 +103,36 @@ jobs:
         run: flutter test --no-pub
 
   web:
-    name: Flutter web quality
+    name: Next.js web quality
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
       run:
-        working-directory: app_web
+        working-directory: app_web_next
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2.23.0
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
         with:
-          flutter-version: 3.44.0
-          channel: stable
-          cache: true
+          node-version: 20.20.2
+          cache: npm
+          cache-dependency-path: app_web_next/package-lock.json
 
       - name: Install locked dependencies
-        run: flutter pub get --enforce-lockfile
+        run: npm ci --ignore-scripts
 
-      - name: Analyze Flutter Web code
-        run: flutter analyze --no-pub
+      - name: Run ESLint
+        run: npm run lint
 
-      - name: Run Flutter Web tests
-        run: flutter test --no-pub
+      - name: Type-check web code
+        run: npm run typecheck
+
+      - name: Run web tests
+        run: npm test
 
       - name: Build production web bundle
-        run: flutter build web --release --no-pub --dart-define=API_BASE_URL=https://api.example.invalid/api
+        run: npm run build

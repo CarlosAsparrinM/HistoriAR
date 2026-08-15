@@ -60,25 +60,14 @@ export function adminLogout(_req, res) {
 
 export async function googleLogin(req, res) {
   try {
-    const { idToken, isRegister } = req.body;
-    
-    if (!idToken) {
-      return res.status(400).json({ message: 'idToken requerido' });
-    }
-
-    const { token, user } = await loginWithGoogle(idToken, isRegister);
-    res.json({ 
-      token, 
-      user: { id: user._id, name: user.name, email: user.email, role: user.role } 
+    const { idToken, intent, termsAccepted } = req.body;
+    const { token, user } = await loginWithGoogle({ idToken, intent, termsAccepted });
+    res.json({
+      token,
+      user: publicUser(user),
     });
   } catch (err) {
-    console.error('Error en login de Google:', err.message);
-    
-    // Mensajes de error específicos según el tipo de error
-    const errorMessage = err.message || 'Error en la autenticación con Google';
-    const statusCode = errorMessage.includes('Configuración') ? 500 : 400;
-    
-    res.status(statusCode).json({ message: errorMessage });
+    sendAuthError(res, err, 'Error en la autenticación con Google');
   }
 }
 

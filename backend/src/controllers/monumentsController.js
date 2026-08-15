@@ -10,148 +10,40 @@ import {
   validateUploadedFileSignature,
 } from '../utils/storageSecurity.js';
 
-const MEDIA_URL_EXPIRATION_SECONDS = 60 * 60;
-
-function normalizeMonumentPayloadLegacy(payload) {
-  /* legacy implementation retained temporarily for compatibility review
-  const normalized = { ...payload };
-
-  const shouldNormalizeCultures = Object.prototype.hasOwnProperty.call(normalized, 'cultures')
-    || Object.prototype.hasOwnProperty.call(normalized, 'culture');
-
-  if (shouldNormalizeCultures) {
-    const rawCultures = [];
-
-    if (Array.isArray(normalized.cultures)) {
-      rawCultures.push(...normalized.cultures);
-    }
-
-    if (typeof normalized.culture === 'string' && normalized.culture.trim()) {
-      rawCultures.push(normalized.culture.trim());
-    }
-
-    const uniqueCultures = [];
-    const seen = new Set();
-
-    rawCultures
-      .map((value) => String(value || '').trim())
-      .filter(Boolean)
-      .forEach((cultureName) => {
-        const normalizedKey = cultureName.toLowerCase();
-        if (seen.has(normalizedKey)) return;
-        seen.add(normalizedKey);
-        uniqueCultures.push(cultureName);
-      });
-
-    normalized.cultures = uniqueCultures;
-    normalized.culture = uniqueCultures[0] || '';
-  }
-
-  if (normalized.period && typeof normalized.period === 'object') {
-    const period = { ...normalized.period };
-    const isIdentified = parseBooleanFlag(period.isIdentified, true);
-    const startYear = toNullableInteger(period.startYear);
-    const endYear = toNullableInteger(period.endYear);
-
-    if (isIdentified && startYear === null) {
-      throw new Error('Debe ingresar al menos el anio de inicio o marcarlo como no identificado.');
-    }
-
-    if (isIdentified && startYear !== null && endYear !== null && endYear < startYear) {
-      throw new Error('El anio de fin no puede ser menor al anio de inicio.');
-    }
-
-    period.isIdentified = isIdentified;
-    period.startYear = isIdentified ? startYear : null;
-    period.endYear = isIdentified ? endYear : null;
-    normalized.period = period;
-  }
-
-  if (normalized.discovery && typeof normalized.discovery === 'object') {
-    const discovery = { ...normalized.discovery };
-    const isDateKnownFlag = parseBooleanFlag(discovery.isDateKnown, false);
-    const isDiscovererKnown = parseBooleanFlag(discovery.isDiscovererKnown, false);
-    const allowedDatePrecisions = new Set(['exact', 'month', 'year', 'unknown']);
-
-    const requestedPrecision = String(
-      discovery.datePrecision || (isDateKnownFlag ? 'exact' : 'unknown')
-    ).toLowerCase();
-
-    const datePrecision = allowedDatePrecisions.has(requestedPrecision)
-      ? requestedPrecision
-      : (isDateKnownFlag ? 'exact' : 'unknown');
-
-    discovery.datePrecision = datePrecision;
-    discovery.isDateKnown = datePrecision !== 'unknown';
-    discovery.isDiscovererKnown = isDiscovererKnown;
-
-    if (datePrecision === 'unknown') {
-      discovery.discoveredAt = null;
-      discovery.discoveredYear = null;
-      discovery.discoveredMonth = null;
-    } else if (datePrecision === 'exact') {
-      if (!discovery.discoveredAt) {
-        throw new Error('Debe ingresar la fecha exacta de descubrimiento.');
-      }
-
-      const parsedDate = new Date(discovery.discoveredAt);
-      if (Number.isNaN(parsedDate.getTime())) {
-        throw new Error('La fecha de descubrimiento no es valida.');
-      }
-
-      discovery.discoveredAt = parsedDate;
-      discovery.discoveredYear = parsedDate.getUTCFullYear();
-      discovery.discoveredMonth = parsedDate.getUTCMonth() + 1;
-    } else if (datePrecision === 'month') {
-      const discoveredYear = toNullableInteger(discovery.discoveredYear);
-      const discoveredMonth = toNullableInteger(discovery.discoveredMonth);
-
-      if (discoveredYear === null || discoveredMonth === null) {
-        throw new Error('Debe ingresar mes y anio de descubrimiento.');
-      }
-
-      if (discoveredMonth < 1 || discoveredMonth > 12) {
-        throw new Error('El mes de descubrimiento debe estar entre 1 y 12.');
-      }
-
-      discovery.discoveredYear = discoveredYear;
-      discovery.discoveredMonth = discoveredMonth;
-      discovery.discoveredAt = new Date(Date.UTC(discoveredYear, discoveredMonth - 1, 1));
-    } else if (datePrecision === 'year') {
-      const discoveredYear = toNullableInteger(discovery.discoveredYear);
-
-      if (discoveredYear === null) {
-        throw new Error('Debe ingresar el anio de descubrimiento.');
-      }
-
-      discovery.discoveredYear = discoveredYear;
-      discovery.discoveredMonth = null;
-      discovery.discoveredAt = new Date(Date.UTC(discoveredYear, 0, 1));
-    }
-
-    if (isDiscovererKnown) {
-      const trimmedName = String(discovery.discovererName || '').trim();
-      if (!trimmedName) {
-        throw new Error('Debe ingresar el nombre del descubridor o marcarlo como desconocido.');
-      }
-      discovery.discovererName = trimmedName;
-    } else {
-      discovery.discovererName = null;
-    }
-
-    normalized.discovery = discovery;
-  }
-
-  return normalized;
-  */
-}
-
 async function hydrateMonumentMedia(monument) {
   return hydrateMedia(monument, [
     { urlField: 'imageUrl', keyField: 's3ImageKey' },
     { urlField: 'model3DUrl', keyField: 's3ModelKey' },
     { urlField: 'model3DTilesUrl', keyField: 's3ModelTilesKey' }
   ]);
+}
+
+// Contrato anónimo: nunca publicar claves o nombres internos de S3, el autor
+// del registro, el estado editorial ni metadatos propios de MongoDB.
+export function toPublicMonument(source) {
+  const monument = source?.toObject ? source.toObject() : source;
+  if (!monument) return monument;
+
+  return {
+    _id: monument._id,
+    name: monument.name,
+    description: monument.description || '',
+    categoryId: monument.categoryId || null,
+    institutionId: monument.institutionId || null,
+    location: {
+      lat: monument.location?.lat,
+      lng: monument.location?.lng,
+      address: monument.location?.address || null,
+      district: monument.location?.district || null,
+    },
+    period: monument.period || null,
+    discovery: monument.discovery || null,
+    cultures: Array.isArray(monument.cultures) ? monument.cultures : [],
+    culture: monument.culture || null,
+    imageUrl: monument.imageUrl || null,
+    model3DUrl: monument.model3DUrl || null,
+    model3DTilesUrl: monument.model3DTilesUrl || null,
+  };
 }
 
 async function listMonuments(req, res, { publicOnly }) {
@@ -180,7 +72,11 @@ async function listMonuments(req, res, { publicOnly }) {
       text: req.query.text || ''
     });
     const hydratedItems = await Promise.all(items.map(hydrateMonumentMedia));
-    res.json({ page, total, items: hydratedItems });
+    res.json({
+      page,
+      total,
+      items: publicOnly ? hydratedItems.map(toPublicMonument) : hydratedItems,
+    });
   } catch (err) { res.status(500).json({ message: err.message }); }
 }
 
@@ -216,7 +112,7 @@ export async function getMonumentStatsController(req, res) {
 export async function getMonument(req, res) {
   const doc = await getMonumentById(req.params.id, req.query.populate === 'true');
   if (!doc || doc.status !== 'Disponible') return res.status(404).json({ message: 'No encontrado' });
-  res.json(await hydrateMonumentMedia(doc));
+  res.json(toPublicMonument(await hydrateMonumentMedia(doc)));
 }
 
 export async function getMonumentAdmin(req, res) {
@@ -300,7 +196,8 @@ export async function searchMonumentsController(req, res) {
       populate: req.query.populate === 'true' 
     });
     
-    res.json({ page, total, items });
+    const hydratedItems = await Promise.all(items.map(hydrateMonumentMedia));
+    res.json({ page, total, items: hydratedItems.map(toPublicMonument) });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
