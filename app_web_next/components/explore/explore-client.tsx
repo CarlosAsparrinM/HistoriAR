@@ -21,11 +21,6 @@ export function ExploreClient({ initialData, initialText }: { initialData: Monum
   const [error, setError] = useState<string | null>(null);
   const latestRequest = useRef(0);
 
-  useEffect(() => {
-    setData(initialData);
-    setQuery(initialText);
-  }, [initialData, initialText]);
-
   async function load(text: string, page: number, append = false) {
     const request = ++latestRequest.current;
     setLoading(true);

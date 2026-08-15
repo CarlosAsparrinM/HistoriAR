@@ -15,17 +15,21 @@ export function BetaNotice() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const today = localDayKey();
+    const timer = window.setTimeout(() => {
+      const today = localDayKey();
 
-    try {
-      if (window.localStorage.getItem(STORAGE_KEY) !== today) {
-        window.localStorage.setItem(STORAGE_KEY, today);
+      try {
+        if (window.localStorage.getItem(STORAGE_KEY) !== today) {
+          window.localStorage.setItem(STORAGE_KEY, today);
+          setVisible(true);
+        }
+      } catch {
+        // Si el navegador bloquea el almacenamiento, se muestra el aviso en esta visita.
         setVisible(true);
       }
-    } catch {
-      // Si el navegador bloquea el almacenamiento, se muestra el aviso en esta visita.
-      setVisible(true);
-    }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, []);
 
   if (!visible) return null;

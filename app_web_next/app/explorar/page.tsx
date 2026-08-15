@@ -28,6 +28,6 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
   const initialData = await getMonuments({ text: q });
   return <div className="flutter-screen explore-screen">
     <JsonLd data={{ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Monumentos y sitios históricos del Perú', numberOfItems: initialData.total, itemListElement: initialData.items.map((monument, index) => ({ '@type': 'ListItem', position: index + 1, name: monument.name, url: absoluteUrl(`/monumentos/${encodeURIComponent(monument._id)}`) })) }} />
-    <AppHeader /><div className="explore-body"><ExploreClient initialData={initialData} initialText={q} /></div><AppFooter />
+    <AppHeader /><div className="explore-body"><ExploreClient key={q} initialData={initialData} initialText={q} /></div><AppFooter />
   </div>;
 }
