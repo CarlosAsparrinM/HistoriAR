@@ -32,6 +32,7 @@ button { cursor: pointer; }
 .explore-body { display: flex; min-height: 0; flex: 1; }
 .explore-page, .explore-stage { height: 100%; min-height: 0; flex: 1; }
 .explore-stage { display: grid; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: start; overflow: hidden; }
+.ad-banner-inner { position: sticky; top: 0; display: flex; align-items: center; justify-content: center; padding: 12px 0; }
 .explore-layout { display: grid; height: 100%; min-height: 0; grid-template-rows: 3fr 2fr; overflow: hidden; background: #fff; }
 .map { min-height: 0; z-index: 0; }
 .monument-list { display: flex; min-height: 0; flex-direction: column; overflow: hidden; border-top: 1px solid #e5e1e6; background: #fff; }
@@ -59,9 +60,9 @@ button { cursor: pointer; }
 .primary-button:disabled { opacity: .55; cursor: default; }
 .secondary-button { color: var(--primary); border: 1px solid var(--outline); background: transparent; box-shadow: none; }
 .empty, .error-state, .loading { display: grid; min-height: 240px; place-items: center; padding: 24px; text-align: center; }
-.page-with-ads { display: grid; min-height: 0; flex: 1; align-items: start; }
+.page-with-ad-space { display: grid; min-height: 0; flex: 1; align-items: start; }
 .detail-screen { height: 100vh; overflow: hidden; }
-.detail-screen .page-with-ads { min-height: 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
+.detail-screen .page-with-ad-space { min-height: 0; grid-template-rows: minmax(0, 1fr); overflow: hidden; }
 .detail-screen .detail { height: 100%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
 .detail-screen .detail::-webkit-scrollbar { display: none; }
 .detail { display: flex; gap: 0; flex-direction: column; }
@@ -89,11 +90,7 @@ button { cursor: pointer; }
 .quiz-promo .muted { margin-top: 4px; color: #616161; }
 .quiz-promo .primary-button { margin-top: 16px; border-radius: 20px; }
 .detail > .site-footer { margin-top: 32px; }
-.ad-slot { display: none; width: 160px; height: 600px; align-content: center; justify-items: center; gap: 8px; color: var(--primary); border: 1px solid var(--ad-border); border-radius: 8px; background: var(--ad-bg); text-align: center; }
-.ad-slot span { font-size: 11px; font-weight: 700; letter-spacing: 1.1px; }
-.ad-slot small { color: #6d625d; font-size: 12px; line-height: 18px; }
-.explore-ad-right, .page-with-ads > .ad-slot:last-child { display: none; }
-.explore-stage > .explore-ad { height: min(600px, calc(100% - 32px)); min-height: 0; }
+.ad-gutter { display: none; width: 160px; min-height: 1px; overflow: hidden; }
 .quiz-page { display: grid; min-height: calc(100vh - 64px); place-items: center; padding: 24px; }
 .section-card { padding: 28px; border: 0; border-radius: 12px; background: #fff; box-shadow: 0 2px 5px #0003; }
 .quiz { width: min(680px, 100%); margin: 0 auto; }
@@ -118,22 +115,14 @@ button { cursor: pointer; }
 .legal { max-width: 800px; margin: 0 auto; line-height: 1.6; }
 .legal h1, .legal h2 { color: var(--primary); }
 @media (min-width: 900px) {
-  .explore-stage, .page-with-ads { grid-template-columns: 180px minmax(0, 1fr); }
-  .ad-slot { display: grid; margin: 16px 8px 0 12px; }
-  .detail-screen .page-with-ads { grid-template-columns: 180px minmax(0, 1fr) 180px; }
-  .detail-screen .page-with-ads > .ad-slot:last-child { display: grid; margin: 16px 12px 0 8px; }
+  .explore-stage { grid-template-columns: 180px minmax(0, 1fr) 180px; }
+  .page-with-ad-space { grid-template-columns: 180px minmax(0, 1fr) 180px; }
+  .ad-gutter { display: block; }
 }
 @media (min-width: 1080px) {
   .explore-layout { grid-template-columns: 3fr 2fr; grid-template-rows: 1fr; }
   .monument-list { border-top: 0; border-left: 1px solid #e5e1e6; }
   .detail-grid { grid-template-columns: 1fr 1fr; }
-}
-@media (min-width: 1280px) {
-  .explore-stage, .page-with-ads { grid-template-columns: 180px minmax(0, 1fr) 180px; }
-  .explore-ad-right, .page-with-ads > .ad-slot:last-child { display: grid; margin: 16px 12px 0 8px; }
-}
-@media (max-width: 899px) {
-  .page-with-ads > .detail { grid-column: 1; }
 }
 @media (max-width: 600px) {
   .beta-notice { right: 12px; bottom: 12px; width: calc(100vw - 24px); align-items: flex-start; gap: 10px; }

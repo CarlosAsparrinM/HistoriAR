@@ -6,9 +6,9 @@ import Link from 'next/link';
 import { Box, Landmark, Search } from 'lucide-react';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
-import { BannerAd } from '@/components/ads/banner-ad';
 import { searchMonuments } from '@/lib/api/browser';
 import type { MonumentList } from '@/lib/api/schemas';
+import { AdBanner } from '@/components/ads/ad-banner';
 
 const MonumentMap = dynamic(() => import('@/components/explore/monument-map').then((module) => module.MonumentMap), {
   ssr: false,
@@ -58,9 +58,7 @@ export function ExploreClient({ initialData, initialText }: { initialData: Monum
     <section className="explore-page" aria-labelledby="explore-title">
       <h1 className="sr-only" id="explore-title">Explora monumentos y patrimonio cultural del Perú</h1>
       <div className="explore-stage">
-        <aside className="ad-slot explore-ad" aria-label="Espacio publicitario">
-          <BannerAd />
-        </aside>
+        <aside className="ad-gutter ad-gutter-left" aria-hidden="true"><AdBanner /></aside>
         <div className="explore-layout">
           <MonumentMap monuments={data.items} />
           <div className="monument-list" aria-busy={loading}>
@@ -81,9 +79,7 @@ export function ExploreClient({ initialData, initialText }: { initialData: Monum
           {data.items.length < data.total && <div className="load-more"><button className="secondary-button" disabled={loading} onClick={() => void load(query, data.page + 1, true)}>{loading ? 'Cargando…' : 'Cargar más'}</button></div>}
           </div>
         </div>
-        <aside className="ad-slot explore-ad explore-ad-right" aria-label="Espacio publicitario">
-          <BannerAd />
-        </aside>
+        <aside className="ad-gutter ad-gutter-right" aria-hidden="true"><AdBanner /></aside>
       </div>
     </section>
   );
